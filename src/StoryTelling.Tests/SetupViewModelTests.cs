@@ -1,4 +1,5 @@
 using StoryTelling.Application.Generation;
+using StoryTelling.Domain;
 using StoryTelling.Infrastructure.Diff;
 using StoryTelling.ViewModels;
 
@@ -73,9 +74,34 @@ public sealed class SetupViewModelTests
     }
 
     [Fact]
-    public void MapTarget_MapsPlot()
+    public void Knowledge_AddEditRemove_UpdatesCollection()
     {
-        Assert.Equal(GenerationTarget.Plot, SetupViewModel.MapTarget("Plot"));
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant());
+        var entry = new KnowledgeEntryEditorViewModel
+        {
+            Kind = KnowledgeKind.Place,
+            Title = "Ashen Reach",
+            Tags = "region, ash",
+            Content = "A frozen frontier.",
+        };
+
+        setup.AddKnowledge(entry);
+        Assert.Same(entry, setup.SelectedKnowledge);
+
+        var draft = entry.Clone();
+        draft.Title = "Ashen Reach (updated)";
+        setup.ApplyKnowledgeEdit(entry, draft);
+        Assert.Equal("Ashen Reach (updated)", entry.Title);
+
+        setup.RemoveKnowledge(entry);
+        Assert.Empty(setup.Knowledge);
+        Assert.Null(setup.SelectedKnowledge);
+    }
+
+    [Fact]
+    public void MapTarget_MapsFrame()
+    {
+        Assert.Equal(GenerationTarget.Frame, SetupViewModel.MapTarget("Frame"));
     }
 
     [Fact]

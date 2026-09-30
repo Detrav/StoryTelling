@@ -86,19 +86,35 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Plot">
+            <TabItem Header="Frame">
                 <ScrollViewer>
                     <StackPanel Margin="16" Spacing="8">
                         <TextBlock Text="Genre" Opacity="0.7" />
                         <TextBox Text="{Binding Genre}" LostFocus="OnCommit" />
                         <TextBlock Text="Tone" Opacity="0.7" />
                         <TextBox Text="{Binding Tone}" LostFocus="OnCommit" />
+                        <TextBlock Text="Style" Opacity="0.7" />
+                        <TextBox Text="{Binding Style}" LostFocus="OnCommit" />
+                        <Grid ColumnDefinitions="*,*,*">
+                            <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
+                                <TextBlock Text="Point of view" Opacity="0.7" />
+                                <TextBox Text="{Binding PointOfView}" LostFocus="OnCommit" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,6,0">
+                                <TextBlock Text="Tense" Opacity="0.7" />
+                                <TextBox Text="{Binding Tense}" LostFocus="OnCommit" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4" Margin="6,0,0,0">
+                                <TextBlock Text="Rating" Opacity="0.7" />
+                                <TextBox Text="{Binding Rating}" LostFocus="OnCommit" />
+                            </StackPanel>
+                        </Grid>
                         <TextBlock Text="Premise" Opacity="0.7" />
                         <TextBox Text="{Binding Premise}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" LostFocus="OnCommit" />
                         <TextBlock Text="Direction" Opacity="0.7" />
                         <TextBox Text="{Binding Direction}" LostFocus="OnCommit" />
                         <Button Content="Generate with AI"
-                                Tag="Plot"
+                                Tag="Frame"
                                 Click="OnGenerateClick"
                                 HorizontalAlignment="Left" />
                     </StackPanel>
@@ -144,12 +160,28 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Extra files">
+            <TabItem Header="Knowledge">
                 <Grid Margin="16" RowDefinitions="*,Auto" RowSpacing="8">
-                    <ListBox Grid.Row="0" ItemsSource="{Binding ExtraFiles}" />
+                    <ListBox Grid.Row="0"
+                             ItemsSource="{Binding Knowledge}"
+                             SelectedItem="{Binding SelectedKnowledge}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:KnowledgeEntryEditorViewModel">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Kind}" Opacity="0.6" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Tags}" Opacity="0.7" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-                        <Button Content="Add file…" />
-                        <Button Content="Generate with AI" Tag="ExtraFiles" Click="OnGenerateClick" />
+                        <Button Content="Add" Click="OnAddKnowledgeClick" />
+                        <Button Content="Import…" Click="OnImportKnowledgeClick" />
+                        <Button Content="Edit" Click="OnEditKnowledgeClick" />
+                        <Button Content="Delete" Click="OnDeleteKnowledgeClick" />
                     </StackPanel>
                 </Grid>
             </TabItem>

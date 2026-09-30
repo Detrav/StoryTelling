@@ -37,8 +37,8 @@ public sealed class WorkspaceViewModelTests
 
         workspace.ApplySetup(setup);
 
-        Assert.Equal("Wyverns nest in cliffs.", project.ExtraFiles.Single().Content);
-        Assert.Contains("lore", project.ExtraFiles.Single().Tags);
+        Assert.Equal("Wyverns nest in cliffs.", project.Knowledge.Single().Content);
+        Assert.Contains("lore", project.Knowledge.Single().Tags);
         Assert.Contains("brave", project.Characters.Single().Traits);
         Assert.Equal("Dusk above the keep", project.WorldState.TimeAndPlace);
         Assert.Equal("Aria crouches in the ruins.", project.WorldState.Description);
@@ -80,10 +80,10 @@ public sealed class WorkspaceViewModelTests
         [
             new Character { Name = "Aria", Description = "scout", Traits = ["brave"], Goals = "find her brother" },
         ],
-        Plot = new PlotDescription { ChapterCount = 1 },
-        ExtraFiles =
+        Frame = new StoryFrame(),
+        Knowledge =
         [
-            new ExtraFile { Name = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] },
+            new KnowledgeEntry { Kind = KnowledgeKind.Note, Title = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] },
         ],
         WorldState = new WorldState
         {

@@ -20,8 +20,6 @@ public sealed class Chapter
 
     public WorldState? WorldState { get; set; }
 
-    public List<ChapterCharacter> Characters { get; set; } = [];
-
     public ChapterStatus Status { get; set; } = ChapterStatus.Draft;
 
     public DateTimeOffset CreatedUtc { get; set; }

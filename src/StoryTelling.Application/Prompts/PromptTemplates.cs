@@ -13,6 +13,10 @@ public static class PromptTemplates
         ["WorldBody"] = "World description",
         ["Genre"] = "Genre",
         ["Tone"] = "Tone",
+        ["Style"] = "Style",
+        ["PointOfView"] = "Point of view",
+        ["Tense"] = "Tense",
+        ["Rating"] = "Rating",
         ["Premise"] = "Premise",
         ["Direction"] = "Direction",
     };

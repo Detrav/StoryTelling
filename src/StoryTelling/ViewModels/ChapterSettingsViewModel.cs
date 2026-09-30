@@ -1,6 +1,4 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
-using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
 
@@ -8,23 +6,13 @@ public partial class ChapterSettingsViewModel : ViewModelBase
 {
     private readonly ChapterViewModel _chapter;
     private readonly CommitDebouncer _debouncer;
-    private readonly List<CharacterParticipationViewModel> _participants;
 
-    public ChapterSettingsViewModel(ChapterViewModel chapter, IReadOnlyList<Character> characters, Action commit)
+    public ChapterSettingsViewModel(ChapterViewModel chapter, Action commit)
     {
         _chapter = chapter;
         _debouncer = new CommitDebouncer(commit, TimeSpan.FromMilliseconds(700));
         chapter.PropertyChanged += OnChapterChanged;
-
-        _participants = BuildParticipants(chapter, characters);
-        Participants = new ObservableCollection<CharacterParticipationViewModel>(_participants);
-        foreach (var participant in _participants)
-        {
-            participant.PropertyChanged += OnParticipationChanged;
-        }
     }
-
-    public ObservableCollection<CharacterParticipationViewModel> Participants { get; }
 
     public string Title
     {
@@ -81,33 +69,6 @@ public partial class ChapterSettingsViewModel : ViewModelBase
     };
 
     public void Commit() => _debouncer.CommitNow();
-
-    private static List<CharacterParticipationViewModel> BuildParticipants(ChapterViewModel chapter, IReadOnlyList<Character> characters)
-    {
-        var participants = new List<CharacterParticipationViewModel>();
-        foreach (var character in characters)
-        {
-            var link = chapter.Characters.FirstOrDefault(existing => existing.CharacterId == character.Id);
-            participants.Add(new CharacterParticipationViewModel(
-                character.Id,
-                string.IsNullOrWhiteSpace(character.Name) ? "(unnamed)" : character.Name,
-                link?.Presence == CharacterPresence.Full,
-                link?.Presence == CharacterPresence.NameOnly));
-        }
-
-        return participants;
-    }
-
-    private void OnParticipationChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is not (nameof(CharacterParticipationViewModel.IsFull) or nameof(CharacterParticipationViewModel.IsNameOnly)))
-        {
-            return;
-        }
-
-        _chapter.Characters = [.. _participants.Select(participant => participant.ToChapterCharacter()).OfType<ChapterCharacter>()];
-        _debouncer.Trigger();
-    }
 
     public void ApplyGenerated(string field, string text)
     {

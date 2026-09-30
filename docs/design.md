@@ -58,8 +58,8 @@ Chapter {
 
 Notes on the model:
 
-- `Frame` gains `Style`, `PointOfView`, `Tense`, `Rating` (today only genre/tone/premise/direction
-  exist). These are always-sent constraints.
+- `Frame` (`StoryFrame`) holds `Genre`, `Tone`, `Style`, `PointOfView`, `Tense`, `Rating`,
+  `Premise`, `Direction`. These are always-sent constraints.
 - `ExtraFile` is **removed**: files, items, events, places, factions, rules and free notes all
   become `KnowledgeEntry` records whose `Kind` differs. This is what makes them uniformly
   queryable.

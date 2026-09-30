@@ -29,6 +29,8 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Equal(original.Id, loaded.Id);
         Assert.Single(loaded.Chapters);
         Assert.Equal("Дым поднимался.", loaded.Chapters[0].Translations["ru"]);
+        Assert.Equal("bestiary.md", loaded.Knowledge.Single().Title);
+        Assert.Equal(KnowledgeKind.Note, loaded.Knowledge.Single().Kind);
     }
 
     [Fact]
@@ -44,6 +46,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Contains("\"worldState\"", json);
         Assert.Contains("\"timeAndPlace\"", json);
         Assert.Contains("\"description\"", json);
+        Assert.Contains("\"knowledge\"", json);
         Assert.Contains("\"Generated\"", json);
         Assert.Contains("Дым поднимался.", json);
         Assert.DoesNotContain(Directory.GetFiles(_directory), file => file.EndsWith(".tmp", StringComparison.Ordinal));
@@ -136,15 +139,14 @@ public sealed class JsonProjectRepositoryTests : IDisposable
                 Goals = "Find her missing brother.",
             },
         ],
-        Plot = new PlotDescription
+        Frame = new StoryFrame
         {
             Genre = "fantasy",
             Tone = "grim",
             Premise = "A rebellion against the ember throne.",
             Direction = "Rise, fracture, resolve.",
-            ChapterCount = 3,
         },
-        ExtraFiles = [new ExtraFile { Name = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] }],
+        Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Note, Title = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] }],
         Chapters =
         [
             new Chapter

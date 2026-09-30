@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
@@ -89,4 +90,76 @@ public partial class SetupWindow : Window
             setup.RemoveCharacter(selected);
         }
     }
+
+    private async void OnAddKnowledgeClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup)
+        {
+            return;
+        }
+
+        var entry = new KnowledgeEntryEditorViewModel();
+        var window = new KnowledgeEntryWindow { DataContext = entry };
+        if (await window.ShowDialog<bool>(this))
+        {
+            setup.AddKnowledge(entry);
+        }
+    }
+
+    private async void OnEditKnowledgeClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup || setup.SelectedKnowledge is not { } selected)
+        {
+            return;
+        }
+
+        var draft = selected.Clone();
+        var window = new KnowledgeEntryWindow { DataContext = draft };
+        if (await window.ShowDialog<bool>(this))
+        {
+            setup.ApplyKnowledgeEdit(selected, draft);
+        }
+    }
+
+    private async void OnDeleteKnowledgeClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup || setup.SelectedKnowledge is not { } selected)
+        {
+            return;
+        }
+
+        var title = string.IsNullOrWhiteSpace(selected.Title) ? "this entry" : selected.Title;
+        if (await ConfirmDialog.ShowAsync(this, "Delete entry", $"Delete \"{title}\"?"))
+        {
+            setup.RemoveKnowledge(selected);
+        }
+    }
+
+    private async void OnImportKnowledgeClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import notes",
+            AllowMultiple = true,
+            FileTypeFilter = [NoteFileType],
+        });
+
+        foreach (var file in files)
+        {
+            await using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+            setup.AddKnowledge(KnowledgeEntryEditorViewModel.FromImport(file.Name, content));
+        }
+    }
+
+    private static FilePickerFileType NoteFileType => new("Notes")
+    {
+        Patterns = ["*.txt", "*.md"],
+    };
 }

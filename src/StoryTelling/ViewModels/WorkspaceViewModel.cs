@@ -34,11 +34,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         if (Chapters.Count == 0)
         {
-            var count = Math.Max(1, project.Plot.ChapterCount);
-            for (var i = 0; i < count; i++)
-            {
-                AddNewChapter();
-            }
+            AddNewChapter();
         }
 
         _selectedChapter = Chapters[0];
@@ -156,10 +152,14 @@ public partial class WorkspaceViewModel : ViewModelBase
             ProjectName = ProjectName,
             WorldTitle = _project.Lore.Title,
             WorldBody = _project.Lore.Body,
-            Genre = _project.Plot.Genre,
-            Tone = _project.Plot.Tone,
-            Premise = _project.Plot.Premise,
-            Direction = _project.Plot.Direction,
+            Genre = _project.Frame.Genre,
+            Tone = _project.Frame.Tone,
+            Style = _project.Frame.Style,
+            PointOfView = _project.Frame.PointOfView,
+            Tense = _project.Frame.Tense,
+            Rating = _project.Frame.Rating,
+            Premise = _project.Frame.Premise,
+            Direction = _project.Frame.Direction,
             WorldStateTimeAndPlace = _project.WorldState.TimeAndPlace,
             WorldStateDescription = _project.WorldState.Description,
         };
@@ -178,9 +178,9 @@ public partial class WorkspaceViewModel : ViewModelBase
                 character.Traits));
         }
 
-        foreach (var file in _project.ExtraFiles)
+        foreach (var entry in _project.Knowledge)
         {
-            setup.ExtraFiles.Add(file.Name);
+            setup.Knowledge.Add(new KnowledgeEntryEditorViewModel(entry));
         }
 
         return setup;
@@ -195,16 +195,19 @@ public partial class WorkspaceViewModel : ViewModelBase
         _project.Lore.Title = setup.WorldTitle;
         _project.Lore.Body = setup.WorldBody;
         _project.Characters = MergeCharacters(_project.Characters, setup.Characters);
-        _project.Plot.Genre = setup.Genre;
-        _project.Plot.Tone = setup.Tone;
-        _project.Plot.Premise = setup.Premise;
-        _project.Plot.Direction = setup.Direction;
-        _project.ExtraFiles = MergeExtraFiles(_project.ExtraFiles, setup.ExtraFiles);
+        _project.Frame.Genre = setup.Genre;
+        _project.Frame.Tone = setup.Tone;
+        _project.Frame.Style = setup.Style;
+        _project.Frame.PointOfView = setup.PointOfView;
+        _project.Frame.Tense = setup.Tense;
+        _project.Frame.Rating = setup.Rating;
+        _project.Frame.Premise = setup.Premise;
+        _project.Frame.Direction = setup.Direction;
+        _project.Knowledge = [.. setup.Knowledge.Select(entry => entry.ToEntry())];
         _project.WorldState.TimeAndPlace = setup.WorldStateTimeAndPlace;
         _project.WorldState.Description = setup.WorldStateDescription;
 
         UpdateLanguages(setup.SelectedLanguageCodes);
-        _project.Plot.ChapterCount = Chapters.Count;
         IsDirty = true;
     }
 
@@ -212,7 +215,6 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         _project.Name = ProjectName;
         _project.Settings.TargetLanguages = Languages.ToList();
-        _project.Plot.ChapterCount = Chapters.Count;
         _project.Chapters = Chapters.Select(ToChapter).ToList();
         return _project;
     }
@@ -315,7 +317,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             new ChapterSummaryViewModel(chapter, () => Mutated?.Invoke($"Edit summary of chapter {chapter.Number}"))));
         chapter.Tabs.Add(new ChapterTabViewModel(
             "Settings",
-            new ChapterSettingsViewModel(chapter, _project.Characters, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"))));
+            new ChapterSettingsViewModel(chapter, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"))));
     }
 
     private static ChapterViewModel FromChapter(Chapter chapter)
@@ -332,7 +334,6 @@ public partial class WorkspaceViewModel : ViewModelBase
             Logline = chapter.Logline,
             CreatedUtc = chapter.CreatedUtc,
             WorldState = chapter.WorldState,
-            Characters = [.. chapter.Characters],
         };
 
         foreach (var translation in chapter.Translations)
@@ -355,7 +356,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         Logline = viewModel.Logline,
         CreatedUtc = viewModel.CreatedUtc,
         WorldState = viewModel.WorldState,
-        Characters = [.. viewModel.Characters],
         Translations = new SortedDictionary<string, string>(
             viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
     };
@@ -378,18 +378,6 @@ public partial class WorkspaceViewModel : ViewModelBase
             character.Goals = editor.Goals;
             character.Traits = [.. editor.TraitList];
             result.Add(character);
-        }
-
-        return result;
-    }
-
-    private static List<ExtraFile> MergeExtraFiles(IReadOnlyList<ExtraFile> existing, IEnumerable<string> names)
-    {
-        var result = new List<ExtraFile>();
-        foreach (var name in names)
-        {
-            var match = existing.FirstOrDefault(file => string.Equals(file.Name, name, StringComparison.Ordinal));
-            result.Add(match ?? new ExtraFile { Name = name });
         }
 
         return result;

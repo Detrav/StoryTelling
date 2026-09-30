@@ -373,7 +373,6 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
             CreatedUtc = _clock.UtcNow,
             UpdatedUtc = _clock.UtcNow,
             Settings = new StorySettings { TargetLanguages = targets },
-            Plot = new PlotDescription { ChapterCount = 1 },
         };
     }
 }

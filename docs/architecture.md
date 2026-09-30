@@ -29,8 +29,8 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 
 ## Layers
 
-- **Domain** — pure data: `Project`, `Character`, `WorldLore`, `PlotDescription`, `Chapter`,
-  `WorldState`, `ExtraFile`.
+- **Domain** — pure data: `Project`, `StoryFrame`, `WorldLore`, `Character`, `KnowledgeEntry`,
+  `WorldState`, `Chapter`.
 - **Application** — behaviour: prompt building, pipeline orchestration, retrieval, validation.
   Declares the interfaces implemented by `Infrastructure`.
 - **Infrastructure** — external concerns: JSON project persistence, the HTTP LLM client,

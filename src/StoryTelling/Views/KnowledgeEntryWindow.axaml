@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:StoryTelling.ViewModels"
+        x:Class="StoryTelling.Views.KnowledgeEntryWindow"
+        x:DataType="vm:KnowledgeEntryEditorViewModel"
+        Title="Knowledge entry"
+        Width="620"
+        Height="640"
+        MinWidth="460"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom"
+                Padding="14"
+                BorderThickness="0,1,0,0"
+                BorderBrush="#22000000">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" Click="OnCancelClick" />
+                <Button Content="OK" Classes="accent" Click="OnOkClick" IsEnabled="{Binding HasTitle}" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer>
+            <StackPanel Margin="18" Spacing="6">
+                <TextBlock Text="Kind" Opacity="0.7" />
+                <ComboBox ItemsSource="{Binding Kinds}" SelectedItem="{Binding Kind}" HorizontalAlignment="Left" Width="200" />
+
+                <TextBlock Text="Title" Opacity="0.7" />
+                <TextBox Text="{Binding Title}" />
+
+                <TextBlock Text="Tags (comma separated)" Opacity="0.7" />
+                <TextBox Text="{Binding Tags}" />
+
+                <TextBlock Text="Content" Opacity="0.7" />
+                <TextBox Text="{Binding Content}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="340"
+                         VerticalContentAlignment="Top" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+
+</Window>

@@ -18,9 +18,9 @@ public sealed class Project
 
     public List<Character> Characters { get; set; } = [];
 
-    public PlotDescription Plot { get; set; } = new();
+    public StoryFrame Frame { get; set; } = new();
 
-    public List<ExtraFile> ExtraFiles { get; set; } = [];
+    public List<KnowledgeEntry> Knowledge { get; set; } = [];
 
     public List<Chapter> Chapters { get; set; } = [];
 

@@ -20,10 +20,14 @@ public static class GenerationTargets
             [
                 new("Premise", "premise", "Premise", "A compelling story premise (2-4 sentences)."),
             ],
-            [GenerationTarget.Plot] =
+            [GenerationTarget.Frame] =
             [
                 new("Genre", "genre", "Genre", "The story's genre, e.g. 'dark fantasy'."),
                 new("Tone", "tone", "Tone", "The overall tone and mood, e.g. 'grim, hopeful, lyrical'."),
+                new("Style", "style", "Style", "The narrative voice, e.g. 'terse, atmospheric, sensory-heavy'."),
+                new("PointOfView", "pointOfView", "Point of view", "e.g. 'third person limited', 'first person'."),
+                new("Tense", "tense", "Tense", "e.g. 'past', 'present'."),
+                new("Rating", "rating", "Rating", "Content rating, e.g. 'PG-13', 'R'."),
                 new("Premise", "premise", "Premise", "A compelling story premise (2-4 sentences)."),
                 new("Direction", "direction", "Direction", "The intended overall arc and where the story is heading (2-3 sentences)."),
             ],
@@ -38,10 +42,6 @@ public static class GenerationTargets
                 new("Goals", "goals", "Goals", "What they want and why. Leave empty if unclear."),
                 new("Traits", "traits", "Traits", "Short comma-separated tags, e.g. 'brave, sarcastic, loyal'."),
             ],
-            [GenerationTarget.ExtraFiles] =
-            [
-                new("ExtraFiles", "notes", "Extra file", "Concise author's notes about the story's background."),
-            ],
             [GenerationTarget.WorldState] =
             [
                 new("TimeAndPlace", "timeAndPlace", "Time and place", "When and where the story opens (a short phrase)."),
@@ -55,10 +55,9 @@ public static class GenerationTargets
     {
         GenerationTarget.World => "World",
         GenerationTarget.ProjectName => "Book name",
-        GenerationTarget.Plot => "Plot",
+        GenerationTarget.Frame => "Frame",
         GenerationTarget.Premise => "Premise",
         GenerationTarget.Character => "Character",
-        GenerationTarget.ExtraFiles => "Extra file",
         GenerationTarget.WorldState => "World state",
         _ => target.ToString(),
     };
@@ -67,10 +66,9 @@ public static class GenerationTargets
     {
         GenerationTarget.World => "Invent the story's world: a name and a vivid description of its setting.",
         GenerationTarget.ProjectName => "Suggest a short, evocative title for the book.",
-        GenerationTarget.Plot => "Outline the plot: genre, tone, premise and the overall direction, keeping them consistent with each other.",
+        GenerationTarget.Frame => "Define the story's frame: genre, tone, narrative style, point of view, tense, rating, premise and overall direction. Keep them consistent with each other.",
         GenerationTarget.Premise => "Write a compelling story premise.",
         GenerationTarget.Character => "Create a story character: name, role, age, description, personality, background, goals and traits. Any field may be left empty if it does not apply.",
-        GenerationTarget.ExtraFiles => "Draft concise author's notes about the story's background.",
         GenerationTarget.WorldState => "Describe the situation right before chapter 1: when and where the story opens, and what is happening.",
         _ => "Describe the requested field.",
     };

@@ -51,8 +51,9 @@ Every chapter action is available both from the toolbar and from the **Chapter**
   - *Summary* — the state after the chapter: a logline plus the new world state (time and place
     + a free-form description). This is the only story memory carried forward.
   - *Settings* — the chapter's own settings: title, direction (what should happen), notes and the
-    generation status; each text field has a *Generate with AI* button. Which characters appear
-    is decided by the writer (via tools), not by hand.
+    generation status. The title and direction have a *Generate with AI* button (fully wired once
+    the chapter pipeline exists). Which characters appear is decided by the writer (via tools),
+    not by hand.
 
 ## Project setup (dialog)
 
@@ -66,9 +67,10 @@ rest is split into tabs. The tabs follow a recommended, dependency-driven order 
 3. **Characters** — list with add / edit / delete. The shared character dialog edits name, role,
    age, description, personality, background, goals and traits (tags), and has its own *Generate
    with AI* that uses the current field values as a draft (all fields are optional).
-4. **Knowledge** — notes and entities (places, items, events, factions, rules): add / import a
-   file / edit / delete. Today this is the *Extra files* tab; the AI can help split imports into
-   typed entries later.
+4. **Knowledge** — notes and entities (places, items, events, factions, rules) stored as
+   knowledge entries. The list shows each entry's title, kind and tags; entries can be added,
+   edited, deleted, or imported from a `.txt` / `.md` file. A *Generate with AI* for notes
+   arrives later, once the tools/agent exist.
 5. **World state** — the situation before chapter 1: time and place plus a free-form description,
    with a group *Generate with AI*.
 6. **Languages** — checkboxes picking the project's target languages from the global catalog.

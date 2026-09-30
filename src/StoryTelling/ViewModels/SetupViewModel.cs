@@ -56,6 +56,18 @@ public partial class SetupViewModel : UndoableDialogViewModel
     private string _direction = string.Empty;
 
     [ObservableProperty]
+    private string _style = string.Empty;
+
+    [ObservableProperty]
+    private string _pointOfView = string.Empty;
+
+    [ObservableProperty]
+    private string _tense = string.Empty;
+
+    [ObservableProperty]
+    private string _rating = string.Empty;
+
+    [ObservableProperty]
     private string _worldStateTimeAndPlace = string.Empty;
 
     [ObservableProperty]
@@ -66,7 +78,10 @@ public partial class SetupViewModel : UndoableDialogViewModel
     [ObservableProperty]
     private CharacterEditorViewModel? _selectedCharacter;
 
-    public ObservableCollection<string> ExtraFiles { get; } = [];
+    public ObservableCollection<KnowledgeEntryEditorViewModel> Knowledge { get; } = [];
+
+    [ObservableProperty]
+    private KnowledgeEntryEditorViewModel? _selectedKnowledge;
 
     public string LabelFor(string field) => field switch
     {
@@ -75,7 +90,6 @@ public partial class SetupViewModel : UndoableDialogViewModel
         "WorldBody" => "World description",
         "Characters" => "Characters",
         "Premise" => "Premise",
-        "ExtraFiles" => "Extra file",
         "WorldState" => "Initial world state",
         _ => field,
     };
@@ -136,6 +150,10 @@ public partial class SetupViewModel : UndoableDialogViewModel
         ["WorldBody"] = WorldBody,
         ["Genre"] = Genre,
         ["Tone"] = Tone,
+        ["Style"] = Style,
+        ["PointOfView"] = PointOfView,
+        ["Tense"] = Tense,
+        ["Rating"] = Rating,
         ["Premise"] = Premise,
         ["Direction"] = Direction,
     };
@@ -175,8 +193,17 @@ public partial class SetupViewModel : UndoableDialogViewModel
             case "Direction":
                 Direction = FirstLine(text);
                 break;
-            case "ExtraFiles":
-                ExtraFiles.Add(FirstLine(text));
+            case "Style":
+                Style = text;
+                break;
+            case "PointOfView":
+                PointOfView = FirstLine(text);
+                break;
+            case "Tense":
+                Tense = FirstLine(text);
+                break;
+            case "Rating":
+                Rating = FirstLine(text);
                 break;
             case "TimeAndPlace":
                 WorldStateTimeAndPlace = FirstLine(text);
@@ -195,6 +222,10 @@ public partial class SetupViewModel : UndoableDialogViewModel
             WorldBody,
             Genre,
             Tone,
+            Style,
+            PointOfView,
+            Tense,
+            Rating,
             Premise,
             Direction,
             WorldStateTimeAndPlace,
@@ -209,7 +240,7 @@ public partial class SetupViewModel : UndoableDialogViewModel
                 character.Background,
                 character.Goals,
                 character.Traits))],
-            [.. ExtraFiles],
+            [.. Knowledge.Select(entry => new KnowledgeSnapshot(entry.Id, entry.Kind, entry.Title, entry.Tags, entry.Content))],
             [.. SelectedLanguageCodes]);
 
         return JsonSerializer.Serialize(snapshot);
@@ -228,13 +259,17 @@ public partial class SetupViewModel : UndoableDialogViewModel
         WorldBody = snapshot.WorldBody;
         Genre = snapshot.Genre;
         Tone = snapshot.Tone;
+        Style = snapshot.Style;
+        PointOfView = snapshot.PointOfView;
+        Tense = snapshot.Tense;
+        Rating = snapshot.Rating;
         Premise = snapshot.Premise;
         Direction = snapshot.Direction;
         WorldStateTimeAndPlace = snapshot.WorldStateTimeAndPlace;
         WorldStateDescription = snapshot.WorldStateDescription;
 
         ReplaceCharacters(snapshot.Characters);
-        Replace(ExtraFiles, snapshot.ExtraFiles);
+        ReplaceKnowledge(snapshot.Knowledge);
 
         foreach (var selection in LanguageSelections)
         {
@@ -242,12 +277,20 @@ public partial class SetupViewModel : UndoableDialogViewModel
         }
     }
 
-    private static void Replace(ObservableCollection<string> target, IReadOnlyList<string> values)
+    private void ReplaceKnowledge(IReadOnlyList<KnowledgeSnapshot> values)
     {
-        target.Clear();
+        Knowledge.Clear();
+        SelectedKnowledge = null;
         foreach (var value in values)
         {
-            target.Add(value);
+            Knowledge.Add(new KnowledgeEntryEditorViewModel
+            {
+                Id = value.Id,
+                Kind = value.Kind,
+                Title = value.Title,
+                Tags = value.Tags,
+                Content = value.Content,
+            });
         }
     }
 
@@ -268,6 +311,30 @@ public partial class SetupViewModel : UndoableDialogViewModel
                 value.Goals,
                 value.Traits));
         }
+    }
+
+    public void AddKnowledge(KnowledgeEntryEditorViewModel entry)
+    {
+        Knowledge.Add(entry);
+        SelectedKnowledge = entry;
+        Commit();
+    }
+
+    public void ApplyKnowledgeEdit(KnowledgeEntryEditorViewModel target, KnowledgeEntryEditorViewModel draft)
+    {
+        target.CopyFrom(draft);
+        Commit();
+    }
+
+    public void RemoveKnowledge(KnowledgeEntryEditorViewModel entry)
+    {
+        Knowledge.Remove(entry);
+        if (ReferenceEquals(SelectedKnowledge, entry))
+        {
+            SelectedKnowledge = null;
+        }
+
+        Commit();
     }
 
     public void AddCharacter(CharacterEditorViewModel character)
@@ -298,9 +365,8 @@ public partial class SetupViewModel : UndoableDialogViewModel
     {
         "ProjectName" => GenerationTarget.ProjectName,
         "World" => GenerationTarget.World,
-        "Plot" => GenerationTarget.Plot,
+        "Frame" => GenerationTarget.Frame,
         "Premise" => GenerationTarget.Premise,
-        "ExtraFiles" => GenerationTarget.ExtraFiles,
         "WorldState" => GenerationTarget.WorldState,
         _ => GenerationTarget.World,
     };
@@ -317,13 +383,19 @@ public partial class SetupViewModel : UndoableDialogViewModel
         string WorldBody,
         string Genre,
         string Tone,
+        string Style,
+        string PointOfView,
+        string Tense,
+        string Rating,
         string Premise,
         string Direction,
         string WorldStateTimeAndPlace,
         string WorldStateDescription,
         List<CharacterSnapshot> Characters,
-        List<string> ExtraFiles,
+        List<KnowledgeSnapshot> Knowledge,
         List<string> Languages);
+
+    private sealed record KnowledgeSnapshot(Guid Id, KnowledgeKind Kind, string Title, string Tags, string Content);
 
     private sealed record CharacterSnapshot(
         Guid Id,
