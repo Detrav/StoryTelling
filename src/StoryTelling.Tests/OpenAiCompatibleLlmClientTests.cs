@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json.Nodes;
 using StoryTelling.Application.Llm;
 using StoryTelling.Infrastructure.Llm;
 
@@ -215,6 +216,50 @@ public sealed class OpenAiCompatibleLlmClientTests
 
         Assert.False(support.Supported);
         Assert.Contains("json_schema", support.Detail);
+    }
+
+    [Fact]
+    public async Task CompleteWithToolsAsync_EncodesToolsAndParsesToolCalls()
+    {
+        var (client, handler) = Create((_, _) => Task.FromResult(Json(HttpStatusCode.OK,
+            """{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_character","arguments":"{\"name\":\"Aria\"}"}}]}}]}""")));
+
+        var response = await client.CompleteWithToolsAsync(
+            _connection,
+            Request(),
+            [new LlmTool("get_character", "Get a character.", new JsonObject { ["type"] = "object" })]);
+
+        Assert.Equal("tool_calls", response.FinishReason);
+        var call = Assert.Single(response.ToolCalls);
+        Assert.Equal("get_character", call.Name);
+        Assert.Equal("{\"name\":\"Aria\"}", call.Arguments);
+        Assert.Contains("\"tools\"", handler.LastRequestBody);
+        Assert.Contains("\"tool_choice\":\"auto\"", handler.LastRequestBody);
+    }
+
+    [Fact]
+    public async Task CompleteWithToolsAsync_SerializesAssistantToolCallsAndToolMessages()
+    {
+        var (client, handler) = Create((_, _) => Task.FromResult(Json(HttpStatusCode.OK,
+            """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"done"}}]}""")));
+        var request = new LlmRequest
+        {
+            Model = "m",
+            Messages =
+            [
+                LlmMessage.User("hi"),
+                LlmMessage.AssistantToolCalls(string.Empty, [new LlmToolCall("c1", "characters", "{}")]),
+                LlmMessage.Tool("c1", "Aria (protagonist)"),
+            ],
+        };
+
+        await client.CompleteWithToolsAsync(_connection, request, [new LlmTool("characters", "d", new JsonObject())]);
+
+        var body = handler.LastRequestBody!;
+        Assert.Contains("\"tool_calls\"", body);
+        Assert.Contains("\"tool_call_id\":\"c1\"", body);
+        Assert.Contains("\"role\":\"tool\"", body);
+        Assert.Contains("\"name\":\"characters\"", body);
     }
 
     private static LlmRequest Request() => new()

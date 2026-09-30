@@ -48,7 +48,7 @@ public sealed class AiWizardViewModelTests
     [Fact]
     public async Task Stop_CancelsGeneration()
     {
-        var viewModel = new AiWizardViewModel("World", GenerationTarget.World, (_, _, token) =>
+        var viewModel = new AiWizardViewModel("World", GenerationTarget.World, (_, _, _, _, token) =>
         {
             var completion = new TaskCompletionSource<IReadOnlyList<GenerationOption>>();
             token.Register(() => completion.SetCanceled(token));
@@ -76,5 +76,5 @@ public sealed class AiWizardViewModelTests
     }
 
     private static AiWizardViewModel.GenerateOptions Options(params GenerationOption[] options) =>
-        (_, _, _) => Task.FromResult<IReadOnlyList<GenerationOption>>(options);
+        (_, _, _, _, _) => Task.FromResult<IReadOnlyList<GenerationOption>>(options);
 }

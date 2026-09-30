@@ -130,6 +130,50 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         throw failure ?? new LlmException(LlmErrorKind.InvalidResponse, "Structured generation failed.");
     }
 
+    public async Task<LlmToolResponse> CompleteWithToolsAsync(
+        LlmConnection connection,
+        LlmRequest request,
+        IReadOnlyList<LlmTool> tools,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = BuildPayload(request, stream: false);
+        payload.Tools =
+        [
+            .. tools.Select(tool => new ChatToolPayload
+            {
+                Function = new ChatFunctionPayload
+                {
+                    Name = tool.Name,
+                    Description = tool.Description,
+                    Parameters = tool.Parameters,
+                },
+            }),
+        ];
+        payload.ToolChoice = "auto";
+
+        using var cts = CreateRequestCts(connection, cancellationToken);
+        using var response = await SendAsync(connection, payload, cts.Token, cancellationToken).ConfigureAwait(false);
+        var body = await ReadBodyAsync(response, cts.Token, cancellationToken).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw CreateHttpException(response.StatusCode, body);
+        }
+
+        var parsed = ParseResponse(body);
+        var choice = parsed.Choices is { Count: > 0 } choices ? choices[0] : null;
+        var message = choice?.Message;
+
+        IReadOnlyList<LlmToolCall> toolCalls = message?.ToolCalls is { Count: > 0 } calls
+            ? [.. calls.Select(call => new LlmToolCall(
+                call.Id ?? string.Empty,
+                call.Function?.Name ?? string.Empty,
+                string.IsNullOrWhiteSpace(call.Function?.Arguments) ? "{}" : call.Function!.Arguments!))]
+            : [];
+
+        return new LlmToolResponse(message?.Content ?? string.Empty, choice?.FinishReason ?? string.Empty, toolCalls);
+    }
+
     public async Task<T> CompleteStructuredAsync<T>(
         LlmConnection connection,
         LlmRequest request,
@@ -279,6 +323,15 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
             {
                 Role = RoleName(message.Role),
                 Content = message.Content,
+                ToolCallId = message.ToolCallId,
+                ToolCalls = message.ToolCalls.Count == 0
+                    ? null
+                    : [.. message.ToolCalls.Select(call => new ChatToolCallPayload
+                    {
+                        Id = call.Id,
+                        Type = "function",
+                        Function = new ChatFunctionCallPayload { Name = call.Name, Arguments = call.Arguments },
+                    })],
             })],
         };
 
@@ -298,6 +351,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
     {
         LlmRole.System => "system",
         LlmRole.Assistant => "assistant",
+        LlmRole.Tool => "tool",
         _ => "user",
     };
 

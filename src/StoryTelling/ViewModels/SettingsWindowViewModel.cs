@@ -26,6 +26,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         _apiKey = settings.ApiKey;
         _timeoutSeconds = settings.TimeoutSeconds;
         _maxTokens = settings.MaxTokens;
+        _maxToolCalls = settings.MaxToolCalls;
         _temperature = settings.Temperature;
         _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
@@ -60,6 +61,9 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
 
     [ObservableProperty]
     private int _maxTokens;
+
+    [ObservableProperty]
+    private int _maxToolCalls;
 
     [ObservableProperty]
     private double _temperature;
@@ -157,6 +161,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         ApiKey = ApiKey,
         TimeoutSeconds = TimeoutSeconds,
         MaxTokens = MaxTokens,
+        MaxToolCalls = MaxToolCalls,
         Temperature = Temperature,
         DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
         Languages = Languages.ToList(),
@@ -172,6 +177,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             ApiKey,
             TimeoutSeconds,
             MaxTokens,
+            MaxToolCalls,
             Temperature,
             SelectedDefault?.Code ?? _original.DefaultLanguageCode,
             [.. Languages]);
@@ -193,6 +199,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         ApiKey = snapshot.ApiKey;
         TimeoutSeconds = snapshot.TimeoutSeconds;
         MaxTokens = snapshot.MaxTokens;
+        MaxToolCalls = snapshot.MaxToolCalls;
         Temperature = snapshot.Temperature;
 
         Languages.Clear();
@@ -212,6 +219,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         string ApiKey,
         int TimeoutSeconds,
         int MaxTokens,
+        int MaxToolCalls,
         double Temperature,
         string DefaultLanguageCode,
         List<LanguageData> Languages);

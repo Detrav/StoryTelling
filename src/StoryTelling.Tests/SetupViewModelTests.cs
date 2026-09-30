@@ -10,7 +10,7 @@ public sealed class SetupViewModelTests
     [Fact]
     public void AddCharacter_And_RemoveCharacter_UpdateCollection()
     {
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant());
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter());
         var character = new CharacterEditorViewModel { Name = "Aria", Traits = "brave, quick" };
 
         setup.AddCharacter(character);
@@ -27,7 +27,7 @@ public sealed class SetupViewModelTests
     [Fact]
     public void ApplyGenerated_SetsGroupedFields()
     {
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant());
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter());
 
         setup.ApplyGenerated(new Dictionary<string, string>
         {
@@ -42,7 +42,7 @@ public sealed class SetupViewModelTests
     [Fact]
     public void ApplyGenerated_SetsPlotFields()
     {
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant());
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter());
 
         setup.ApplyGenerated(new Dictionary<string, string>
         {
@@ -61,7 +61,7 @@ public sealed class SetupViewModelTests
     [Fact]
     public void ApplyGenerated_SetsWorldStateFields()
     {
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant());
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter());
 
         setup.ApplyGenerated(new Dictionary<string, string>
         {
@@ -76,7 +76,7 @@ public sealed class SetupViewModelTests
     [Fact]
     public void Knowledge_AddEditRemove_UpdatesCollection()
     {
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant());
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter());
         var entry = new KnowledgeEntryEditorViewModel
         {
             Kind = KnowledgeKind.Place,
@@ -108,29 +108,30 @@ public sealed class SetupViewModelTests
     public async Task GenerateCharacterAsync_UsesCharacterTargetAndDraft()
     {
         var assistant = new FakeGenerationAssistant();
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant);
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant, new FakeKnowledgeImporter());
         var character = new CharacterEditorViewModel { Name = "Aria", Role = "protagonist" };
 
-        await setup.GenerateCharacterAsync(character, "brisk", 1, CancellationToken.None);
+        await setup.GenerateCharacterAsync(character, "brisk", 1, new GenerationSession(), null, CancellationToken.None);
 
         Assert.NotNull(assistant.LastRequest);
         Assert.Equal(GenerationTarget.Character, assistant.LastRequest!.Target);
         Assert.Equal("Aria", assistant.LastRequest.Context.Fields["Name"]);
         Assert.Equal("brisk", assistant.LastRequest.Brief);
         Assert.Equal(1, assistant.LastRequest.Variants);
+        Assert.NotNull(assistant.LastRequest.Snapshot);
     }
 
     [Fact]
     public async Task GenerateCharacterAsync_ExcludesCurrentAndIncludesOthers()
     {
         var assistant = new FakeGenerationAssistant();
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant);
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant, new FakeKnowledgeImporter());
         var aria = new CharacterEditorViewModel { Name = "Aria", Role = "protagonist" };
         var bran = new CharacterEditorViewModel { Name = "Bran", Role = "smith" };
         setup.AddCharacter(aria);
         setup.AddCharacter(bran);
 
-        await setup.GenerateCharacterAsync(aria, "brief", 2, CancellationToken.None);
+        await setup.GenerateCharacterAsync(aria, "brief", 2, new GenerationSession(), null, CancellationToken.None);
 
         var cast = assistant.LastRequest!.Context.Cast;
         Assert.Contains(cast, entry => entry.Contains("Bran"));

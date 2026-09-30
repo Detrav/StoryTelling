@@ -9,12 +9,13 @@ namespace StoryTelling.ViewModels;
 
 public partial class AiWizardViewModel : ViewModelBase
 {
-    public delegate Task<IReadOnlyList<GenerationOption>> GenerateOptions(string brief, int options, CancellationToken cancellationToken);
+    public delegate Task<IReadOnlyList<GenerationOption>> GenerateOptions(string brief, int options, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken);
 
     private readonly GenerateOptions _generate;
     private readonly IReadOnlyList<GenerationFieldSpec> _specs;
     private readonly string? _editableField;
     private CancellationTokenSource? _cts;
+    private GenerationSession _session = new();
 
     public AiWizardViewModel(string label, GenerationTarget target, GenerateOptions generate)
     {
@@ -93,16 +94,26 @@ public partial class AiWizardViewModel : ViewModelBase
         IsBusy = true;
         Status = "Generating…";
 
+        if (!string.Equals(_session.Brief, Brief, StringComparison.Ordinal))
+        {
+            _session = new GenerationSession();
+        }
+
+        var progress = new Progress<GenerationProgress>(report =>
+            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…");
+
         try
         {
-            var options = await _generate(Brief, OptionCount, token);
+            var options = await _generate(Brief, OptionCount, _session, progress, token);
             foreach (var option in options)
             {
                 Options.Add(new GenerationOptionViewModel(Format(option), option.Fields));
             }
 
             SelectedOption ??= Options.FirstOrDefault();
-            Status = options.Count == 0 ? "No options were returned." : string.Empty;
+            Status = options.Count == 0
+                ? "No options were returned."
+                : $"{options.Count} options · {_session.ToolCalls} tool calls";
         }
         catch (OperationCanceledException)
         {

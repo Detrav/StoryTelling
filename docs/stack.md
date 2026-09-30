@@ -8,7 +8,8 @@
 | DI | Microsoft.Extensions.DependencyInjection (composition root in the app project) |
 | Logging | Microsoft.Extensions.Logging + a minimal file provider (one file per run) |
 | Storage | single JSON file per project, `System.Text.Json` (source-generated context) |
-| LLM | abstraction + OpenAI-compatible HTTP client (OpenAI, OpenRouter, Ollama, LM Studio, ...) |
+| LLM | abstraction + OpenAI-compatible HTTP client (OpenAI, OpenRouter, Ollama, LM Studio, ...); streaming, JSON-schema output and tool calling |
+| Retrieval | BM25 over chunked knowledge entries (`Application`, no external service) |
 | Tests | xUnit |
 | UI language | English only (story text translated separately by the AI) |
 
@@ -28,8 +29,8 @@ Unknown JSON fields are ignored on load, so the schema can change without breaki
 - `PascalCase` types/members, `_camelCase` private fields.
 - Async I/O everywhere with `CancellationToken`; UI thread via `Dispatcher.UIThread` only when
   needed.
-- No secrets committed; the provider API key lives in user settings under AppData (environment
-  variables override).
+- No secrets committed; the provider API key lives in user settings under AppData.
+  Environment-variable overrides are planned, not yet implemented.
 
 ## Build / test / run
 

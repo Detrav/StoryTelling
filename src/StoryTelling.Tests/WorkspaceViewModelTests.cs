@@ -33,7 +33,7 @@ public sealed class WorkspaceViewModelTests
     {
         var project = SampleProject();
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp));
-        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant());
+        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter());
 
         workspace.ApplySetup(setup);
 

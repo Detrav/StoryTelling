@@ -18,6 +18,8 @@ public sealed class AppSettings
 
     public int MaxTokens { get; set; } = 16384;
 
+    public int MaxToolCalls { get; set; } = 12;
+
     public double Temperature { get; set; } = 0.8;
 
     public string DefaultLanguageCode { get; set; } = "ru";

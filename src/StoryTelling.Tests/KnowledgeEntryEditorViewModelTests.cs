@@ -25,16 +25,6 @@ public sealed class KnowledgeEntryEditorViewModelTests
     }
 
     [Fact]
-    public void FromImport_UsesFileNameAsTitle()
-    {
-        var editor = KnowledgeEntryEditorViewModel.FromImport("bestiary.md", "Wyverns nest in cliffs.");
-
-        Assert.Equal(KnowledgeKind.Note, editor.Kind);
-        Assert.Equal("bestiary", editor.Title);
-        Assert.Equal("Wyverns nest in cliffs.", editor.Content);
-    }
-
-    [Fact]
     public void CloneAndCopyFrom_PreserveFields()
     {
         var original = new KnowledgeEntryEditorViewModel

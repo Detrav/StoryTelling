@@ -17,6 +17,8 @@ internal sealed class FakeGenerationAssistant : IGenerationAssistant
 
     public Task<IReadOnlyList<GenerationOption>> GenerateAsync(
         GenerationRequest request,
+        GenerationSession? session = null,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         LastRequest = request;

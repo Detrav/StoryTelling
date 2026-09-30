@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
+using StoryTelling.Application.Knowledge;
 using StoryTelling.Infrastructure;
 using StoryTelling.Infrastructure.Diff;
 using StoryTelling.Infrastructure.Llm;
@@ -32,6 +33,7 @@ internal static class AppServices
         services.AddSingleton(new HttpClient { Timeout = Timeout.InfiniteTimeSpan });
         services.AddSingleton<ILlmClient, OpenAiCompatibleLlmClient>();
         services.AddSingleton<IGenerationAssistant, GenerationAssistant>();
+        services.AddSingleton<IKnowledgeImporter, KnowledgeImporter>();
         services.AddSingleton<MainWindowViewModel>();
 
         Provider = services.BuildServiceProvider();

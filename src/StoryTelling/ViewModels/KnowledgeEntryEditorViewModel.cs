@@ -60,11 +60,4 @@ public partial class KnowledgeEntryEditorViewModel : ObservableObject
         Tags = other.Tags;
         Content = other.Content;
     }
-
-    public static KnowledgeEntryEditorViewModel FromImport(string fileName, string content) => new()
-    {
-        Kind = KnowledgeKind.Note,
-        Title = Path.GetFileNameWithoutExtension(fileName),
-        Content = content,
-    };
 }

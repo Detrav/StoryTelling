@@ -1,8 +1,21 @@
 # Story engine — target design
 
 **Status:** target design (describes the intended architecture; not all of it is built yet).
-The current, smaller implementation is described in `architecture.md`; this document is the
-north star for where the project is going.
+The current implementation is described in `architecture.md`; this document is the north star for
+where the project is going.
+
+Already built (see `architecture.md`):
+
+- `StoryFrame`, `KnowledgeEntry` + the *Knowledge* editor and Markdown AI import (phase 4).
+- `StoryQuery`, BM25 retrieval, `StoryToolset`, `ToolAgent`, LLM tool calling (phase 5).
+- The *Generate with AI* wizard is tool-backed: any setting is generated from the whole project
+  (knowledge base included) through tools.
+
+Still to build:
+
+- The chapter agent (writer → editor → summarizer) and `IContextAssembler` (phase 6).
+- Translation and the remaining settings work (phase 7).
+- Setup rework: reorder tabs, keep docs in sync (phase 8).
 
 The product is, in the end, an AI **writer** that produces a coherent multi-chapter story plus an
 AI **editor** that fixes it, backed by a **queryable knowledge base** and a set of read-only
@@ -100,8 +113,12 @@ This sequence is a *recommended order*, not a blocking wizard; the author may ju
 
 - **Addressable entries.** Everything the writer may need is a `KnowledgeEntry` with `Kind`,
   `Title` and `Tags`. Retrieval and tools operate on these records.
-- **Import.** Importing a file creates one or more entries. Initially one entry per file
-  (`Kind = Note`); later an AI pass can split a large document into several typed entries.
+- **Import (Markdown).** Importing a `.md` file runs the AI over the content and turns it into
+  several typed entries: the text is chunked (preferring Markdown heading boundaries), each chunk
+  is extracted into `KnowledgeEntry` records via a `json_schema` (kind enum), and the results are
+  merged and de-duplicated by title. The user reviews the proposed entries (with checkboxes)
+  before they are added. This works for arbitrary material (campaign notes, game or world
+  descriptions).
 - **Retrieval.** A keyword/BM25 ranker (embeddings later) selects the most relevant entries or
   fragments for a query. Retrieval is exposed to the model as `search_knowledge`.
 - **State vs knowledge.** The rolling `WorldState` is always sent and kept tiny; durable facts
@@ -145,6 +162,12 @@ titles+kinds, chapter count) and pulls the rest itself with these tools. If a pr
 support tool calling, the feature is unavailable for that provider (no fallback path is planned
 for now).
 
+The same toolset also backs the *Generate with AI* wizard: field generation seeds the story frame,
+the target's own values as a draft and the manifests, then lets the model pull whatever else it
+needs — characters, world state, knowledge entries and search — bounded by a configurable
+`MaxToolCalls` (default 12). This is how the knowledge base and every other setting take part in
+generating any single field.
+
 ## 7. Roles (passes)
 
 - **Planner** (optional) — frame + state + cast → chapter directions / beats. Keeps the arc
@@ -187,13 +210,14 @@ assembler drops in priority order when over budget.
 
 ## 10. Roadmap
 
-1. **Data model migration** — `StoryFrame` (style/POV/tense/rating), `KnowledgeEntry`, retire
-   `ExtraFile` and `ChapterCharacter`.
-2. **Story query layer** — `StoryQuery` over `Project` (+ BM25 retrieval).
-3. **Tool calling** — extend the LLM client with `tools`/`tool_calls`; a declarative tool registry
-   over `StoryQuery`.
-4. **Agent pipeline** — writer loop, then summarizer, then editor; stale marking.
-5. **Setup rework** — ordered steps, knowledge editor (import + manual), AI parsing of imports.
+1. **Data model migration** — *done*: `StoryFrame`, `KnowledgeEntry`; `ExtraFile` and
+   `ChapterCharacter` retired.
+2. **Story query layer** — *done*: `StoryQuery` over `Project` + BM25 retrieval.
+3. **Tool calling** — *done*: LLM client `tools`/`tool_calls`, `StoryToolset` + `ToolAgent`;
+   field generation is tool-backed.
+4. **Agent pipeline** — *next*: writer loop, then editor, then summarizer; stale marking.
+5. **Setup rework** — partially done (Frame + Knowledge tabs, checkboxes removed); still to do:
+   tab reordering.
 
 ## 11. Open questions
 

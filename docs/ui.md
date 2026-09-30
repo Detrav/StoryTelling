@@ -59,8 +59,8 @@ Every chapter action is available both from the toolbar and from the **Chapter**
 
 A modal dialog, opened from *File → Project setup…*, sized so its content fits without
 scrolling. A fixed header holds the **book name** with its own *Generate with AI* button; the
-rest is split into tabs. The tabs follow a recommended, dependency-driven order (see
-`design.md` §3); the order is guidance, not a blocking wizard:
+rest is split into tabs. The intended order is dependency-driven (see `design.md` §3); the tabs
+are being moved into it, so the order below is the target, not necessarily the current tab order:
 
 1. **Frame** — book name, genre, tone, style / POV, premise, direction.
 2. **World** — lore title and body.
@@ -69,8 +69,9 @@ rest is split into tabs. The tabs follow a recommended, dependency-driven order 
    with AI* that uses the current field values as a draft (all fields are optional).
 4. **Knowledge** — notes and entities (places, items, events, factions, rules) stored as
    knowledge entries. The list shows each entry's title, kind and tags; entries can be added,
-   edited, deleted, or imported from a `.txt` / `.md` file. A *Generate with AI* for notes
-   arrives later, once the tools/agent exist.
+   edited, deleted, or **imported**: importing a `.md` (Markdown) file runs the AI over its content
+   (any material — campaign notes, game or world descriptions), which proposes typed entries in a
+   review dialog (checkboxes) before they are added.
 5. **World state** — the situation before chapter 1: time and place plus a free-form description,
    with a group *Generate with AI*.
 6. **Languages** — checkboxes picking the project's target languages from the global catalog.
@@ -92,7 +93,8 @@ Not a persistent chat. Invoked from a *Generate with AI* button; a modal wizard 
 A separate modal window, split into tabs:
 
 - **Provider** — preset (OpenAI / OpenRouter / Ollama / LM Studio), base URL, model, API key.
-- **Parameters** — timeout, max tokens, temperature, *Test connection*.
+- **Parameters** — timeout, max tokens, temperature, max tool calls (how many context lookups the
+  AI may make per generation), *Test connection*.
 - **Languages** — the global catalog: add (code + name), remove; the selected row is the
   default language for new projects.
 

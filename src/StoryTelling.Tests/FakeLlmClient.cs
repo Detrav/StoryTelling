@@ -23,6 +23,8 @@ internal sealed class FakeLlmClient : ILlmClient
 
     public LlmStructuredSupport StructuredSupport { get; set; } = new(true, null);
 
+    public LlmToolResponse ToolResponse { get; set; } = new(string.Empty, "stop", []);
+
     public Task<LlmCompletion> CompleteAsync(
         LlmConnection connection,
         LlmRequest request,
@@ -74,5 +76,16 @@ internal sealed class FakeLlmClient : ILlmClient
     {
         LastConnection = connection;
         return Task.FromResult(StructuredSupport);
+    }
+
+    public Task<LlmToolResponse> CompleteWithToolsAsync(
+        LlmConnection connection,
+        LlmRequest request,
+        IReadOnlyList<LlmTool> tools,
+        CancellationToken cancellationToken = default)
+    {
+        LastConnection = connection;
+        LastRequest = request;
+        return Task.FromResult(ToolResponse);
     }
 }

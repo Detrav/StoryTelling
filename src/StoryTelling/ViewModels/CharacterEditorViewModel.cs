@@ -55,7 +55,7 @@ public partial class CharacterEditorViewModel : ObservableObject
 
     public Guid Id { get; init; } = Guid.NewGuid();
 
-    public Func<string, int, CancellationToken, Task<IReadOnlyList<GenerationOption>>>? GenerateOptions { get; set; }
+    public Func<string, int, GenerationSession, IProgress<GenerationProgress>?, CancellationToken, Task<IReadOnlyList<GenerationOption>>>? GenerateOptions { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasName))]

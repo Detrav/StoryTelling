@@ -1,5 +1,7 @@
 using StoryTelling.Application.Generation;
+using StoryTelling.Application.Llm;
 using StoryTelling.Application.Settings;
+using StoryTelling.Domain;
 
 namespace StoryTelling.Tests;
 
@@ -100,6 +102,75 @@ public sealed class GenerationAssistantTests
         Assert.Contains("Characters in the story:", userMessage);
         Assert.Contains("Aria — protagonist", userMessage);
         Assert.Contains("Bran — smith", userMessage);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithSnapshot_GathersViaToolsThenReturnsOptions()
+    {
+        var client = new ScriptedLlmClient(
+            jsonResponse: """[{"title":"T","body":"B"}]""",
+            toolResponses:
+            [
+                new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "characters", "{}")]),
+                new LlmToolResponse(string.Empty, "stop", []),
+            ]);
+        var assistant = new GenerationAssistant(client, new FakeSettingsService
+        {
+            Settings = new AppSettings { Model = "m", MaxToolCalls = 5 },
+        });
+        var request = Request(GenerationTarget.World) with
+        {
+            Variants = 1,
+            Snapshot = new Project { Characters = [new Character { Name = "Aria", Role = "protagonist" }] },
+        };
+
+        var options = await assistant.GenerateAsync(request);
+
+        Assert.Single(options);
+        Assert.NotNull(client.LastJsonRequest);
+        Assert.Contains(client.LastJsonRequest!.Messages, message => message.Role == LlmRole.Tool);
+        Assert.Contains(client.ToolRequests[0].Messages, message => message.Content.Contains("Consult the project with the tools"));
+    }
+
+    [Fact]
+    public async Task GenerateAsync_Character_UsesToolsOverSnapshot()
+    {
+        const string json = """[{"name":"Vesper","role":"rival","age":"","description":"","personality":"","background":"","goals":"","traits":""}]""";
+        var client = new ScriptedLlmClient(json,
+        [
+            new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "characters", "{}")]),
+            new LlmToolResponse(string.Empty, "stop", []),
+        ]);
+        var assistant = new GenerationAssistant(client, new FakeSettingsService
+        {
+            Settings = new AppSettings { Model = "m", MaxToolCalls = 5 },
+        });
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.Character,
+            Variants = 1,
+            Context = new GenerationContext
+            {
+                Fields = new Dictionary<string, string> { ["ProjectName"] = "Book" },
+                Cast = ["Aria — protagonist"],
+            },
+            Snapshot = new Project { Characters = [new Character { Name = "Aria", Role = "protagonist" }] },
+        };
+
+        var options = await assistant.GenerateAsync(request);
+
+        Assert.Equal("Vesper", Assert.Single(options).Fields["Name"]);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithoutSnapshot_DoesNotUseTools()
+    {
+        var client = new ScriptedLlmClient("""[{"title":"T","body":"B"}]""", []);
+        var assistant = new GenerationAssistant(client, new FakeSettingsService());
+
+        await assistant.GenerateAsync(Request(GenerationTarget.World) with { Variants = 1 });
+
+        Assert.Empty(client.ToolRequests);
     }
 
     private static GenerationRequest Request(GenerationTarget target = GenerationTarget.World) => new()

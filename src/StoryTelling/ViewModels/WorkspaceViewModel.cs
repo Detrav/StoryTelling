@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
+using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -145,9 +146,9 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
 
-    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog, ITextDiff textDiff, IGenerationAssistant assistant)
+    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog, ITextDiff textDiff, IGenerationAssistant assistant, IKnowledgeImporter importer)
     {
-        var setup = new SetupViewModel(textDiff, catalog, Languages, assistant)
+        var setup = new SetupViewModel(textDiff, catalog, Languages, assistant, importer)
         {
             ProjectName = ProjectName,
             WorldTitle = _project.Lore.Title,

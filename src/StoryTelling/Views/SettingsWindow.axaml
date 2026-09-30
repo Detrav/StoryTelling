@@ -44,7 +44,7 @@
 
             <TabItem Header="Parameters">
                 <StackPanel Margin="18" Spacing="12">
-                    <Grid ColumnDefinitions="*,*,*">
+                    <Grid ColumnDefinitions="*,*,*,*">
                         <StackPanel Grid.Column="0" Margin="0,0,6,0">
                             <TextBlock Text="Timeout (s)" Opacity="0.7" />
                             <NumericUpDown Value="{Binding TimeoutSeconds}" Minimum="1" Maximum="600" LostFocus="OnCommit" />
@@ -56,6 +56,10 @@
                         <StackPanel Grid.Column="2" Margin="6,0,0,0">
                             <TextBlock Text="Temperature" Opacity="0.7" />
                             <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2" Increment="0.1" LostFocus="OnCommit" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Margin="6,0,0,0">
+                            <TextBlock Text="Max tool calls" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding MaxToolCalls}" Minimum="0" Maximum="100" LostFocus="OnCommit" />
                         </StackPanel>
                     </Grid>
 

@@ -3,6 +3,8 @@ using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
 using StoryTelling.Application.Settings;
+using StoryTelling.Application.Story;
+using StoryTelling.Application.Tools;
 
 namespace StoryTelling.Application.Generation;
 
@@ -19,24 +21,82 @@ public sealed class GenerationAssistant : IGenerationAssistant
 
     public async Task<IReadOnlyList<GenerationOption>> GenerateAsync(
         GenerationRequest request,
+        GenerationSession? session = null,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
-        var llmRequest = new LlmRequest
+
+        var messages = await GatherAsync(connection, request, settings, session, progress, cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(new GenerationProgress("Generating", session?.ToolCalls ?? 0));
+
+        var finalRequest = new LlmRequest
         {
             Model = settings.Model,
-            Messages = PromptTemplates.Build(request),
+            Messages = messages,
             Temperature = settings.Temperature,
             MaxTokens = settings.MaxTokens,
         };
 
         var schema = GenerationTargets.BuildSchema(request.Target, request.Variants);
         var content = await _llmClient
-            .CompleteJsonAsync(connection, llmRequest, GenerationTargets.SchemaName(request.Target), schema, cancellationToken)
+            .CompleteJsonAsync(connection, finalRequest, GenerationTargets.SchemaName(request.Target), schema, cancellationToken)
             .ConfigureAwait(false);
 
         return ParseOptions(content, request.Target);
+    }
+
+    private async Task<IReadOnlyList<LlmMessage>> GatherAsync(
+        LlmConnection connection,
+        GenerationRequest request,
+        AppSettings settings,
+        GenerationSession? session,
+        IProgress<GenerationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (session is { Gathered: true } && string.Equals(session.Brief, request.Brief, StringComparison.Ordinal))
+        {
+            return session.Messages;
+        }
+
+        var snapshot = request.Snapshot;
+        var useTools = snapshot is not null && settings.MaxToolCalls > 0;
+        var seed = PromptTemplates.Build(request, useTools);
+
+        if (!useTools || snapshot is null)
+        {
+            return seed;
+        }
+
+        var toolset = new StoryToolset(new StoryQuery(snapshot));
+        var tools = toolset.Definitions
+            .Select(definition => new LlmTool(definition.Name, definition.Description, definition.Parameters))
+            .ToList();
+
+        var agent = new ToolAgent(_llmClient);
+        var request_ = new LlmRequest
+        {
+            Model = settings.Model,
+            Messages = seed,
+            Temperature = settings.Temperature,
+            MaxTokens = settings.MaxTokens,
+        };
+
+        var outcome = await agent
+            .GatherAsync(connection, request_, tools, toolset.Invoke, settings.MaxToolCalls, progress: progress, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session is not null)
+        {
+            session.Brief = request.Brief;
+            session.Messages = outcome.Messages;
+            session.ToolCalls = outcome.ToolCalls;
+            session.Gathered = true;
+        }
+
+        return outcome.Messages;
     }
 
     private static IReadOnlyList<GenerationOption> ParseOptions(string content, GenerationTarget target)

@@ -25,7 +25,7 @@ public partial class CharacterWindow : Window
             DataContext = new AiWizardViewModel(
                 GenerationTargets.Label(GenerationTarget.Character),
                 GenerationTarget.Character,
-                (brief, options, cancellationToken) => generate(brief, options, cancellationToken)),
+                (brief, options, session, progress, cancellationToken) => generate(brief, options, session, progress, cancellationToken)),
         };
 
         var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(this);

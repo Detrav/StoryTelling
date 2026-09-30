@@ -29,6 +29,12 @@ public interface ILlmClient
         JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken = default);
 
+    Task<LlmToolResponse> CompleteWithToolsAsync(
+        LlmConnection connection,
+        LlmRequest request,
+        IReadOnlyList<LlmTool> tools,
+        CancellationToken cancellationToken = default);
+
     Task<LlmStructuredSupport> CheckStructuredOutputAsync(
         LlmConnection connection,
         string model,

@@ -21,9 +21,10 @@ public static class PromptTemplates
         ["Direction"] = "Direction",
     };
 
-    public static IReadOnlyList<LlmMessage> Build(GenerationRequest request)
+    public static IReadOnlyList<LlmMessage> Build(GenerationRequest request, bool useTools = false)
     {
         var system = "You help outline a multi-chapter story. Work in English only. "
+            + (useTools ? "Use the provided tools to consult the project before answering. " : string.Empty)
             + $"Reply with exactly {request.Variants} distinct options that match the required JSON schema — "
             + "no prose, no explanations.";
 
@@ -61,6 +62,16 @@ public static class PromptTemplates
             }
         }
 
+        if (request.Snapshot is { Knowledge.Count: > 0 } snapshot)
+        {
+            user.AppendLine();
+            user.AppendLine("Knowledge base (fetch details with the tools):");
+            foreach (var entry in snapshot.Knowledge)
+            {
+                user.AppendLine($"- [{entry.Kind}] {entry.Title}");
+            }
+        }
+
         var draft = specs
             .Where(spec => fields.TryGetValue(spec.Field, out var value) && !string.IsNullOrWhiteSpace(value))
             .ToList();
@@ -77,6 +88,12 @@ public static class PromptTemplates
 
         user.AppendLine();
         user.AppendLine(GenerationTargets.Instruction(request.Target));
+
+        if (useTools)
+        {
+            user.AppendLine("Consult the project with the tools (characters, world state, knowledge entries, search) before answering; prefer checking the project over guessing.");
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Brief))
         {
             user.AppendLine($"Author's brief: {request.Brief.Trim()}");
@@ -88,4 +105,27 @@ public static class PromptTemplates
     }
 
     private static string LabelFor(string key) => _projectLabels.TryGetValue(key, out var label) ? label : key;
+
+    public static IReadOnlyList<LlmMessage> ExtractKnowledge(string chunk, string brief)
+    {
+        var system = "You convert arbitrary source material (rules, campaign notes, world or game descriptions) "
+            + "into structured knowledge entries for a story wiki. Work in English only. "
+            + "Reply with ONLY a JSON object that matches the required schema.";
+
+        var user = new StringBuilder();
+        user.AppendLine("Extract every distinct entity or fact from the text below as one knowledge entry each.");
+        user.AppendLine("Pick kind from: Note, Place, Item, Event, Faction, Rule, Background. Use Note when unsure.");
+        user.AppendLine("Give each entry a short title, a few short tags, and a self-contained content body that keeps the important details.");
+
+        if (!string.IsNullOrWhiteSpace(brief))
+        {
+            user.AppendLine($"Author's brief: {brief.Trim()}");
+        }
+
+        user.AppendLine();
+        user.AppendLine("Text:");
+        user.AppendLine(chunk);
+
+        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
 }

@@ -7,7 +7,7 @@ src/
   StoryTelling.Domain          # entities, value objects, state schema (no dependencies)
   StoryTelling.Application     # services + interfaces, orchestration, use cases
   StoryTelling.Infrastructure  # JSON project repository, OpenAI-compatible LLM client,
-                               # retrieval index, settings storage
+                               # user settings, file logging, text diff
   StoryTelling                 # Avalonia app (Views + ViewModels, CommunityToolkit.Mvvm)
   StoryTelling.Tests           # xUnit unit tests (Domain + Application, mocked I/O)
 ```
@@ -39,19 +39,26 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 
 ## Key abstractions (Application)
 
+Implemented:
+
 - `ILlmClient` — `CompleteAsync`, `StreamAsync`, `CompleteStructuredAsync<T>` (JSON schema),
-  `CheckStructuredOutputAsync` (capability probe).
+  `CompleteWithToolsAsync` (tool calling), `CheckStructuredOutputAsync` (capability probe).
+- `IGenerationAssistant` — field options for the *Generate with AI* wizard (small seed + tool loop).
+- `IKnowledgeImporter` — turns imported Markdown into typed `KnowledgeEntry` records via the LLM.
+- `StoryQuery` — read facade over a `Project` (frame, cast, state, loglines, knowledge).
+- `IKnowledgeRetriever` / `Bm25KnowledgeRetriever` — BM25 over chunked `KnowledgeEntry` content.
+- `StoryToolset` / `ToolAgent` — declarative read-only tools for the model + the bounded gather loop.
 - `IProjectRepository` — load/save `*.story.json`.
 - `ISettingsService` — load/save `settings.json` (AppData).
-- `IContextAssembler` — builds prompts within a token budget.
-- `IRetrievalService` — RAG-lite fragment selection.
-- `IGenerationAssistant` — produces field options for the *Generate with AI* wizard (prompt +
-  `ILlmClient`).
-- `IChapterWriter` / `IChapterSummarizer` / `ITranslationService`.
-- `IStoryGenerationService` — pipeline orchestration (single chapter + batch run).
 - `IUndoRedoService` — snapshot + text-diff history (undo/redo).
 - `ITextDiff` — produces a reversible line patch between two texts (DiffPlex).
 - `IClock` / `IGuidGenerator` — injectable time and identity for testability.
+
+Planned (not yet implemented):
+
+- `IContextAssembler` — assembles a chapter prompt within a token budget.
+- `IChapterWriter` / `IChapterEditor` / `IChapterSummarizer` / `ITranslationService` — chapter passes.
+- `IStoryGenerationService` — pipeline orchestration (single chapter + batch run).
 
 ## Application foundation
 
@@ -79,19 +86,22 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
   build) reject it. `CheckStructuredOutputAsync` probes support with a minimal schema; *Test
   connection* runs both a chat ping and this probe and warns when structured output is missing.
   Typed operations (e.g. world-state updates) will require the probe to succeed.
-- **Generate with AI** — generation is group-based: a `GenerationTarget` defines the fields and
-  their JSON-schema names (for example `World` = title + body, `Character` = name/role/age/…).
-  `GenerationAssistant` builds the prompt from `PromptTemplates` — the current field values are
-  passed as context, where the target's own values become a "current draft" and other filled
-  fields become fixed constraints — plus the cast (name + role or a short description, with the
-  character being generated excluded) — and calls `ILlmClient.CompleteJsonAsync` with a `json_schema`
-  fixing the item shape and `minItems`/`maxItems` to exactly the requested variant count
-  (default 3). The wizard (`AiWizardViewModel`) shows each option, loads on open and on *More
-  options*, and *Apply* returns the field values. It is reused both in the setup dialog and inside
-  the character dialog; single-field targets also allow a free-text override. The wizard lets the
-  user pick how many options to request (1–10, remembered for the session in a static) and *More
-  options* appends to the existing list. Each run uses its own `CancellationTokenSource`: *Stop*
-  and closing the wizard cancel the in-flight request.
+- **Generate with AI** — generation is group-based and **tool-backed**. A `GenerationTarget`
+  defines the fields and their JSON-schema names (e.g. `World` = title + body,
+  `Character` = name/role/age/…). `GenerationAssistant` seeds the model with a small context —
+  the target's own values as a "current draft", the other filled fields as fixed constraints, the
+  cast (name + role), a knowledge-base manifest and the world state — and instructs the model to
+  consult the project with the tools first. It then runs a `ToolAgent` loop: the model pulls what
+  it needs through the read-only `StoryToolset` (`characters`, `character`, `world_state`,
+  `list_entries`, `get_entry`, `search_knowledge`, `recent_loglines`), bounded by
+  `AppSettings.MaxToolCalls`; identical calls are served from a cache, and accumulated tool output
+  is bounded (excess is truncated, then reported as exhausted). A final `CompleteJsonAsync` with a
+  `json_schema` fixes the item shape and `minItems`/`maxItems` to the requested variant count.
+  The tools read a `Project` snapshot built from the dialog's current values, so the knowledge
+  base and every other setting participate. `AiWizardViewModel` shows the stage and the tool-call
+  count (kept after success, e.g. "1 options · 6 tool calls"), caches the gathered context between
+  *More options* (per `GenerationSession`), and supports *Stop* / cancel-on-close. Reused in the
+  setup dialog and the character dialog; single-field targets allow a free-text override.
 - **Undo / redo** — `IUndoRedoService` keeps the current state (the project as JSON) plus a
   list of line diffs (like git) computed with DiffPlex. `Push(name)` is called after an
   explicit action; if nothing changed no entry is added. Before an undo/redo a safety snapshot

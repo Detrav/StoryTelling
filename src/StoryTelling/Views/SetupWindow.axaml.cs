@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -31,7 +32,7 @@ public partial class SetupWindow : Window
             DataContext = new AiWizardViewModel(
                 setup.LabelFor(field),
                 target,
-                (brief, options, cancellationToken) => setup.GenerateAsync(target, brief, options, cancellationToken)),
+                (brief, options, session, progress, cancellationToken) => setup.GenerateAsync(target, brief, options, session, progress, cancellationToken)),
         };
 
         var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(this);
@@ -51,7 +52,7 @@ public partial class SetupWindow : Window
         }
 
         var character = new CharacterEditorViewModel();
-        character.GenerateOptions = (brief, options, cancellationToken) => setup.GenerateCharacterAsync(character, brief, options, cancellationToken);
+        character.GenerateOptions = (brief, options, session, progress, cancellationToken) => setup.GenerateCharacterAsync(character, brief, options, session, progress, cancellationToken);
 
         var window = new CharacterWindow { DataContext = character };
         if (await window.ShowDialog<bool>(this))
@@ -68,7 +69,7 @@ public partial class SetupWindow : Window
         }
 
         var draft = selected.Clone();
-        draft.GenerateOptions = (brief, options, cancellationToken) => setup.GenerateCharacterAsync(draft, brief, options, cancellationToken);
+        draft.GenerateOptions = (brief, options, session, progress, cancellationToken) => setup.GenerateCharacterAsync(draft, brief, options, session, progress, cancellationToken);
 
         var window = new CharacterWindow { DataContext = draft };
         if (await window.ShowDialog<bool>(this))
@@ -144,22 +145,41 @@ public partial class SetupWindow : Window
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Import notes",
+            Title = "Import markdown",
             AllowMultiple = true,
-            FileTypeFilter = [NoteFileType],
+            FileTypeFilter = [MarkdownFileType],
         });
 
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        var builder = new StringBuilder();
         foreach (var file in files)
         {
             await using var stream = await file.OpenReadAsync();
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
-            setup.AddKnowledge(KnowledgeEntryEditorViewModel.FromImport(file.Name, content));
+            builder.AppendLine($"# {file.Name}");
+            builder.AppendLine(content);
+            builder.AppendLine();
+        }
+
+        var source = builder.ToString();
+        var viewModel = new KnowledgeImportViewModel((brief, progress, cancellationToken) =>
+            setup.ExtractKnowledgeAsync(source, brief, progress, cancellationToken));
+
+        var window = new KnowledgeImportWindow { DataContext = viewModel };
+        var result = await window.ShowDialog<IReadOnlyList<KnowledgeEntryEditorViewModel>?>(this);
+        if (result is { Count: > 0 })
+        {
+            setup.AddKnowledgeRange(result);
         }
     }
 
-    private static FilePickerFileType NoteFileType => new("Notes")
+    private static FilePickerFileType MarkdownFileType => new("Markdown")
     {
-        Patterns = ["*.txt", "*.md"],
+        Patterns = ["*.md"],
     };
 }

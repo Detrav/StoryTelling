@@ -4,6 +4,7 @@ using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
+using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -12,15 +13,18 @@ namespace StoryTelling.ViewModels;
 public partial class SetupViewModel : UndoableDialogViewModel
 {
     private readonly IGenerationAssistant _assistant;
+    private readonly IKnowledgeImporter _importer;
 
     public SetupViewModel(
         ITextDiff diff,
         IReadOnlyList<LanguageData> catalog,
         IEnumerable<string> selectedCodes,
-        IGenerationAssistant assistant)
+        IGenerationAssistant assistant,
+        IKnowledgeImporter importer)
         : base(diff)
     {
         _assistant = assistant;
+        _importer = importer;
         var selected = selectedCodes.ToList();
 
         LanguageSelections = new ObservableCollection<LanguageSelectionViewModel>(
@@ -94,7 +98,7 @@ public partial class SetupViewModel : UndoableDialogViewModel
         _ => field,
     };
 
-    public Task<IReadOnlyList<GenerationOption>> GenerateAsync(GenerationTarget target, string brief, int options, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<GenerationOption>> GenerateAsync(GenerationTarget target, string brief, int options, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
     {
         var request = new GenerationRequest
         {
@@ -102,12 +106,13 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Brief = brief,
             Variants = options,
             Context = new GenerationContext { Fields = ProjectFields(), Cast = BuildCast() },
+            Snapshot = BuildSnapshot(),
         };
 
-        return _assistant.GenerateAsync(request, cancellationToken);
+        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
     }
 
-    public Task<IReadOnlyList<GenerationOption>> GenerateCharacterAsync(CharacterEditorViewModel character, string brief, int options, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<GenerationOption>> GenerateCharacterAsync(CharacterEditorViewModel character, string brief, int options, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
     {
         var fields = ProjectFields();
         foreach (var (key, value) in character.ToFields())
@@ -121,10 +126,45 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Brief = brief,
             Variants = options,
             Context = new GenerationContext { Fields = fields, Cast = BuildCast(character) },
+            Snapshot = BuildSnapshot(),
         };
 
-        return _assistant.GenerateAsync(request, cancellationToken);
+        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
     }
+
+    private Project BuildSnapshot() => new()
+    {
+        Name = ProjectName,
+        Frame = new StoryFrame
+        {
+            Genre = Genre,
+            Tone = Tone,
+            Style = Style,
+            PointOfView = PointOfView,
+            Tense = Tense,
+            Rating = Rating,
+            Premise = Premise,
+            Direction = Direction,
+        },
+        Lore = new WorldLore { Title = WorldTitle, Body = WorldBody },
+        Characters =
+        [
+            .. Characters.Where(character => !string.IsNullOrWhiteSpace(character.Name)).Select(character => new Character
+            {
+                Id = character.Id,
+                Name = character.Name,
+                Role = character.Role,
+                Age = character.Age,
+                Description = character.Description,
+                Personality = character.Personality,
+                Background = character.Background,
+                Goals = character.Goals,
+                Traits = [.. character.TraitList],
+            }),
+        ],
+        Knowledge = [.. Knowledge.Select(entry => entry.ToEntry())],
+        WorldState = new WorldState { TimeAndPlace = WorldStateTimeAndPlace, Description = WorldStateDescription },
+    };
 
     private List<string> BuildCast(CharacterEditorViewModel? exclude = null)
     {
@@ -319,6 +359,25 @@ public partial class SetupViewModel : UndoableDialogViewModel
         SelectedKnowledge = entry;
         Commit();
     }
+
+    public void AddKnowledgeRange(IEnumerable<KnowledgeEntryEditorViewModel> entries)
+    {
+        var added = false;
+        foreach (var entry in entries)
+        {
+            Knowledge.Add(entry);
+            added = true;
+        }
+
+        if (added)
+        {
+            SelectedKnowledge = Knowledge.LastOrDefault();
+            Commit();
+        }
+    }
+
+    public Task<IReadOnlyList<KnowledgeEntry>> ExtractKnowledgeAsync(string content, string brief, IProgress<int>? progress, CancellationToken cancellationToken) =>
+        _importer.ExtractAsync(new KnowledgeImportRequest(content, brief), progress, cancellationToken);
 
     public void ApplyKnowledgeEdit(KnowledgeEntryEditorViewModel target, KnowledgeEntryEditorViewModel draft)
     {

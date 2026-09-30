@@ -8,11 +8,14 @@ streamlined, token-budgeted memory instead of resending previous chapters.
 
 ## Features
 
-- **AI-assisted setup** — generate world lore, characters, plot and the chapter plan, or
-  write them yourself; your own text is treated as a hard constraint.
-- **Chapter-by-chapter generation** — streamed to the editor, with per-chapter summaries and a
-  per-chapter world state that keep continuity without resending earlier chapters.
-- **Reference files** — attach `.txt` / `.md` notes; only the relevant fragments are used.
+- **AI-assisted setup** — generate world lore, the story frame, characters, the initial world
+  state and knowledge notes; every field is generated from the whole project through tools, and
+  your own text is treated as a hard constraint.
+- **Chapter-by-chapter generation** — the AI writes each chapter (streamed), revises it as an
+  editor, and derives an updated world state, keeping continuity without resending earlier
+  chapters.
+- **Knowledge base** — notes, places, items, events, factions and rules; import Markdown and the
+  AI structures it into typed entries. The writer pulls what it needs with read-only tools.
 - **Single-file projects** — everything is stored in one portable `*.story.json` file.
 - **Multi-language translation** — attach several target languages; each chapter gets a tab
   per language, produced on demand and cached.

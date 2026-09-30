@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
+using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Settings;
 using StoryTelling.Application.Undo;
 using StoryTelling.Domain;
@@ -23,6 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     private readonly ITextDiff _textDiff;
     private readonly ILlmClient _llmClient;
     private readonly IGenerationAssistant _assistant;
+    private readonly IKnowledgeImporter _importer;
     private readonly ILogger<MainWindowViewModel> _logger;
     private AppSettings _settings = AppSettings.CreateDefault();
     private IUndoRedoService? _undoRedo;
@@ -34,6 +36,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         ITextDiff textDiff,
         ILlmClient llmClient,
         IGenerationAssistant assistant,
+        IKnowledgeImporter importer,
         ILogger<MainWindowViewModel> logger)
     {
         _repository = repository;
@@ -42,6 +45,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         _textDiff = textDiff;
         _llmClient = llmClient;
         _assistant = assistant;
+        _importer = importer;
         _logger = logger;
         _content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
     }
@@ -205,8 +209,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     }
 
     public SetupViewModel CreateSetupViewModel() =>
-        Workspace?.CreateSetup(_settings.Languages, _textDiff, _assistant)
-        ?? new SetupViewModel(_textDiff, _settings.Languages, [], _assistant);
+        Workspace?.CreateSetup(_settings.Languages, _textDiff, _assistant, _importer)
+        ?? new SetupViewModel(_textDiff, _settings.Languages, [], _assistant, _importer);
 
     public void ApplySetup(SetupViewModel setup)
     {
