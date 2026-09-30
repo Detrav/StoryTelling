@@ -2,7 +2,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using StoryTelling.ViewModels;
-
 namespace StoryTelling.Views;
 
 public partial class SetupWindow : Window
@@ -24,11 +23,19 @@ public partial class SetupWindow : Window
             return;
         }
 
-        var wizard = new AiWizardWindow { DataContext = new AiWizardViewModel(setup.LabelFor(field)) };
-        var result = await wizard.ShowDialog<string?>(this);
-        if (!string.IsNullOrWhiteSpace(result))
+        var target = SetupViewModel.MapTarget(field);
+        var wizard = new AiWizardWindow
         {
-            setup.ApplyGenerated(field, result);
+            DataContext = new AiWizardViewModel(
+                setup.LabelFor(field),
+                target,
+                (brief, cancellationToken) => setup.GenerateAsync(target, brief, cancellationToken)),
+        };
+
+        var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(this);
+        if (result is { Count: > 0 })
+        {
+            setup.ApplyGenerated(result);
         }
     }
 

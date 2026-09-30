@@ -8,7 +8,7 @@
 | DI | Microsoft.Extensions.DependencyInjection (composition root in the app project) |
 | Logging | Microsoft.Extensions.Logging + a minimal file provider (one file per run) |
 | Storage | single JSON file per project, `System.Text.Json` (source-generated context) |
-| LLM | abstraction + OpenAI-compatible HTTP client (OpenAI, OpenRouter, Ollama, ...) |
+| LLM | abstraction + OpenAI-compatible HTTP client (OpenAI, OpenRouter, Ollama, LM Studio, ...) |
 | Tests | xUnit |
 | UI language | English only (story text translated separately by the AI) |
 

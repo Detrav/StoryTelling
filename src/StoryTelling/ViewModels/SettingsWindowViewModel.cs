@@ -4,6 +4,7 @@ using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Llm;
 using StoryTelling.Application.Settings;
 
 namespace StoryTelling.ViewModels;
@@ -11,11 +12,13 @@ namespace StoryTelling.ViewModels;
 public partial class SettingsWindowViewModel : UndoableDialogViewModel
 {
     private readonly AppSettings _original;
+    private readonly ILlmClient _llmClient;
 
-    public SettingsWindowViewModel(ITextDiff diff, AppSettings settings)
+    public SettingsWindowViewModel(ITextDiff diff, AppSettings settings, ILlmClient llmClient)
         : base(diff)
     {
         _original = settings;
+        _llmClient = llmClient;
         Languages = new ObservableCollection<LanguageData>(settings.Languages);
         _provider = settings.Provider;
         _baseUrl = settings.BaseUrl;
@@ -115,7 +118,35 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
     }
 
     [RelayCommand]
-    private void TestConnection() => Status = "Mock: connection OK";
+    private async Task TestConnectionAsync()
+    {
+        Status = "Testing connection…";
+        var connection = LlmConnection.From(BaseUrl, ApiKey, TimeoutSeconds);
+        var request = new LlmRequest
+        {
+            Model = Model,
+            Messages = [LlmMessage.User("Reply with the single word OK.")],
+            Temperature = 0,
+            MaxTokens = 16,
+        };
+
+        try
+        {
+            var completion = await _llmClient.CompleteAsync(connection, request);
+            var reply = completion.Content.Trim();
+            var chat = string.IsNullOrEmpty(reply) ? "chat OK" : $"chat OK ({reply})";
+
+            var structured = await _llmClient.CheckStructuredOutputAsync(connection, Model);
+            Status = structured.Supported
+                ? $"Connection OK · {chat} · structured output: supported"
+                : $"{chat} · structured output NOT supported: {structured.Detail}. "
+                  + "Enable JSON-schema structured output in your provider or pick a model that supports it.";
+        }
+        catch (LlmException exception)
+        {
+            Status = $"Failed ({exception.Kind}): {exception.Message}";
+        }
+    }
 
     public AppSettings BuildSettings() => new()
     {

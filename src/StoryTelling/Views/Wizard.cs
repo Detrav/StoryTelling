@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using StoryTelling.Application.Generation;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
@@ -13,7 +14,15 @@ internal static class Wizard
             return null;
         }
 
-        var wizard = new AiWizardWindow { DataContext = new AiWizardViewModel(label) };
-        return await wizard.ShowDialog<string?>(window);
+        var wizard = new AiWizardWindow
+        {
+            DataContext = new AiWizardViewModel(
+                label,
+                GenerationTarget.Premise,
+                (_, _) => Task.FromResult<IReadOnlyList<GenerationOption>>([])),
+        };
+
+        var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(window);
+        return result?.Values.FirstOrDefault();
     }
 }

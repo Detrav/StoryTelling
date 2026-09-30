@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Generation;
 using StoryTelling.Application.Settings;
 using StoryTelling.Application.Undo;
 using StoryTelling.Domain;
@@ -20,6 +21,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     private readonly ISettingsService _settingsService;
     private readonly IClock _clock;
     private readonly ITextDiff _textDiff;
+    private readonly ILlmClient _llmClient;
+    private readonly IGenerationAssistant _assistant;
     private readonly ILogger<MainWindowViewModel> _logger;
     private AppSettings _settings = AppSettings.CreateDefault();
     private IUndoRedoService? _undoRedo;
@@ -29,12 +32,16 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         ISettingsService settingsService,
         IClock clock,
         ITextDiff textDiff,
+        ILlmClient llmClient,
+        IGenerationAssistant assistant,
         ILogger<MainWindowViewModel> logger)
     {
         _repository = repository;
         _settingsService = settingsService;
         _clock = clock;
         _textDiff = textDiff;
+        _llmClient = llmClient;
+        _assistant = assistant;
         _logger = logger;
         _content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
     }
@@ -58,6 +65,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     public AppSettings Settings => _settings;
 
     public ITextDiff TextDiff => _textDiff;
+
+    public ILlmClient LlmClient => _llmClient;
 
     public bool HasProject => Workspace is not null;
 
@@ -196,7 +205,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     }
 
     public SetupViewModel CreateSetupViewModel() =>
-        Workspace?.CreateSetup(_settings.Languages, _textDiff) ?? new SetupViewModel(_textDiff, _settings.Languages, []);
+        Workspace?.CreateSetup(_settings.Languages, _textDiff, _assistant)
+        ?? new SetupViewModel(_textDiff, _settings.Languages, [], _assistant);
 
     public void ApplySetup(SetupViewModel setup)
     {

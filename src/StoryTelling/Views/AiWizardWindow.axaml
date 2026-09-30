@@ -31,20 +31,33 @@
                 <Button Grid.Column="1"
                         Content="More options"
                         Command="{Binding MoreOptionsCommand}"
+                        IsEnabled="{Binding !IsBusy}"
                         Margin="8,0,0,0"
                         VerticalAlignment="Top" />
             </Grid>
 
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="4" />
+
             <TextBlock Text="Options" FontWeight="SemiBold" />
             <ListBox ItemsSource="{Binding Options}"
                      SelectedItem="{Binding SelectedOption}"
-                     Height="260" />
+                     Height="260">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GenerationOptionViewModel">
+                        <TextBlock Text="{Binding Display}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
-            <TextBlock Text="Your edits (optional — overrides the selection)" Opacity="0.7" />
-            <TextBox Text="{Binding Edits}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     Height="80" />
+            <TextBlock Text="{Binding Status}" Opacity="0.7" TextWrapping="Wrap" />
+
+            <StackPanel IsVisible="{Binding AllowEdits}" Spacing="4">
+                <TextBlock Text="Your edits (optional — overrides the selection)" Opacity="0.7" />
+                <TextBox Text="{Binding Edits}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="80" />
+            </StackPanel>
         </StackPanel>
     </DockPanel>
 

@@ -137,7 +137,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var settings = new SettingsWindowViewModel(_viewModel.TextDiff, _viewModel.Settings);
+        var settings = new SettingsWindowViewModel(_viewModel.TextDiff, _viewModel.Settings, _viewModel.LlmClient);
         var window = new SettingsWindow { DataContext = settings };
         if (await window.ShowDialog<bool>(this))
         {

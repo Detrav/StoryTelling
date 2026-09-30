@@ -55,7 +55,7 @@
                     </Grid>
                     <Button Grid.Row="3"
                             Content="Generate with AI"
-                            Tag="WorldBody"
+                            Tag="World"
                             Click="OnGenerateClick"
                             HorizontalAlignment="Left" />
                 </Grid>

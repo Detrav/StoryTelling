@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Generation;
 using StoryTelling.Infrastructure;
 using StoryTelling.Infrastructure.Diff;
+using StoryTelling.Infrastructure.Llm;
 using StoryTelling.Infrastructure.Logging;
 using StoryTelling.ViewModels;
 
@@ -27,6 +29,9 @@ internal static class AppServices
         services.AddSingleton<IProjectRepository, JsonProjectRepository>();
         services.AddSingleton<ISettingsService>(new JsonSettingsService(AppPaths.SettingsFile));
         services.AddSingleton<ITextDiff, DiffPlexTextDiff>();
+        services.AddSingleton(new HttpClient { Timeout = Timeout.InfiniteTimeSpan });
+        services.AddSingleton<ILlmClient, OpenAiCompatibleLlmClient>();
+        services.AddSingleton<IGenerationAssistant, GenerationAssistant>();
         services.AddSingleton<MainWindowViewModel>();
 
         Provider = services.BuildServiceProvider();

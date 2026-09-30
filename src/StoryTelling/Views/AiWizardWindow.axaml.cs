@@ -11,5 +11,5 @@ public partial class AiWizardWindow : Window
     private void OnApplyClick(object? sender, RoutedEventArgs e) =>
         Close((DataContext as AiWizardViewModel)?.Result);
 
-    private void OnCancelClick(object? sender, RoutedEventArgs e) => Close((object?)null);
+    private void OnCancelClick(object? sender, RoutedEventArgs e) => Close((IReadOnlyDictionary<string, string>?)null);
 }

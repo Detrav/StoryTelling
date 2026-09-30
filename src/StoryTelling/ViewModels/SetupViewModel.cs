@@ -3,15 +3,23 @@ using System.Linq;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Generation;
 using StoryTelling.Application.Settings;
 
 namespace StoryTelling.ViewModels;
 
 public partial class SetupViewModel : UndoableDialogViewModel
 {
-    public SetupViewModel(ITextDiff diff, IReadOnlyList<LanguageData> catalog, IEnumerable<string> selectedCodes)
+    private readonly IGenerationAssistant _assistant;
+
+    public SetupViewModel(
+        ITextDiff diff,
+        IReadOnlyList<LanguageData> catalog,
+        IEnumerable<string> selectedCodes,
+        IGenerationAssistant assistant)
         : base(diff)
     {
+        _assistant = assistant;
         var selected = selectedCodes.ToList();
 
         LanguageSelections = new ObservableCollection<LanguageSelectionViewModel>(
@@ -73,7 +81,38 @@ public partial class SetupViewModel : UndoableDialogViewModel
         _ => field,
     };
 
-    public void ApplyGenerated(string field, string text)
+    public Task<IReadOnlyList<GenerationOption>> GenerateAsync(GenerationTarget target, string brief, CancellationToken cancellationToken)
+    {
+        var request = new GenerationRequest
+        {
+            Target = target,
+            Brief = brief,
+            Context = new GenerationContext
+            {
+                ProjectName = ProjectName,
+                WorldTitle = WorldTitle,
+                WorldBody = WorldBody,
+                Genre = Genre,
+                Tone = Tone,
+                Premise = Premise,
+                Direction = Direction,
+            },
+        };
+
+        return _assistant.GenerateAsync(request, cancellationToken);
+    }
+
+    public void ApplyGenerated(IReadOnlyDictionary<string, string> fields)
+    {
+        foreach (var (field, text) in fields)
+        {
+            ApplyField(field, text);
+        }
+
+        Commit();
+    }
+
+    private void ApplyField(string field, string text)
     {
         switch (field)
         {
@@ -94,14 +133,12 @@ public partial class SetupViewModel : UndoableDialogViewModel
                 Characters.Add(text);
                 break;
             case "ExtraFiles":
-                ExtraFiles.Add("generated-notes.md");
+                ExtraFiles.Add(FirstLine(text));
                 break;
             case "WorldState":
                 WorldStateTimeAndPlace = FirstLine(text);
                 break;
         }
-
-        Commit();
     }
 
     protected override string CaptureState()
@@ -164,6 +201,17 @@ public partial class SetupViewModel : UndoableDialogViewModel
             target.Add(value);
         }
     }
+
+    public static GenerationTarget MapTarget(string tag) => tag switch
+    {
+        "ProjectName" => GenerationTarget.ProjectName,
+        "World" => GenerationTarget.World,
+        "Premise" => GenerationTarget.Premise,
+        "Characters" => GenerationTarget.Characters,
+        "ExtraFiles" => GenerationTarget.ExtraFiles,
+        "WorldState" => GenerationTarget.WorldState,
+        _ => GenerationTarget.World,
+    };
 
     private static string FirstLine(string text)
     {
