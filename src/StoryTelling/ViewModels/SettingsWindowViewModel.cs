@@ -2,19 +2,30 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using StoryTelling.Application.Settings;
 
 namespace StoryTelling.ViewModels;
 
 public partial class SettingsWindowViewModel : ViewModelBase
 {
-    public SettingsWindowViewModel(LanguageCatalog catalog)
+    private readonly AppSettings _original;
+
+    public SettingsWindowViewModel(AppSettings settings)
     {
-        Languages = catalog.Items;
-        _selectedDefault = Languages.FirstOrDefault(language => language.Code == catalog.DefaultCode)
+        _original = settings;
+        Languages = new ObservableCollection<LanguageData>(settings.Languages);
+        _provider = settings.Provider;
+        _baseUrl = settings.BaseUrl;
+        _model = settings.Model;
+        _apiKey = settings.ApiKey;
+        _timeoutSeconds = settings.TimeoutSeconds;
+        _maxTokens = settings.MaxTokens;
+        _temperature = settings.Temperature;
+        _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
     }
 
-    public ObservableCollection<LanguageOption> Languages { get; }
+    public ObservableCollection<LanguageData> Languages { get; }
 
     public ObservableCollection<string> Providers { get; } =
     [
@@ -25,25 +36,25 @@ public partial class SettingsWindowViewModel : ViewModelBase
     ];
 
     [ObservableProperty]
-    private string _provider = "OpenAI";
+    private string _provider;
 
     [ObservableProperty]
-    private string _baseUrl = "https://api.openai.com/v1";
+    private string _baseUrl;
 
     [ObservableProperty]
-    private string _model = "gpt-4o-mini";
+    private string _model;
 
     [ObservableProperty]
-    private string _apiKey = string.Empty;
+    private string _apiKey;
 
     [ObservableProperty]
-    private int _timeoutSeconds = 120;
+    private int _timeoutSeconds;
 
     [ObservableProperty]
-    private int _maxTokens = 2048;
+    private int _maxTokens;
 
     [ObservableProperty]
-    private double _temperature = 0.8;
+    private double _temperature;
 
     [ObservableProperty]
     private string _status = string.Empty;
@@ -55,7 +66,7 @@ public partial class SettingsWindowViewModel : ViewModelBase
     private string _newLanguageName = string.Empty;
 
     [ObservableProperty]
-    private LanguageOption? _selectedDefault;
+    private LanguageData? _selectedDefault;
 
     partial void OnProviderChanged(string value)
     {
@@ -78,20 +89,39 @@ public partial class SettingsWindowViewModel : ViewModelBase
         }
 
         var name = string.IsNullOrWhiteSpace(NewLanguageName) ? code.ToUpperInvariant() : NewLanguageName.Trim();
-        Languages.Add(new LanguageOption(code, name));
+        if (Languages.All(language => language.Code != code))
+        {
+            Languages.Add(new LanguageData(code, name));
+        }
+
         NewLanguageCode = string.Empty;
         NewLanguageName = string.Empty;
     }
 
     [RelayCommand]
-    private void RemoveLanguage(LanguageOption? option)
+    private void RemoveLanguage(LanguageData? language)
     {
-        if (option is not null)
+        if (language is not null)
         {
-            Languages.Remove(option);
+            Languages.Remove(language);
         }
     }
 
     [RelayCommand]
     private void TestConnection() => Status = "Mock: connection OK";
+
+    public AppSettings BuildSettings() => new()
+    {
+        SchemaVersion = AppSettings.CurrentSchemaVersion,
+        Provider = Provider,
+        BaseUrl = BaseUrl,
+        Model = Model,
+        ApiKey = ApiKey,
+        TimeoutSeconds = TimeoutSeconds,
+        MaxTokens = MaxTokens,
+        Temperature = Temperature,
+        DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
+        Languages = Languages.ToList(),
+        RecentProjects = _original.RecentProjects.ToList(),
+    };
 }

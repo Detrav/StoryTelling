@@ -4,9 +4,9 @@ namespace StoryTelling.ViewModels;
 
 public partial class ChapterSettingsViewModel : ViewModelBase
 {
-    private readonly MockChapter _chapter;
+    private readonly ChapterViewModel _chapter;
 
-    public ChapterSettingsViewModel(MockChapter chapter)
+    public ChapterSettingsViewModel(ChapterViewModel chapter)
     {
         _chapter = chapter;
         chapter.PropertyChanged += OnChapterChanged;
@@ -30,7 +30,7 @@ public partial class ChapterSettingsViewModel : ViewModelBase
         set => _chapter.Notes = value;
     }
 
-    public string Status => _chapter.Status;
+    public string Status => _chapter.StatusText;
 
     public string LabelFor(string field) => field switch
     {
@@ -56,16 +56,16 @@ public partial class ChapterSettingsViewModel : ViewModelBase
     {
         switch (e.PropertyName)
         {
-            case nameof(MockChapter.Title):
+            case nameof(ChapterViewModel.Title):
                 OnPropertyChanged(nameof(Title));
                 break;
-            case nameof(MockChapter.Direction):
+            case nameof(ChapterViewModel.Direction):
                 OnPropertyChanged(nameof(Direction));
                 break;
-            case nameof(MockChapter.Notes):
+            case nameof(ChapterViewModel.Notes):
                 OnPropertyChanged(nameof(Notes));
                 break;
-            case nameof(MockChapter.Status):
+            case nameof(ChapterViewModel.Status):
                 OnPropertyChanged(nameof(Status));
                 break;
         }

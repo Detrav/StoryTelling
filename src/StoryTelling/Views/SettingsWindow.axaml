@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:StoryTelling.ViewModels"
+        xmlns:settings="using:StoryTelling.Application.Settings"
         x:Class="StoryTelling.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
         Title="Settings"
@@ -15,7 +16,10 @@
                 Padding="14"
                 BorderThickness="0,1,0,0"
                 BorderBrush="#22000000">
-            <Button Content="Close" HorizontalAlignment="Right" Click="OnCloseClick" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" Click="OnCancelClick" />
+                <Button Content="Apply" Classes="accent" Click="OnApplyClick" />
+            </StackPanel>
         </Border>
 
         <TabControl HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
@@ -72,7 +76,7 @@
                              ItemsSource="{Binding Languages}"
                              SelectedItem="{Binding SelectedDefault}">
                         <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:LanguageOption">
+                            <DataTemplate x:DataType="settings:LanguageData">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
                                     <Button Grid.Column="1"

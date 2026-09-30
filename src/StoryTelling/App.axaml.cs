@@ -1,6 +1,9 @@
+using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using StoryTelling.ViewModels;
 using StoryTelling.Views;
 
@@ -17,10 +20,23 @@ public partial class App : Avalonia.Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            try
             {
-                DataContext = new MainWindowViewModel(),
-            };
+                var logger = AppServices.Provider.GetRequiredService<ILogger<App>>();
+                var viewModel = AppServices.Provider.GetRequiredService<MainWindowViewModel>();
+
+                desktop.MainWindow = new MainWindow { DataContext = viewModel };
+                desktop.Exit += (_, _) => AppServices.Provider.Dispose();
+
+                _ = viewModel.InitializeAsync();
+
+                logger.LogInformation("Application started");
+            }
+            catch (Exception exception)
+            {
+                AppDiagnostics.Write(exception);
+                throw;
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

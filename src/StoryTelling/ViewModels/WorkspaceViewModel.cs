@@ -2,70 +2,73 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using StoryTelling.Application.Settings;
+using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
 
 public partial class WorkspaceViewModel : ViewModelBase
 {
-    private static readonly string[] _seedTitles =
-    [
-        "Embers",
-        "Ashes",
-        "The Long Night",
-        "Broken Oaths",
-        "The Ember Crown",
-    ];
+    private readonly Project _project;
 
-    private static readonly string[] _seedDirections =
-    [
-        "Introduce Aria and the burning keep.",
-        "She flees into the frontier; first bargain with Bran.",
-        "The relic is found — and is not what it seems.",
-        "The rebellion fractures; a betrayal.",
-        "Final confrontation and the cost of victory.",
-    ];
-
-    private int _chapterCount = 5;
-
-    public event Action? CloseRequested;
-
-    public WorkspaceViewModel(LanguageCatalog catalog)
+    public WorkspaceViewModel(Project project)
     {
-        Languages.Add(catalog.DefaultCode);
-        SeedChapters();
+        _project = project;
+        _projectName = project.Name;
+
+        foreach (var code in project.Settings.TargetLanguages)
+        {
+            Languages.Add(code);
+        }
+
+        foreach (var chapter in project.Chapters)
+        {
+            var viewModel = FromChapter(chapter);
+            BuildTabs(viewModel);
+            Chapters.Add(viewModel);
+        }
+
+        if (Chapters.Count == 0)
+        {
+            var count = Math.Max(1, project.Plot.ChapterCount);
+            for (var i = 0; i < count; i++)
+            {
+                AddNewChapter();
+            }
+        }
+
         _selectedChapter = Chapters[0];
     }
 
-    [ObservableProperty]
-    private string _projectName = "The Ember Crown";
+    public event Action? CloseRequested;
 
     [ObservableProperty]
-    private bool _isDirty = true;
+    private string _projectName;
+
+    [ObservableProperty]
+    private bool _isDirty;
 
     [ObservableProperty]
     private bool _isSidebarVisible = true;
 
     [ObservableProperty]
-    private MockChapter _selectedChapter;
+    private ChapterViewModel _selectedChapter;
 
     public ObservableCollection<string> Languages { get; } = [];
 
-    public ObservableCollection<MockChapter> Chapters { get; } = [];
+    public ObservableCollection<ChapterViewModel> Chapters { get; } = [];
+
+    public string? FilePath { get; set; }
 
     [RelayCommand]
     private void AddChapter()
     {
-        var chapter = new MockChapter(Chapters.Count + 1, $"Chapter {Chapters.Count + 1}", "Draft", string.Empty);
-        AddTranslations(chapter);
-        BuildTabs(chapter);
-        Chapters.Add(chapter);
-        SelectedChapter = chapter;
-        _chapterCount = Chapters.Count;
+        SelectedChapter = AddNewChapter();
         IsDirty = true;
     }
 
     [RelayCommand]
-    private void DeleteChapter(MockChapter? chapter)
+    private void DeleteChapter(ChapterViewModel? chapter)
     {
         if (Chapters.Count <= 1)
         {
@@ -82,12 +85,11 @@ public partial class WorkspaceViewModel : ViewModelBase
         Chapters.RemoveAt(index);
         Renumber();
         SelectedChapter = Chapters[Math.Min(index, Chapters.Count - 1)];
-        _chapterCount = Chapters.Count;
         IsDirty = true;
     }
 
     [RelayCommand]
-    private void MoveChapterUp(MockChapter? chapter)
+    private void MoveChapterUp(ChapterViewModel? chapter)
     {
         var target = chapter ?? SelectedChapter;
         var index = Chapters.IndexOf(target);
@@ -102,7 +104,7 @@ public partial class WorkspaceViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void MoveChapterDown(MockChapter? chapter)
+    private void MoveChapterDown(ChapterViewModel? chapter)
     {
         var target = chapter ?? SelectedChapter;
         var index = Chapters.IndexOf(target);
@@ -134,17 +136,49 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
 
-    public SetupViewModel CreateSetup(LanguageCatalog catalog)
+    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog)
     {
-        var setup = new SetupViewModel(catalog)
+        var setup = new SetupViewModel(catalog, Languages)
         {
             ProjectName = ProjectName,
             ChapterCount = Chapters.Count,
+            WorldTitle = _project.Lore.Title,
+            WorldBody = _project.Lore.Body,
+            Genre = _project.Plot.Genre,
+            Tone = _project.Plot.Tone,
+            Premise = _project.Plot.Premise,
+            Direction = _project.Plot.Direction,
+            WorldStateTimeAndPlace = _project.WorldState.TimeAndPlace,
         };
 
-        foreach (var selection in setup.LanguageSelections)
+        foreach (var character in _project.Characters)
         {
-            selection.IsSelected = Languages.Contains(selection.Option.Code);
+            setup.Characters.Add(FormatCharacter(character));
+        }
+
+        foreach (var file in _project.ExtraFiles)
+        {
+            setup.ExtraFiles.Add(file.Name);
+        }
+
+        foreach (var state in _project.WorldState.Characters)
+        {
+            setup.WorldStateCharacters.Add(state.Name);
+        }
+
+        foreach (var thread in _project.WorldState.ActiveThreads)
+        {
+            setup.WorldStateThreads.Add(thread);
+        }
+
+        foreach (var item in _project.WorldState.Items)
+        {
+            setup.WorldStateItems.Add(item);
+        }
+
+        foreach (var question in _project.WorldState.OpenQuestions)
+        {
+            setup.WorldStateOpenQuestions.Add(question);
         }
 
         return setup;
@@ -154,64 +188,131 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         ProjectName = setup.ProjectName;
 
-        var codes = setup.SelectedLanguageCodes;
-        var languagesChanged = !codes.SequenceEqual(Languages);
+        _project.Name = setup.ProjectName;
+        _project.Settings.TargetLanguages = setup.SelectedLanguageCodes.ToList();
+        _project.Lore.Title = setup.WorldTitle;
+        _project.Lore.Body = setup.WorldBody;
+        _project.Characters = setup.Characters.Select(ParseCharacter).ToList();
+        _project.Plot.Genre = setup.Genre;
+        _project.Plot.Tone = setup.Tone;
+        _project.Plot.Premise = setup.Premise;
+        _project.Plot.Direction = setup.Direction;
+        _project.Plot.ChapterCount = setup.ChapterCount;
+        _project.ExtraFiles = setup.ExtraFiles.Select(name => new ExtraFile { Name = name }).ToList();
+        _project.WorldState.TimeAndPlace = setup.WorldStateTimeAndPlace;
+        _project.WorldState.Characters = setup.WorldStateCharacters.Select(name => new CharacterState { Name = name }).ToList();
+        _project.WorldState.ActiveThreads = setup.WorldStateThreads.ToList();
+        _project.WorldState.Items = setup.WorldStateItems.ToList();
+        _project.WorldState.OpenQuestions = setup.WorldStateOpenQuestions.ToList();
+
+        UpdateLanguages(setup.SelectedLanguageCodes);
+        AdjustChapterCount(setup.ChapterCount);
+        IsDirty = true;
+    }
+
+    public Project ToProject()
+    {
+        _project.Name = ProjectName;
+        _project.Settings.TargetLanguages = Languages.ToList();
+        _project.Plot.ChapterCount = Chapters.Count;
+        _project.Chapters = Chapters.Select(ToChapter).ToList();
+        return _project;
+    }
+
+    private ChapterViewModel AddNewChapter()
+    {
+        var chapter = new ChapterViewModel
+        {
+            Number = Chapters.Count + 1,
+            Title = $"Chapter {Chapters.Count + 1}",
+            Status = ChapterStatus.Draft,
+        };
+
+        foreach (var code in Languages)
+        {
+            chapter.Translations.Add(new TranslationViewModel(code, string.Empty));
+        }
+
+        BuildTabs(chapter);
+        Chapters.Add(chapter);
+        return chapter;
+    }
+
+    private void AdjustChapterCount(int count)
+    {
+        count = Math.Max(1, count);
+
+        while (Chapters.Count < count)
+        {
+            AddNewChapter();
+        }
+
+        while (Chapters.Count > count)
+        {
+            Chapters.RemoveAt(Chapters.Count - 1);
+        }
+
+        Renumber();
+
+        if (!Chapters.Contains(SelectedChapter))
+        {
+            SelectedChapter = Chapters[0];
+        }
+    }
+
+    private void UpdateLanguages(IReadOnlyList<string> codes)
+    {
+        if (Languages.SequenceEqual(codes))
+        {
+            return;
+        }
+
         Languages.Clear();
         foreach (var code in codes)
         {
             Languages.Add(code);
         }
 
-        if (setup.ChapterCount != Chapters.Count || languagesChanged)
+        foreach (var chapter in Chapters)
         {
-            _chapterCount = setup.ChapterCount;
-            SeedChapters();
-            SelectedChapter = Chapters[0];
-        }
-
-        IsDirty = true;
-    }
-
-    private void SeedChapters()
-    {
-        Chapters.Clear();
-        for (var i = 0; i < _chapterCount; i++)
-        {
-            var title = i < _seedTitles.Length ? _seedTitles[i] : $"Chapter {i + 1}";
-            var direction = i < _seedDirections.Length ? _seedDirections[i] : string.Empty;
-            var generated = i < 2;
-            var chapter = new MockChapter(
-                i + 1,
-                title,
-                generated ? "Generated" : "Draft",
-                generated ? "The smoke rose over the keep long before the bells." : string.Empty)
-            {
-                Direction = direction,
-                SummaryRecap = generated ? "Aria escapes the burning keep; the relic is real." : string.Empty,
-                SummaryLogline = generated ? "A scout flees a burning keep." : string.Empty,
-            };
-
-            AddTranslations(chapter);
+            EnsureTranslations(chapter);
             BuildTabs(chapter);
-            Chapters.Add(chapter);
         }
     }
 
-    private void AddTranslations(MockChapter chapter)
+    private void EnsureTranslations(ChapterViewModel chapter)
     {
+        for (var i = chapter.Translations.Count - 1; i >= 0; i--)
+        {
+            if (!Languages.Contains(chapter.Translations[i].LanguageCode))
+            {
+                chapter.Translations.RemoveAt(i);
+            }
+        }
+
         foreach (var code in Languages)
         {
-            var text = string.IsNullOrEmpty(chapter.Content) ? string.Empty : $"({code}) translation of chapter {chapter.Number}.";
-            chapter.Translations.Add(new ChapterTranslation(code, text));
+            if (!chapter.Translations.Any(translation => translation.LanguageCode == code))
+            {
+                chapter.Translations.Add(new TranslationViewModel(code, string.Empty));
+            }
         }
     }
 
-    private static void BuildTabs(MockChapter chapter)
+    private void Renumber()
+    {
+        for (var i = 0; i < Chapters.Count; i++)
+        {
+            Chapters[i].Number = i + 1;
+        }
+    }
+
+    private static void BuildTabs(ChapterViewModel chapter)
     {
         chapter.Tabs.Clear();
         chapter.Tabs.Add(new ChapterTabViewModel(
             "Chapter (EN)",
-            new ChapterTextViewModel("Chapter (EN)", chapter.Content, isTranslation: false, value => chapter.Content = value)));
+            new ChapterTextViewModel("Chapter (EN)", chapter.ContentOriginal, isTranslation: false, value => chapter.ContentOriginal = value)));
 
         foreach (var translation in chapter.Translations)
         {
@@ -225,11 +326,56 @@ public partial class WorkspaceViewModel : ViewModelBase
         chapter.Tabs.Add(new ChapterTabViewModel("Settings", new ChapterSettingsViewModel(chapter)));
     }
 
-    private void Renumber()
+    private static ChapterViewModel FromChapter(Chapter chapter)
     {
-        for (var i = 0; i < Chapters.Count; i++)
+        var viewModel = new ChapterViewModel
         {
-            Chapters[i].Number = i + 1;
+            Number = chapter.Number,
+            Title = chapter.Title,
+            Status = chapter.Status,
+            ContentOriginal = chapter.ContentOriginal,
+            Direction = chapter.Direction,
+            Notes = chapter.Notes,
+            Summary = chapter.Summary,
+            Logline = chapter.Logline,
+        };
+
+        foreach (var translation in chapter.Translations)
+        {
+            viewModel.Translations.Add(new TranslationViewModel(translation.Key, translation.Value));
         }
+
+        return viewModel;
+    }
+
+    private static Chapter ToChapter(ChapterViewModel viewModel) => new()
+    {
+        Number = viewModel.Number,
+        Title = viewModel.Title,
+        Status = viewModel.Status,
+        ContentOriginal = viewModel.ContentOriginal,
+        Direction = viewModel.Direction,
+        Notes = viewModel.Notes,
+        Summary = viewModel.Summary,
+        Logline = viewModel.Logline,
+        Translations = viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text),
+    };
+
+    private static string FormatCharacter(Character character) =>
+        string.IsNullOrWhiteSpace(character.Description) ? character.Name : $"{character.Name} — {character.Description}";
+
+    private static Character ParseCharacter(string text)
+    {
+        var separator = text.IndexOf(" — ", StringComparison.Ordinal);
+        if (separator < 0)
+        {
+            return new Character { Name = text.Trim() };
+        }
+
+        return new Character
+        {
+            Name = text[..separator].Trim(),
+            Description = text[(separator + 3)..].Trim(),
+        };
     }
 }

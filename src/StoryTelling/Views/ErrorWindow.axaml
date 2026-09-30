@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:StoryTelling.ViewModels"
+        x:Class="StoryTelling.Views.ErrorWindow"
+        x:DataType="vm:ErrorDialogViewModel"
+        Title="Error"
+        Width="560"
+        Height="360"
+        MinWidth="420"
+        MinHeight="240"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom"
+                Padding="14"
+                BorderThickness="0,1,0,0"
+                BorderBrush="#22000000">
+            <Button Content="Close" HorizontalAlignment="Right" Click="OnCloseClick" />
+        </Border>
+
+        <StackPanel Margin="18" Spacing="10">
+            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+            <Expander Header="Details" IsVisible="{Binding HasDetails}">
+                <TextBox Text="{Binding Details}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="150" />
+            </Expander>
+        </StackPanel>
+    </DockPanel>
+
+</Window>

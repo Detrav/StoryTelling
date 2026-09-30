@@ -12,10 +12,10 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
                 <MenuItem Header="_New project" Command="{Binding NewProjectCommand}" />
-                <MenuItem Header="_Open project…" Command="{Binding OpenProjectCommand}" />
+                <MenuItem Header="_Open project…" Click="OnOpenProjectClick" />
                 <Separator />
-                <MenuItem Header="_Save" Command="{Binding SaveCommand}" IsEnabled="{Binding HasProject}" />
-                <MenuItem Header="Save _as…" Command="{Binding SaveAsCommand}" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="_Save" Click="OnSaveClick" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="Save _as…" Click="OnSaveAsClick" IsEnabled="{Binding HasProject}" />
                 <Separator />
                 <MenuItem Header="Project _setup…" Click="OnProjectSetupClick" IsEnabled="{Binding HasProject}" />
                 <MenuItem Header="_Settings…" Click="OnSettingsClick" />
@@ -52,6 +52,8 @@
             </MenuItem>
 
             <MenuItem Header="_Help">
+                <MenuItem Header="Open _logs folder" Click="OnOpenLogsClick" />
+                <Separator />
                 <MenuItem Header="_About" Click="OnAboutClick" />
             </MenuItem>
         </Menu>

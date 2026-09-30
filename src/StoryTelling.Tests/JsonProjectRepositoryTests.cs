@@ -67,6 +67,25 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Contains("newer", exception.Message);
     }
 
+    [Fact]
+    public async Task Load_ToleratesMissingFields()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "minimal.story.json");
+        await File.WriteAllTextAsync(path, $$"""
+        {
+          "schemaVersion": {{ProjectSchema.Version}},
+          "name": "Minimal"
+        }
+        """);
+
+        var project = await repository.LoadAsync(path);
+
+        Assert.Equal("Minimal", project.Name);
+        Assert.Empty(project.Chapters);
+        Assert.NotNull(project.Settings);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

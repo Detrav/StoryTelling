@@ -11,7 +11,7 @@ public sealed class JsonProjectRepository : IProjectRepository
 
     public async Task<Project> LoadAsync(string path, CancellationToken cancellationToken = default)
     {
-        var json = await File.ReadAllTextAsync(path, cancellationToken);
+        var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
         var project = StoryJson.Deserialize(json);
 
         if (project.SchemaVersion > ProjectSchema.Version)
@@ -36,7 +36,7 @@ public sealed class JsonProjectRepository : IProjectRepository
         var json = StoryJson.Serialize(project);
 
         var tempPath = fullPath + ".tmp";
-        await File.WriteAllTextAsync(tempPath, json, _utf8WithoutBom, cancellationToken);
+        await File.WriteAllTextAsync(tempPath, json, _utf8WithoutBom, cancellationToken).ConfigureAwait(false);
         File.Move(tempPath, fullPath, overwrite: true);
     }
 }

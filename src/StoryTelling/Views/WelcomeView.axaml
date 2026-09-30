@@ -20,7 +20,13 @@
             </StackPanel>
 
             <TextBlock Text="Recent" FontWeight="SemiBold" Margin="0,16,0,0" />
-            <ListBox ItemsSource="{Binding RecentProjects}" MinHeight="120" />
+            <ListBox ItemsSource="{Binding RecentProjects}"
+                     SelectedItem="{Binding SelectedRecent}"
+                     MinHeight="120" />
+            <Button Content="Open selected"
+                    Command="{Binding OpenRecentCommand}"
+                    CommandParameter="{Binding SelectedRecent}"
+                    HorizontalAlignment="Left" />
         </StackPanel>
     </Border>
 

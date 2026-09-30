@@ -22,5 +22,5 @@ public partial class WorkspaceView : UserControl
         }
     }
 
-    private static MockChapter? Chapter(object? sender) => (sender as Control)?.DataContext as MockChapter;
+    private static ChapterViewModel? Chapter(object? sender) => (sender as Control)?.DataContext as ChapterViewModel;
 }

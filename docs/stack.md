@@ -5,10 +5,22 @@
 | Runtime | .NET 10 (`net10.0`) |
 | UI | Avalonia (Windows / Linux / macOS) |
 | MVVM | CommunityToolkit.Mvvm (source generators) |
+| DI | Microsoft.Extensions.DependencyInjection (composition root in the app project) |
+| Logging | Microsoft.Extensions.Logging + a minimal file provider (one file per run) |
 | Storage | single JSON file per project, `System.Text.Json` (source-generated context) |
 | LLM | abstraction + OpenAI-compatible HTTP client (OpenAI, OpenRouter, Ollama, ...) |
 | Tests | xUnit |
 | UI language | English only (story text translated separately by the AI) |
+
+## App data
+
+| Item | Location |
+|------|----------|
+| Settings / recent projects | `%APPDATA%/StoryTelling/settings.json` (Windows), `~/.config/StoryTelling/settings.json` elsewhere |
+| Logs | `<config>/logs/app-YYYYMMDD-HHMMSS.log` (one file per run) |
+| Projects | wherever the user saves a `*.story.json` file |
+
+Unknown JSON fields are ignored on load, so the schema can change without breaking old files.
 
 ## Conventions
 

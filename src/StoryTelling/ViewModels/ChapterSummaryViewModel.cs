@@ -4,9 +4,9 @@ namespace StoryTelling.ViewModels;
 
 public partial class ChapterSummaryViewModel : ViewModelBase
 {
-    private readonly MockChapter _chapter;
+    private readonly ChapterViewModel _chapter;
 
-    public ChapterSummaryViewModel(MockChapter chapter)
+    public ChapterSummaryViewModel(ChapterViewModel chapter)
     {
         _chapter = chapter;
         chapter.PropertyChanged += OnChapterChanged;
@@ -14,23 +14,23 @@ public partial class ChapterSummaryViewModel : ViewModelBase
 
     public string Recap
     {
-        get => _chapter.SummaryRecap;
-        set => _chapter.SummaryRecap = value;
+        get => _chapter.Summary;
+        set => _chapter.Summary = value;
     }
 
     public string Logline
     {
-        get => _chapter.SummaryLogline;
-        set => _chapter.SummaryLogline = value;
+        get => _chapter.Logline;
+        set => _chapter.Logline = value;
     }
 
     private void OnChapterChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MockChapter.SummaryRecap))
+        if (e.PropertyName == nameof(ChapterViewModel.Summary))
         {
             OnPropertyChanged(nameof(Recap));
         }
-        else if (e.PropertyName == nameof(MockChapter.SummaryLogline))
+        else if (e.PropertyName == nameof(ChapterViewModel.Logline))
         {
             OnPropertyChanged(nameof(Logline));
         }

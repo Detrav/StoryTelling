@@ -36,13 +36,28 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 
 - `ILlmClient` — `CompleteAsync`, `StreamAsync`, `CompleteStructuredAsync<T>`.
 - `IProjectRepository` — load/save `*.story.json`.
-- `ISettingsService` — provider settings + API key (AppData + env override).
+- `ISettingsService` — load/save `settings.json` (AppData).
 - `IContextAssembler` — builds prompts within a token budget.
 - `IRetrievalService` — RAG-lite fragment selection.
 - `IGenerationAssistant` — produces field options for the *Generate with AI* wizard.
 - `IChapterWriter` / `IChapterSummarizer` / `ITranslationService`.
 - `IStoryGenerationService` — pipeline orchestration (single chapter + batch run).
 - `IClock` / `IGuidGenerator` — injectable time and identity for testability.
+
+## Application foundation
+
+- **Composition root** — the app project builds a `Microsoft.Extensions.DependencyInjection`
+  service provider (`AppServices.Initialize`) and resolves `MainWindowViewModel` from it.
+- **Settings** — `settings.json` under the app data directory (`%APPDATA%/StoryTelling` on
+  Windows, `~/.config/StoryTelling` elsewhere). Loaded once at startup; written when the user
+  presses *Apply* in the Settings dialog. Environment-variable overrides come later.
+- **Logging** — `Microsoft.Extensions.Logging` with a minimal file provider writing one file
+  per run to `<config>/logs/app-YYYYMMDD-HHMMSS.log`. *Help → Open logs folder* opens it.
+- **Persistence** — projects are single `*.story.json` files via `IProjectRepository`.
+  Unknown/missing JSON fields are ignored, so the schema can evolve without breaking old files;
+  `schemaVersion` guards against a file written by a newer major version.
+- **Errors** — external failures (file not found, unreadable/corrupt JSON, write errors) are
+  logged and surfaced to the user through an error dialog.
 
 ## Notes
 

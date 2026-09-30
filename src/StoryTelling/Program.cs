@@ -1,18 +1,33 @@
-﻿using Avalonia;
-using System;
+﻿using System;
+using System.Threading.Tasks;
+using Avalonia;
 
 namespace StoryTelling;
 
 sealed class Program
 {
-    // Initialization code. Don't use any Avalonia, third-party APIs or any
-    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static void Main(string[] args)
+    {
+        AppServices.Initialize();
 
-    // Avalonia configuration, don't remove; also used by visual designer.
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+        {
+            if (eventArgs.ExceptionObject is Exception exception)
+            {
+                AppDiagnostics.Write(exception);
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+        {
+            AppDiagnostics.Write(eventArgs.Exception);
+            eventArgs.SetObserved();
+        };
+
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()

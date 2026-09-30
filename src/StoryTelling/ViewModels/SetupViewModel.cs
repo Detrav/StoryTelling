@@ -1,86 +1,63 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using StoryTelling.Application.Settings;
 
 namespace StoryTelling.ViewModels;
 
 public partial class SetupViewModel : ViewModelBase
 {
-    public SetupViewModel(LanguageCatalog catalog)
+    public SetupViewModel(IReadOnlyList<LanguageData> catalog, IEnumerable<string> selectedCodes)
     {
-        Catalog = catalog;
-        LanguageSelections = new ObservableCollection<LanguageSelectionViewModel>(
-            catalog.Items.Select(option => new LanguageSelectionViewModel(option, option.Code == catalog.DefaultCode)));
-    }
+        var selected = selectedCodes.ToList();
 
-    public LanguageCatalog Catalog { get; }
+        LanguageSelections = new ObservableCollection<LanguageSelectionViewModel>(
+            catalog.Select(language => new LanguageSelectionViewModel(language, selected.Contains(language.Code))));
+    }
 
     public ObservableCollection<LanguageSelectionViewModel> LanguageSelections { get; }
 
     public IReadOnlyList<string> SelectedLanguageCodes =>
-        LanguageSelections.Where(selection => selection.IsSelected).Select(selection => selection.Option.Code).ToList();
+        LanguageSelections.Where(selection => selection.IsSelected).Select(selection => selection.Language.Code).ToList();
 
     [ObservableProperty]
-    private string _projectName = "The Ember Crown";
+    private string _projectName = string.Empty;
 
     [ObservableProperty]
-    private string _worldTitle = "Ashen Reach";
+    private string _worldTitle = string.Empty;
 
     [ObservableProperty]
-    private string _worldBody =
-        "A dying empire under a pale sun. Trade roads rot, the Ember Crown weakens, and old oaths are being called in.";
+    private string _worldBody = string.Empty;
 
     [ObservableProperty]
-    private string _genre = "Fantasy";
+    private string _genre = string.Empty;
 
     [ObservableProperty]
-    private string _tone = "Grim, hopeful";
+    private string _tone = string.Empty;
 
     [ObservableProperty]
-    private string _premise = "A frontier scout is drawn into a rebellion she never wanted.";
+    private string _premise = string.Empty;
 
     [ObservableProperty]
-    private string _direction = "Rise, fracture, resolve.";
+    private string _direction = string.Empty;
 
     [ObservableProperty]
-    private int _chapterCount = 5;
+    private int _chapterCount = 1;
 
     [ObservableProperty]
-    private string _worldStateTimeAndPlace = "Dusk, day 0 — the story begins at the burning keep.";
+    private string _worldStateTimeAndPlace = string.Empty;
 
-    public ObservableCollection<string> Characters { get; } =
-    [
-        "Aria — frontier scout, searching for her brother",
-        "Bran — smuggler with a debt he cannot pay",
-        "The Ember Queen — ruler losing her grip",
-    ];
+    public ObservableCollection<string> Characters { get; } = [];
 
-    public ObservableCollection<string> ExtraFiles { get; } =
-    [
-        "bestiary.md",
-        "ember-geography.txt",
-    ];
+    public ObservableCollection<string> ExtraFiles { get; } = [];
 
-    public ObservableCollection<string> WorldStateCharacters { get; } =
-    [
-        "Aria — at the keep, unaware of the relic",
-        "Bran — in the low city, owed a debt",
-    ];
+    public ObservableCollection<string> WorldStateCharacters { get; } = [];
 
-    public ObservableCollection<string> WorldStateThreads { get; } =
-    [
-        "The Ember Crown weakens",
-    ];
+    public ObservableCollection<string> WorldStateThreads { get; } = [];
 
-    public ObservableCollection<string> WorldStateItems { get; } =
-    [
-        "The relic (hidden)",
-    ];
+    public ObservableCollection<string> WorldStateItems { get; } = [];
 
-    public ObservableCollection<string> WorldStateOpenQuestions { get; } =
-    [
-        "Why did the keep fall?",
-    ];
+    public ObservableCollection<string> WorldStateOpenQuestions { get; } = [];
 
     public string LabelFor(string field) => field switch
     {

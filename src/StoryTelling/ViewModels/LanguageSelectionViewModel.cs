@@ -1,18 +1,19 @@
+using StoryTelling.Application.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace StoryTelling.ViewModels;
 
 public partial class LanguageSelectionViewModel : ViewModelBase
 {
-    public LanguageSelectionViewModel(LanguageOption option, bool isSelected)
+    public LanguageSelectionViewModel(LanguageData language, bool isSelected)
     {
-        Option = option;
+        Language = language;
         _isSelected = isSelected;
     }
 
-    public LanguageOption Option { get; }
+    public LanguageData Language { get; }
 
-    public string DisplayName => Option.DisplayName;
+    public string DisplayName => Language.DisplayName;
 
     [ObservableProperty]
     private bool _isSelected;
