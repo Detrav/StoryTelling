@@ -18,6 +18,10 @@ public sealed class Chapter
 
     public string Logline { get; set; } = string.Empty;
 
+    public WorldState? WorldState { get; set; }
+
+    public List<ChapterCharacter> Characters { get; set; } = [];
+
     public ChapterStatus Status { get; set; } = ChapterStatus.Draft;
 
     public DateTimeOffset CreatedUtc { get; set; }

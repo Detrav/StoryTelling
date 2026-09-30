@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Settings;
+using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
 
@@ -57,20 +58,15 @@ public partial class SetupViewModel : UndoableDialogViewModel
     [ObservableProperty]
     private string _worldStateTimeAndPlace = string.Empty;
 
+    [ObservableProperty]
+    private string _worldStateDescription = string.Empty;
+
     public ObservableCollection<CharacterEditorViewModel> Characters { get; } = [];
 
     [ObservableProperty]
     private CharacterEditorViewModel? _selectedCharacter;
 
     public ObservableCollection<string> ExtraFiles { get; } = [];
-
-    public ObservableCollection<string> WorldStateCharacters { get; } = [];
-
-    public ObservableCollection<string> WorldStateThreads { get; } = [];
-
-    public ObservableCollection<string> WorldStateItems { get; } = [];
-
-    public ObservableCollection<string> WorldStateOpenQuestions { get; } = [];
 
     public string LabelFor(string field) => field switch
     {
@@ -91,7 +87,7 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Target = target,
             Brief = brief,
             Variants = options,
-            Context = new GenerationContext { Fields = ProjectFields() },
+            Context = new GenerationContext { Fields = ProjectFields(), Cast = BuildCast() },
         };
 
         return _assistant.GenerateAsync(request, cancellationToken);
@@ -110,10 +106,27 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Target = GenerationTarget.Character,
             Brief = brief,
             Variants = options,
-            Context = new GenerationContext { Fields = fields },
+            Context = new GenerationContext { Fields = fields, Cast = BuildCast(character) },
         };
 
         return _assistant.GenerateAsync(request, cancellationToken);
+    }
+
+    private List<string> BuildCast(CharacterEditorViewModel? exclude = null)
+    {
+        var cast = new List<string>();
+        foreach (var character in Characters)
+        {
+            if (string.IsNullOrWhiteSpace(character.Name) || ReferenceEquals(character, exclude))
+            {
+                continue;
+            }
+
+            var detail = !string.IsNullOrWhiteSpace(character.Role) ? character.Role : character.Description;
+            cast.Add(string.IsNullOrWhiteSpace(detail) ? character.Name.Trim() : $"{character.Name.Trim()} — {detail.Trim()}");
+        }
+
+        return cast;
     }
 
     private Dictionary<string, string> ProjectFields() => new()
@@ -165,8 +178,11 @@ public partial class SetupViewModel : UndoableDialogViewModel
             case "ExtraFiles":
                 ExtraFiles.Add(FirstLine(text));
                 break;
-            case "WorldState":
+            case "TimeAndPlace":
                 WorldStateTimeAndPlace = FirstLine(text);
+                break;
+            case "Description":
+                WorldStateDescription = text;
                 break;
         }
     }
@@ -182,6 +198,7 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Premise,
             Direction,
             WorldStateTimeAndPlace,
+            WorldStateDescription,
             [.. Characters.Select(character => new CharacterSnapshot(
                 character.Id,
                 character.Name,
@@ -193,10 +210,6 @@ public partial class SetupViewModel : UndoableDialogViewModel
                 character.Goals,
                 character.Traits))],
             [.. ExtraFiles],
-            [.. WorldStateCharacters],
-            [.. WorldStateThreads],
-            [.. WorldStateItems],
-            [.. WorldStateOpenQuestions],
             [.. SelectedLanguageCodes]);
 
         return JsonSerializer.Serialize(snapshot);
@@ -218,13 +231,10 @@ public partial class SetupViewModel : UndoableDialogViewModel
         Premise = snapshot.Premise;
         Direction = snapshot.Direction;
         WorldStateTimeAndPlace = snapshot.WorldStateTimeAndPlace;
+        WorldStateDescription = snapshot.WorldStateDescription;
 
         ReplaceCharacters(snapshot.Characters);
         Replace(ExtraFiles, snapshot.ExtraFiles);
-        Replace(WorldStateCharacters, snapshot.WorldStateCharacters);
-        Replace(WorldStateThreads, snapshot.WorldStateThreads);
-        Replace(WorldStateItems, snapshot.WorldStateItems);
-        Replace(WorldStateOpenQuestions, snapshot.WorldStateOpenQuestions);
 
         foreach (var selection in LanguageSelections)
         {
@@ -310,12 +320,9 @@ public partial class SetupViewModel : UndoableDialogViewModel
         string Premise,
         string Direction,
         string WorldStateTimeAndPlace,
+        string WorldStateDescription,
         List<CharacterSnapshot> Characters,
         List<string> ExtraFiles,
-        List<string> WorldStateCharacters,
-        List<string> WorldStateThreads,
-        List<string> WorldStateItems,
-        List<string> WorldStateOpenQuestions,
         List<string> Languages);
 
     private sealed record CharacterSnapshot(

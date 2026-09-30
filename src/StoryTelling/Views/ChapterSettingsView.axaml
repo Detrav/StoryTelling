@@ -38,6 +38,19 @@
                      Height="100"
                      LostFocus="OnCommit" />
 
+            <TextBlock Text="Characters in this chapter" Opacity="0.7" />
+            <ItemsControl ItemsSource="{Binding Participants}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CharacterParticipationViewModel">
+                        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1" Content="Full" IsChecked="{Binding IsFull}" />
+                            <CheckBox Grid.Column="2" Content="Name only" IsChecked="{Binding IsNameOnly}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Status:" Opacity="0.7" />
                 <TextBlock Text="{Binding Status}" FontWeight="SemiBold" />

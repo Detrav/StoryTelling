@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using StoryTelling.ViewModels;
+
 namespace StoryTelling.Views;
 
 public partial class SetupWindow : Window

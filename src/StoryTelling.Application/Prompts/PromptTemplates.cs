@@ -47,6 +47,16 @@ public static class PromptTemplates
             user.AppendLine("- (nothing yet)");
         }
 
+        if (request.Context.Cast.Count > 0)
+        {
+            user.AppendLine();
+            user.AppendLine("Characters in the story:");
+            foreach (var character in request.Context.Cast)
+            {
+                user.AppendLine($"- {character}");
+            }
+        }
+
         var draft = specs
             .Where(spec => fields.TryGetValue(spec.Field, out var value) && !string.IsNullOrWhiteSpace(value))
             .ToList();

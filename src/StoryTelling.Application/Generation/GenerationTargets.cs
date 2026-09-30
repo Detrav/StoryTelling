@@ -44,7 +44,8 @@ public static class GenerationTargets
             ],
             [GenerationTarget.WorldState] =
             [
-                new("WorldState", "worldState", "World state", "The initial world state: time and place, characters present, active threads, notable items and open questions."),
+                new("TimeAndPlace", "timeAndPlace", "Time and place", "When and where the story opens (a short phrase)."),
+                new("Description", "description", "Description", "The situation before chapter 1 in free form: what is happening, who is involved, notable facts, tensions and open questions."),
             ],
         };
 
@@ -70,7 +71,7 @@ public static class GenerationTargets
         GenerationTarget.Premise => "Write a compelling story premise.",
         GenerationTarget.Character => "Create a story character: name, role, age, description, personality, background, goals and traits. Any field may be left empty if it does not apply.",
         GenerationTarget.ExtraFiles => "Draft concise author's notes about the story's background.",
-        GenerationTarget.WorldState => "Describe the initial world state of the story.",
+        GenerationTarget.WorldState => "Describe the situation right before chapter 1: when and where the story opens, and what is happening.",
         _ => "Describe the requested field.",
     };
 

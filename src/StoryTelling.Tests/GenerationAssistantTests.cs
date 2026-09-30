@@ -84,6 +84,24 @@ public sealed class GenerationAssistantTests
         Assert.Contains("old body", userMessage);
     }
 
+    [Fact]
+    public async Task GenerateAsync_IncludesCastAsContext()
+    {
+        var llm = new FakeLlmClient("[]");
+        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
+        var request = Request() with
+        {
+            Context = new GenerationContext { Cast = ["Aria — protagonist", "Bran — smith"] },
+        };
+
+        await assistant.GenerateAsync(request);
+
+        var userMessage = llm.LastRequest!.Messages[1].Content;
+        Assert.Contains("Characters in the story:", userMessage);
+        Assert.Contains("Aria — protagonist", userMessage);
+        Assert.Contains("Bran — smith", userMessage);
+    }
+
     private static GenerationRequest Request(GenerationTarget target = GenerationTarget.World) => new()
     {
         Target = target,

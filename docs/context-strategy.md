@@ -1,33 +1,67 @@
 # Context-window strategy
 
 The model's context is limited, so the app never sends whole previous chapters. Continuity is
-preserved through a small, structured memory instead.
+preserved through a small, evolving state plus a **queryable knowledge base that the model pulls
+on demand**. The full target is described in `design.md`; this document focuses on how the
+context window is managed.
 
 | Technique | Purpose |
 |-----------|---------|
 | Never send previous chapters | Bounded prompt size chapter over chapter |
-| Initial world state (from Setup) | The situation at the start of the story |
-| Per-chapter summaries (logline + recap) | Continuity and cheap recall of "what already happened" |
-| Lore stored once + condensed when large | Stable, shared background |
-| RAG-lite retrieval of extra files | Only relevant fragments per prompt |
-| Structured (JSON) outputs for state / summary | Deterministic parsing, fewer tokens, no drift |
-| Per-request token budget / context assembler | Priorities and truncation when over budget |
+| Static world lore | Background that never changes (title + body) |
+| Evolving world state (2 fields) | `TimeAndPlace` + a free-form `Description`, seeded in Setup and rewritten after each chapter |
+| Per-chapter state snapshot | Reproducible regeneration; chapter N reads the state after N-1 |
+| Addressable knowledge base | Facts/entities (`KnowledgeEntry`) the model can list, fetch and search |
+| Model-pulled context (tools) | The writer asks for what it needs instead of the app guessing |
+| Structured (JSON) outputs for state | Deterministic parsing, fewer tokens, no drift |
+| Token budget on the seed + tool results | Truncation when over budget |
 
-## Context priority order
+## The world state evolves
 
-`IContextAssembler` builds each prompt within an explicit token budget, in this priority:
+- **Setup** seeds the situation *before chapter 1* on the project (`Project.WorldState`): when
+  and where the story opens, plus a free-form description.
+- After a chapter is written, the model returns a **logline** and the **new state**
+  (`TimeAndPlace` + `Description`). The state is stored on that chapter (`Chapter.WorldState`).
+  Chapter N is written from the state after chapter N-1.
+- The static background (geography, customs) lives in `WorldLore`, not in the state; it never
+  changes and is sent every time.
+- The Setup state stops being sent once a later chapter has a snapshot.
 
-1. system / style rules
-2. current chapter direction
-3. initial world state
-4. lore
-5. recent chapter summaries (newest first)
-6. retrieved extra-file fragments
+## What is sent, and what is pulled
 
-Items are dropped or truncated only from the bottom when the budget is exceeded.
+Always sent (deliberately small):
+
+1. system / style rules (the story `Frame`);
+2. the current chapter brief (title / direction / notes);
+3. the current world state;
+4. a cheap **manifest** (character names + roles, knowledge-entry titles + kinds, chapter count).
+
+Pulled on demand by the model through read-only **tools** (`design.md` §6):
+
+- full character profiles, knowledge entries and their content, deeper history (`recent_loglines`),
+  and `search_knowledge` (BM25 retrieval over the knowledge base).
+
+This is the key change from earlier drafts: the app no longer decides up front which characters or
+notes to include — **the writer pulls exactly what it needs**. Per-chapter character checkboxes
+are removed.
+
+## Seed priority order
+
+When the seed itself is over budget, items are dropped from the bottom:
+
+1. system / style rules (frame);
+2. current chapter brief;
+3. current world state;
+4. cheap manifest (cast, entry titles).
+
+Tool results are appended after the seed and are themselves bounded.
 
 ## Invariants
 
-- The chapter summary comes back as structured JSON validated against the typed schema.
-  Invalid output is retried or surfaced as an error, never parsed leniently.
+- A finished chapter yields a logline and a new world state, returned as structured JSON
+  validated against the typed schema. Invalid output is retried or surfaced as an error, never
+  parsed leniently.
+- Tool results are deduplicated and bounded (max calls + token budget); the seed is bounded too.
+- Editing or regenerating a chapter marks every later chapter **stale**; a manual
+  *recompute from here* refreshes them. Nothing downstream is recomputed automatically.
 - The context is always assembled by `IContextAssembler`; UI code never builds prompts.

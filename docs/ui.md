@@ -48,26 +48,30 @@ Every chapter action is available both from the toolbar and from the **Chapter**
   - *Chapter (EN)* — the original text.
   - *Chapter (XX)* — one tab per project target language, each with a *Translate with AI*
     button.
-  - *Summary* — the state after the chapter: a logline plus a recap (events, character
-    changes, how the chapter ended). This is the only story memory carried forward.
-  - *Settings* — the chapter's own settings: title, direction (what should happen), notes and
-    the generation status; each field has a *Generate with AI* button.
+  - *Summary* — the state after the chapter: a logline plus the new world state (time and place
+    + a free-form description). This is the only story memory carried forward.
+  - *Settings* — the chapter's own settings: title, direction (what should happen), notes and the
+    generation status; each text field has a *Generate with AI* button. Which characters appear
+    is decided by the writer (via tools), not by hand.
 
 ## Project setup (dialog)
 
 A modal dialog, opened from *File → Project setup…*, sized so its content fits without
 scrolling. A fixed header holds the **book name** with its own *Generate with AI* button; the
-rest is split into tabs:
+rest is split into tabs. The tabs follow a recommended, dependency-driven order (see
+`design.md` §3); the order is guidance, not a blocking wizard:
 
-- **World** — title and body.
-- **Characters** — list with add / edit / delete. The shared character dialog edits name, role,
-  age, description, personality, background, goals and traits (tags), and has its own *Generate
-  with AI* that uses the current field values as a draft (all fields are optional).
-- **Plot** — genre, tone, premise, direction.
-- **World state** — the initial world state: time and place, characters, active threads,
-  items, open questions (the situation at the start of the story).
-- **Languages** — checkboxes picking the project's target languages from the global catalog.
-- **Extra files** — reference material.
+1. **Frame** — book name, genre, tone, style / POV, premise, direction.
+2. **World** — lore title and body.
+3. **Characters** — list with add / edit / delete. The shared character dialog edits name, role,
+   age, description, personality, background, goals and traits (tags), and has its own *Generate
+   with AI* that uses the current field values as a draft (all fields are optional).
+4. **Knowledge** — notes and entities (places, items, events, factions, rules): add / import a
+   file / edit / delete. Today this is the *Extra files* tab; the AI can help split imports into
+   typed entries later.
+5. **World state** — the situation before chapter 1: time and place plus a free-form description,
+   with a group *Generate with AI*.
+6. **Languages** — checkboxes picking the project's target languages from the global catalog.
 
 Each field group has a *Generate with AI* button.
 
@@ -92,5 +96,6 @@ A separate modal window, split into tabs:
 
 ## Status
 
-The screens above are currently implemented as a **static, clickable mockup** with fake data
-(phase 2). Real bindings to the project model and persistence follow.
+Project setup, per-field *Generate with AI* (options), settings, persistence and undo/redo are
+implemented. The chapter pipeline (writer / editor / summarizer), the knowledge base and the
+model-driven context tools are described in `design.md` and are the next stages.

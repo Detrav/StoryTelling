@@ -161,6 +161,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             Premise = _project.Plot.Premise,
             Direction = _project.Plot.Direction,
             WorldStateTimeAndPlace = _project.WorldState.TimeAndPlace,
+            WorldStateDescription = _project.WorldState.Description,
         };
 
         foreach (var character in _project.Characters)
@@ -182,26 +183,6 @@ public partial class WorkspaceViewModel : ViewModelBase
             setup.ExtraFiles.Add(file.Name);
         }
 
-        foreach (var state in _project.WorldState.Characters)
-        {
-            setup.WorldStateCharacters.Add(state.Name);
-        }
-
-        foreach (var thread in _project.WorldState.ActiveThreads)
-        {
-            setup.WorldStateThreads.Add(thread);
-        }
-
-        foreach (var item in _project.WorldState.Items)
-        {
-            setup.WorldStateItems.Add(item);
-        }
-
-        foreach (var question in _project.WorldState.OpenQuestions)
-        {
-            setup.WorldStateOpenQuestions.Add(question);
-        }
-
         return setup;
     }
 
@@ -220,10 +201,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         _project.Plot.Direction = setup.Direction;
         _project.ExtraFiles = MergeExtraFiles(_project.ExtraFiles, setup.ExtraFiles);
         _project.WorldState.TimeAndPlace = setup.WorldStateTimeAndPlace;
-        _project.WorldState.Characters = MergeCharacterStates(_project.WorldState.Characters, setup.WorldStateCharacters);
-        _project.WorldState.ActiveThreads = setup.WorldStateThreads.ToList();
-        _project.WorldState.Items = setup.WorldStateItems.ToList();
-        _project.WorldState.OpenQuestions = setup.WorldStateOpenQuestions.ToList();
+        _project.WorldState.Description = setup.WorldStateDescription;
 
         UpdateLanguages(setup.SelectedLanguageCodes);
         _project.Plot.ChapterCount = Chapters.Count;
@@ -337,7 +315,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             new ChapterSummaryViewModel(chapter, () => Mutated?.Invoke($"Edit summary of chapter {chapter.Number}"))));
         chapter.Tabs.Add(new ChapterTabViewModel(
             "Settings",
-            new ChapterSettingsViewModel(chapter, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"))));
+            new ChapterSettingsViewModel(chapter, _project.Characters, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"))));
     }
 
     private static ChapterViewModel FromChapter(Chapter chapter)
@@ -353,6 +331,8 @@ public partial class WorkspaceViewModel : ViewModelBase
             Summary = chapter.Summary,
             Logline = chapter.Logline,
             CreatedUtc = chapter.CreatedUtc,
+            WorldState = chapter.WorldState,
+            Characters = [.. chapter.Characters],
         };
 
         foreach (var translation in chapter.Translations)
@@ -374,6 +354,8 @@ public partial class WorkspaceViewModel : ViewModelBase
         Summary = viewModel.Summary,
         Logline = viewModel.Logline,
         CreatedUtc = viewModel.CreatedUtc,
+        WorldState = viewModel.WorldState,
+        Characters = [.. viewModel.Characters],
         Translations = new SortedDictionary<string, string>(
             viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
     };
@@ -408,18 +390,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         {
             var match = existing.FirstOrDefault(file => string.Equals(file.Name, name, StringComparison.Ordinal));
             result.Add(match ?? new ExtraFile { Name = name });
-        }
-
-        return result;
-    }
-
-    private static List<CharacterState> MergeCharacterStates(IReadOnlyList<CharacterState> existing, IEnumerable<string> names)
-    {
-        var result = new List<CharacterState>();
-        foreach (var name in names)
-        {
-            var match = existing.FirstOrDefault(state => string.Equals(state.Name, name, StringComparison.Ordinal));
-            result.Add(match ?? new CharacterState { Name = name });
         }
 
         return result;

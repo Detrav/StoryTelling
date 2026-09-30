@@ -22,6 +22,7 @@ streamlined, token-budgeted memory instead of resending previous chapters.
 ## Documentation
 
 - [Overview](docs/overview.md)
+- [Design (target)](docs/design.md)
 - [Architecture](docs/architecture.md)
 - [Context strategy](docs/context-strategy.md)
 - [UI](docs/ui.md)

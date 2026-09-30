@@ -33,6 +33,10 @@ public partial class ChapterViewModel : ObservableObject
     [ObservableProperty]
     private DateTimeOffset _createdUtc;
 
+    public WorldState? WorldState { get; set; }
+
+    public List<ChapterCharacter> Characters { get; set; } = [];
+
     public ObservableCollection<TranslationViewModel> Translations { get; } = [];
 
     public ObservableCollection<ChapterTabViewModel> Tabs { get; } = [];

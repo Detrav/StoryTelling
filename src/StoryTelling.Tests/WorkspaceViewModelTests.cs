@@ -25,6 +25,7 @@ public sealed class WorkspaceViewModelTests
         Assert.Equal(ChapterStatus.Generated, chapter.Status);
         Assert.Equal("Recap.", chapter.Summary);
         Assert.Equal("Logline.", chapter.Logline);
+        Assert.Equal("Dusk", chapter.WorldState!.TimeAndPlace);
     }
 
     [Fact]
@@ -39,8 +40,8 @@ public sealed class WorkspaceViewModelTests
         Assert.Equal("Wyverns nest in cliffs.", project.ExtraFiles.Single().Content);
         Assert.Contains("lore", project.ExtraFiles.Single().Tags);
         Assert.Contains("brave", project.Characters.Single().Traits);
-        Assert.Equal("unhurt", project.WorldState.Characters.Single().Status);
-        Assert.Equal("cliffs", project.WorldState.Characters.Single().Location);
+        Assert.Equal("Dusk above the keep", project.WorldState.TimeAndPlace);
+        Assert.Equal("Aria crouches in the ruins.", project.WorldState.Description);
     }
 
     [Fact]
@@ -87,10 +88,7 @@ public sealed class WorkspaceViewModelTests
         WorldState = new WorldState
         {
             TimeAndPlace = "Dusk above the keep",
-            Characters = [new CharacterState { Name = "Aria", Status = "unhurt", Location = "cliffs" }],
-            ActiveThreads = ["escape"],
-            Items = ["relic"],
-            OpenQuestions = ["why did the keep fall?"],
+            Description = "Aria crouches in the ruins.",
         },
         Chapters =
         [
@@ -102,6 +100,7 @@ public sealed class WorkspaceViewModelTests
                 Translations = new SortedDictionary<string, string> { ["ru"] = "Дым поднимался." },
                 Summary = "Recap.",
                 Logline = "Logline.",
+                WorldState = new WorldState { TimeAndPlace = "Dusk" },
                 Status = ChapterStatus.Generated,
                 CreatedUtc = _timestamp,
             },

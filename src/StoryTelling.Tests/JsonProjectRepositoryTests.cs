@@ -43,7 +43,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Contains("\"schemaVersion\": 1", json);
         Assert.Contains("\"worldState\"", json);
         Assert.Contains("\"timeAndPlace\"", json);
-        Assert.Contains("\"activeThreads\"", json);
+        Assert.Contains("\"description\"", json);
         Assert.Contains("\"Generated\"", json);
         Assert.Contains("Дым поднимался.", json);
         Assert.DoesNotContain(Directory.GetFiles(_directory), file => file.EndsWith(".tmp", StringComparison.Ordinal));
@@ -164,24 +164,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         WorldState = new WorldState
         {
             TimeAndPlace = "Dusk, the cliffs above the keep",
-            Characters =
-            [
-                new CharacterState
-                {
-                    Name = "Aria",
-                    Status = "unhurt",
-                    Location = "cliffs",
-                    Goals = "escape",
-                    Knowledge = "the relic is real",
-                    Relationships = "owes Bran",
-                },
-            ],
-            Locations = ["the cliffs"],
-            Items = ["the relic"],
-            ActiveThreads = ["escape the crown's hunters"],
-            ResolvedThreads = ["the keep burns"],
-            RecentEvents = ["the keep fell at dusk"],
-            OpenQuestions = ["what is the relic?"],
+            Description = "Aria crouches in the ruins of the keep with the relic.",
         },
     };
 }

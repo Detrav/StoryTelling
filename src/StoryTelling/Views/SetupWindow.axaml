@@ -98,7 +98,7 @@
                         <TextBlock Text="Direction" Opacity="0.7" />
                         <TextBox Text="{Binding Direction}" LostFocus="OnCommit" />
                         <Button Content="Generate with AI"
-                                Tag="Premise"
+                                Tag="Plot"
                                 Click="OnGenerateClick"
                                 HorizontalAlignment="Left" />
                     </StackPanel>
@@ -110,20 +110,15 @@
                     <StackPanel Margin="16" Spacing="8">
                         <TextBlock Text="Time and place" Opacity="0.7" />
                         <TextBox Text="{Binding WorldStateTimeAndPlace}" LostFocus="OnCommit" />
-                        <Grid ColumnDefinitions="*,*">
-                            <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
-                                <TextBlock Text="Characters" Opacity="0.7" />
-                                <ListBox ItemsSource="{Binding WorldStateCharacters}" Height="90" />
-                                <TextBlock Text="Active threads" Opacity="0.7" />
-                                <ListBox ItemsSource="{Binding WorldStateThreads}" Height="70" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
-                                <TextBlock Text="Items" Opacity="0.7" />
-                                <ListBox ItemsSource="{Binding WorldStateItems}" Height="90" />
-                                <TextBlock Text="Open questions" Opacity="0.7" />
-                                <ListBox ItemsSource="{Binding WorldStateOpenQuestions}" Height="70" />
-                            </StackPanel>
-                        </Grid>
+
+                        <TextBlock Text="Description" Opacity="0.7" />
+                        <TextBox Text="{Binding WorldStateDescription}"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 Height="240"
+                                 VerticalContentAlignment="Top"
+                                 LostFocus="OnCommit" />
+
                         <Button Content="Generate with AI"
                                 Tag="WorldState"
                                 Click="OnGenerateClick"

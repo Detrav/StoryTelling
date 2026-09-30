@@ -22,6 +22,11 @@ StoryTelling.Infrastructure -> Application -> Domain
 `Domain` depends on nothing. `Application` never depends on `Infrastructure` (inversion via
 interfaces). `Infrastructure` and the app project are wired together in the composition root.
 
+> This document describes the **current** architecture. The intended direction — a knowledge
+> base, read-only query tools the model pulls context with, and AI writer/editor passes — is
+> described in `design.md`. Where they differ, `design.md` is the target and this file is the
+> present state.
+
 ## Layers
 
 - **Domain** — pure data: `Project`, `Character`, `WorldLore`, `PlotDescription`, `Chapter`,
@@ -78,7 +83,8 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
   their JSON-schema names (for example `World` = title + body, `Character` = name/role/age/…).
   `GenerationAssistant` builds the prompt from `PromptTemplates` — the current field values are
   passed as context, where the target's own values become a "current draft" and other filled
-  fields become fixed constraints — and calls `ILlmClient.CompleteJsonAsync` with a `json_schema`
+  fields become fixed constraints — plus the cast (name + role or a short description, with the
+  character being generated excluded) — and calls `ILlmClient.CompleteJsonAsync` with a `json_schema`
   fixing the item shape and `minItems`/`maxItems` to exactly the requested variant count
   (default 3). The wizard (`AiWizardViewModel`) shows each option, loads on open and on *More
   options*, and *Apply* returns the field values. It is reused both in the setup dialog and inside
