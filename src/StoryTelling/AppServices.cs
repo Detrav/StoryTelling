@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Infrastructure;
+using StoryTelling.Infrastructure.Diff;
 using StoryTelling.Infrastructure.Logging;
 using StoryTelling.ViewModels;
 
@@ -25,6 +26,7 @@ internal static class AppServices
         services.AddSingleton<IGuidGenerator, GuidGenerator>();
         services.AddSingleton<IProjectRepository, JsonProjectRepository>();
         services.AddSingleton<ISettingsService>(new JsonSettingsService(AppPaths.SettingsFile));
+        services.AddSingleton<ITextDiff, DiffPlexTextDiff>();
         services.AddSingleton<MainWindowViewModel>();
 
         Provider = services.BuildServiceProvider();

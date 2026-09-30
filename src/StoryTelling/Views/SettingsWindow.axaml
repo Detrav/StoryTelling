@@ -28,16 +28,17 @@
                     <TextBlock Text="Provider" Opacity="0.7" />
                     <ComboBox ItemsSource="{Binding Providers}"
                               SelectedItem="{Binding Provider}"
-                              HorizontalAlignment="Stretch" />
+                              HorizontalAlignment="Stretch"
+                              LostFocus="OnCommit" />
 
                     <TextBlock Text="Base URL" Opacity="0.7" />
-                    <TextBox Text="{Binding BaseUrl}" />
+                    <TextBox Text="{Binding BaseUrl}" LostFocus="OnCommit" />
 
                     <TextBlock Text="Model" Opacity="0.7" />
-                    <TextBox Text="{Binding Model}" />
+                    <TextBox Text="{Binding Model}" LostFocus="OnCommit" />
 
                     <TextBlock Text="API key" Opacity="0.7" />
-                    <TextBox Text="{Binding ApiKey}" PasswordChar="•" />
+                    <TextBox Text="{Binding ApiKey}" PasswordChar="•" LostFocus="OnCommit" />
                 </StackPanel>
             </TabItem>
 
@@ -46,15 +47,15 @@
                     <Grid ColumnDefinitions="*,*,*">
                         <StackPanel Grid.Column="0" Margin="0,0,6,0">
                             <TextBlock Text="Timeout (s)" Opacity="0.7" />
-                            <NumericUpDown Value="{Binding TimeoutSeconds}" Minimum="1" Maximum="600" />
+                            <NumericUpDown Value="{Binding TimeoutSeconds}" Minimum="1" Maximum="600" LostFocus="OnCommit" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="6,0">
                             <TextBlock Text="Max tokens" Opacity="0.7" />
-                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="1" Maximum="32000" />
+                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="1" Maximum="32000" LostFocus="OnCommit" />
                         </StackPanel>
                         <StackPanel Grid.Column="2" Margin="6,0,0,0">
                             <TextBlock Text="Temperature" Opacity="0.7" />
-                            <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2" Increment="0.1" />
+                            <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2" Increment="0.1" LostFocus="OnCommit" />
                         </StackPanel>
                     </Grid>
 

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -42,6 +43,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     public event Action? CloseRequested;
 
+    public event Action<string>? Mutated;
+
     [ObservableProperty]
     private string _projectName;
 
@@ -50,6 +53,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isSidebarVisible = true;
+
+    [ObservableProperty]
+    private int _selectedTabIndex;
 
     [ObservableProperty]
     private ChapterViewModel _selectedChapter;
@@ -65,6 +71,7 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         SelectedChapter = AddNewChapter();
         IsDirty = true;
+        Mutated?.Invoke("Add chapter");
     }
 
     [RelayCommand]
@@ -86,6 +93,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         Renumber();
         SelectedChapter = Chapters[Math.Min(index, Chapters.Count - 1)];
         IsDirty = true;
+        Mutated?.Invoke("Delete chapter");
     }
 
     [RelayCommand]
@@ -101,6 +109,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         Chapters.Move(index, index - 1);
         Renumber();
         IsDirty = true;
+        Mutated?.Invoke("Move chapter up");
     }
 
     [RelayCommand]
@@ -116,6 +125,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         Chapters.Move(index, index + 1);
         Renumber();
         IsDirty = true;
+        Mutated?.Invoke("Move chapter down");
     }
 
     [RelayCommand]
@@ -136,9 +146,9 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
 
-    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog)
+    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog, ITextDiff textDiff)
     {
-        var setup = new SetupViewModel(catalog, Languages)
+        var setup = new SetupViewModel(textDiff, catalog, Languages)
         {
             ProjectName = ProjectName,
             ChapterCount = Chapters.Count,
@@ -307,23 +317,38 @@ public partial class WorkspaceViewModel : ViewModelBase
         }
     }
 
-    private static void BuildTabs(ChapterViewModel chapter)
+    private void BuildTabs(ChapterViewModel chapter)
     {
         chapter.Tabs.Clear();
         chapter.Tabs.Add(new ChapterTabViewModel(
             "Chapter (EN)",
-            new ChapterTextViewModel("Chapter (EN)", chapter.ContentOriginal, isTranslation: false, value => chapter.ContentOriginal = value)));
+            new ChapterTextViewModel(
+                "Chapter (EN)",
+                chapter.ContentOriginal,
+                isTranslation: false,
+                value => chapter.ContentOriginal = value,
+                () => Mutated?.Invoke($"Edit chapter {chapter.Number}"))));
 
         foreach (var translation in chapter.Translations)
         {
             var captured = translation;
+            var name = $"Edit chapter {chapter.Number} ({captured.LanguageCode.ToUpperInvariant()})";
             chapter.Tabs.Add(new ChapterTabViewModel(
                 captured.Header,
-                new ChapterTextViewModel(captured.Header, captured.Text, isTranslation: true, value => captured.Text = value)));
+                new ChapterTextViewModel(
+                    captured.Header,
+                    captured.Text,
+                    isTranslation: true,
+                    value => captured.Text = value,
+                    () => Mutated?.Invoke(name))));
         }
 
-        chapter.Tabs.Add(new ChapterTabViewModel("Summary", new ChapterSummaryViewModel(chapter)));
-        chapter.Tabs.Add(new ChapterTabViewModel("Settings", new ChapterSettingsViewModel(chapter)));
+        chapter.Tabs.Add(new ChapterTabViewModel(
+            "Summary",
+            new ChapterSummaryViewModel(chapter, () => Mutated?.Invoke($"Edit summary of chapter {chapter.Number}"))));
+        chapter.Tabs.Add(new ChapterTabViewModel(
+            "Settings",
+            new ChapterSettingsViewModel(chapter, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"))));
     }
 
     private static ChapterViewModel FromChapter(Chapter chapter)
@@ -358,7 +383,8 @@ public partial class WorkspaceViewModel : ViewModelBase
         Notes = viewModel.Notes,
         Summary = viewModel.Summary,
         Logline = viewModel.Logline,
-        Translations = viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text),
+        Translations = new SortedDictionary<string, string>(
+            viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
     };
 
     private static string FormatCharacter(Character character) =>

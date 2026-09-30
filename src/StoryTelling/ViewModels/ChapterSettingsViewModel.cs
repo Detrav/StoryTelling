@@ -5,29 +5,58 @@ namespace StoryTelling.ViewModels;
 public partial class ChapterSettingsViewModel : ViewModelBase
 {
     private readonly ChapterViewModel _chapter;
+    private readonly CommitDebouncer _debouncer;
 
-    public ChapterSettingsViewModel(ChapterViewModel chapter)
+    public ChapterSettingsViewModel(ChapterViewModel chapter, Action commit)
     {
         _chapter = chapter;
+        _debouncer = new CommitDebouncer(commit, TimeSpan.FromMilliseconds(700));
         chapter.PropertyChanged += OnChapterChanged;
     }
 
     public string Title
     {
         get => _chapter.Title;
-        set => _chapter.Title = value;
+        set
+        {
+            if (_chapter.Title == value)
+            {
+                return;
+            }
+
+            _chapter.Title = value;
+            _debouncer.Trigger();
+        }
     }
 
     public string Direction
     {
         get => _chapter.Direction;
-        set => _chapter.Direction = value;
+        set
+        {
+            if (_chapter.Direction == value)
+            {
+                return;
+            }
+
+            _chapter.Direction = value;
+            _debouncer.Trigger();
+        }
     }
 
     public string Notes
     {
         get => _chapter.Notes;
-        set => _chapter.Notes = value;
+        set
+        {
+            if (_chapter.Notes == value)
+            {
+                return;
+            }
+
+            _chapter.Notes = value;
+            _debouncer.Trigger();
+        }
     }
 
     public string Status => _chapter.StatusText;
@@ -38,6 +67,8 @@ public partial class ChapterSettingsViewModel : ViewModelBase
         "Direction" => "Chapter direction",
         _ => field,
     };
+
+    public void Commit() => _debouncer.CommitNow();
 
     public void ApplyGenerated(string field, string text)
     {

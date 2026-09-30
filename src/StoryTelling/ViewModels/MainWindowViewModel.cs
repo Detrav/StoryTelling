@@ -8,21 +8,44 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Settings;
+using StoryTelling.Application.Undo;
 using StoryTelling.Domain;
+using StoryTelling.Infrastructure.Json;
 
 namespace StoryTelling.ViewModels;
 
-public partial class MainWindowViewModel : ViewModelBase
+public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
 {
     private readonly IProjectRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IClock _clock;
+    private readonly ITextDiff _textDiff;
     private readonly ILogger<MainWindowViewModel> _logger;
     private AppSettings _settings = AppSettings.CreateDefault();
+    private IUndoRedoService? _undoRedo;
+
+    public MainWindowViewModel(
+        IProjectRepository repository,
+        ISettingsService settingsService,
+        IClock clock,
+        ITextDiff textDiff,
+        ILogger<MainWindowViewModel> logger)
+    {
+        _repository = repository;
+        _settingsService = settingsService;
+        _clock = clock;
+        _textDiff = textDiff;
+        _logger = logger;
+        _content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
+    }
 
     public event Action<string>? ErrorOccurred;
 
     public event Action? OpenProjectDialogRequested;
+
+    public event Action? SaveRequested;
+
+    public event Action? SaveAsRequested;
 
     [ObservableProperty]
     private object _content;
@@ -34,24 +57,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public AppSettings Settings => _settings;
 
+    public ITextDiff TextDiff => _textDiff;
+
     public bool HasProject => Workspace is not null;
+
+    public bool CanUndo => _undoRedo is not null;
+
+    public bool CanRedo => _undoRedo?.CanRedo == true;
+
+    public string UndoLabel => _undoRedo?.NextUndoName is { Length: > 0 } name ? $"Undo: {name}" : "Undo";
+
+    public string RedoLabel => _undoRedo?.NextRedoName is { Length: > 0 } name ? $"Redo: {name}" : "Redo";
 
     public string WindowTitle => Workspace is null
         ? "StoryTelling"
         : $"{(Workspace.IsDirty ? "* " : string.Empty)}{Workspace.ProjectName} — StoryTelling";
-
-    public MainWindowViewModel(
-        IProjectRepository repository,
-        ISettingsService settingsService,
-        IClock clock,
-        ILogger<MainWindowViewModel> logger)
-    {
-        _repository = repository;
-        _settingsService = settingsService;
-        _clock = clock;
-        _logger = logger;
-        _content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
-    }
 
     public async Task InitializeAsync()
     {
@@ -72,12 +92,51 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void NewProject()
     {
-        OpenWorkspace(new WorkspaceViewModel(CreateNewProject()) { IsDirty = true });
+        OpenWorkspace(new WorkspaceViewModel(CreateNewProject()) { IsDirty = true }, resetUndo: true);
         _logger.LogInformation("New project created");
     }
 
     [RelayCommand]
     private void CloseProject() => ShowWelcome();
+
+    [RelayCommand]
+    private void OpenProject() => RequestOpenProject();
+
+    [RelayCommand]
+    private void Save() => SaveRequested?.Invoke();
+
+    [RelayCommand]
+    private void SaveAs() => SaveAsRequested?.Invoke();
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private async Task UndoAsync()
+    {
+        if (_undoRedo is null)
+        {
+            return;
+        }
+
+        var state = await _undoRedo.UndoAsync();
+        if (state is not null)
+        {
+            ApplyState(state);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private async Task RedoAsync()
+    {
+        if (_undoRedo is null)
+        {
+            return;
+        }
+
+        var state = await _undoRedo.RedoAsync();
+        if (state is not null)
+        {
+            ApplyState(state);
+        }
+    }
 
     public void RequestOpenProject() => OpenProjectDialogRequested?.Invoke();
 
@@ -86,7 +145,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var project = await _repository.LoadAsync(path);
-            OpenWorkspace(new WorkspaceViewModel(project) { FilePath = path });
+            OpenWorkspace(new WorkspaceViewModel(project) { FilePath = path }, resetUndo: true);
             AddRecent(path);
             _logger.LogInformation("Opened project {Path}", path);
         }
@@ -137,27 +196,107 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     public SetupViewModel CreateSetupViewModel() =>
-        Workspace?.CreateSetup(_settings.Languages) ?? new SetupViewModel(_settings.Languages, []);
+        Workspace?.CreateSetup(_settings.Languages, _textDiff) ?? new SetupViewModel(_textDiff, _settings.Languages, []);
 
-    public void ApplySetup(SetupViewModel setup) => Workspace?.ApplySetup(setup);
+    public void ApplySetup(SetupViewModel setup)
+    {
+        if (Workspace is null)
+        {
+            return;
+        }
 
-    private void OpenWorkspace(WorkspaceViewModel workspace)
+        Workspace.ApplySetup(setup);
+        _undoRedo?.Push("Project setup");
+    }
+
+    private void OpenWorkspace(WorkspaceViewModel workspace, bool resetUndo)
     {
         Detach();
         workspace.PropertyChanged += OnWorkspacePropertyChanged;
         workspace.CloseRequested += CloseProject;
+        workspace.Mutated += OnWorkspaceMutated;
         Workspace = workspace;
         Content = workspace;
+
+        if (resetUndo)
+        {
+            ResetUndo();
+        }
+        else
+        {
+            NotifyUndoRedo();
+        }
     }
 
     private void ShowWelcome()
     {
         Detach();
+        DetachUndo();
         Workspace = null;
         Content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
     }
 
     private void OpenRecent(string path) => _ = OpenProjectAsync(path);
+
+    private void OnWorkspaceMutated(string name) => _undoRedo?.Push(name);
+
+    private void ApplyState(string state)
+    {
+        var project = StoryJson.Deserialize(state);
+        var selectedNumber = Workspace?.SelectedChapter?.Number ?? 1;
+        var tabIndex = Workspace?.SelectedTabIndex ?? 0;
+        var path = Workspace?.FilePath;
+        var sidebar = Workspace?.IsSidebarVisible ?? true;
+
+        var workspace = new WorkspaceViewModel(project)
+        {
+            FilePath = path,
+            IsSidebarVisible = sidebar,
+            IsDirty = true,
+            SelectedTabIndex = tabIndex,
+        };
+
+        var chapter = workspace.Chapters.FirstOrDefault(candidate => candidate.Number == selectedNumber);
+        workspace.SelectedChapter = chapter ?? workspace.Chapters[0];
+
+        OpenWorkspace(workspace, resetUndo: false);
+    }
+
+    private void ResetUndo()
+    {
+        DetachUndo();
+
+        if (Workspace is null)
+        {
+            return;
+        }
+
+        _undoRedo = new UndoRedoService(_textDiff, () => StoryJson.Serialize(Workspace.ToProject()));
+        _undoRedo.Changed += OnUndoRedoChanged;
+        _undoRedo.Reset(StoryJson.Serialize(Workspace.ToProject()));
+        NotifyUndoRedo();
+    }
+
+    private void DetachUndo()
+    {
+        if (_undoRedo is not null)
+        {
+            _undoRedo.Changed -= OnUndoRedoChanged;
+            _undoRedo = null;
+        }
+    }
+
+    private void OnUndoRedoChanged(object? sender, EventArgs e) => NotifyUndoRedo();
+
+    private void NotifyUndoRedo()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        OnPropertyChanged(nameof(UndoLabel));
+        OnPropertyChanged(nameof(RedoLabel));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
 
     private void Detach()
     {
@@ -168,6 +307,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Workspace.PropertyChanged -= OnWorkspacePropertyChanged;
         Workspace.CloseRequested -= CloseProject;
+        Workspace.Mutated -= OnWorkspaceMutated;
     }
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs e)

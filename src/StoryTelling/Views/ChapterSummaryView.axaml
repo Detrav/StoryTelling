@@ -7,13 +7,14 @@
     <ScrollViewer>
         <StackPanel Margin="14" Spacing="8">
             <TextBlock Text="Logline" Opacity="0.7" />
-            <TextBox Text="{Binding Logline}" />
+            <TextBox Text="{Binding Logline}" LostFocus="OnCommit" />
 
             <TextBlock Text="Recap — events, character changes, how the chapter ended" Opacity="0.7" />
             <TextBox Text="{Binding Recap}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
-                     Height="200" />
+                     Height="200"
+                     LostFocus="OnCommit" />
 
             <Button Content="Generate with AI" Click="OnGenerateClick" HorizontalAlignment="Left" />
         </StackPanel>

@@ -42,6 +42,8 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 - `IGenerationAssistant` — produces field options for the *Generate with AI* wizard.
 - `IChapterWriter` / `IChapterSummarizer` / `ITranslationService`.
 - `IStoryGenerationService` — pipeline orchestration (single chapter + batch run).
+- `IUndoRedoService` — snapshot + text-diff history (undo/redo).
+- `ITextDiff` — produces a reversible line patch between two texts (DiffPlex).
 - `IClock` / `IGuidGenerator` — injectable time and identity for testability.
 
 ## Application foundation
@@ -58,6 +60,16 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
   `schemaVersion` guards against a file written by a newer major version.
 - **Errors** — external failures (file not found, unreadable/corrupt JSON, write errors) are
   logged and surfaced to the user through an error dialog.
+- **Undo / redo** — `IUndoRedoService` keeps the current state (the project as JSON) plus a
+  list of line diffs (like git) computed with DiffPlex. `Push(name)` is called after an
+  explicit action; if nothing changed no entry is added. Before an undo/redo a safety snapshot
+  is taken, so any change made without a push is committed first (dropping the redo tail).
+  Undo/redo are async and guarded by a gate that drops calls while one is running. The history
+  is session-only and each project/workspace starts fresh. Native `TextBox` undo is disabled;
+  text edits commit on `LostFocus` and after a short debounce, and the standard shortcuts
+  (`Ctrl+Z/Y`, `Ctrl+S`, ...) are bound at the window level. Dialogs reuse the same service
+  through `UndoableDialogViewModel`, each creating its own `UndoRedoService` instance and
+  routing `Ctrl+Z/Y` via `UndoRedoKeyboard`.
 
 ## Notes
 

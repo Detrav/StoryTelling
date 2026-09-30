@@ -68,7 +68,9 @@
                 </Grid>
             </Border>
 
-            <TabControl Grid.Row="1" ItemsSource="{Binding SelectedChapter.Tabs}">
+            <TabControl Grid.Row="1"
+                        ItemsSource="{Binding SelectedChapter.Tabs}"
+                        SelectedIndex="{Binding SelectedTabIndex}">
                 <TabControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ChapterTabViewModel">
                         <TextBlock Text="{Binding Header}" />

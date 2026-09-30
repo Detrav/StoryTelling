@@ -30,7 +30,7 @@
                            Opacity="0.7"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0" />
-                <TextBox Grid.Column="1" Text="{Binding ProjectName}" />
+                <TextBox Grid.Column="1" Text="{Binding ProjectName}" LostFocus="OnCommit" />
                 <Button Grid.Column="2"
                         Content="Generate with AI"
                         Tag="ProjectName"
@@ -43,14 +43,15 @@
             <TabItem Header="World">
                 <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
                     <TextBlock Grid.Row="0" Text="Title" Opacity="0.7" />
-                    <TextBox Grid.Row="1" Text="{Binding WorldTitle}" />
+                    <TextBox Grid.Row="1" Text="{Binding WorldTitle}" LostFocus="OnCommit" />
                     <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="6">
                         <TextBlock Grid.Row="0" Text="Body" Opacity="0.7" />
                         <TextBox Grid.Row="1"
                                  Text="{Binding WorldBody}"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
-                                 VerticalContentAlignment="Top" />
+                                 VerticalContentAlignment="Top"
+                                 LostFocus="OnCommit" />
                     </Grid>
                     <Button Grid.Row="3"
                             Content="Generate with AI"
@@ -74,19 +75,20 @@
                 <ScrollViewer>
                     <StackPanel Margin="16" Spacing="8">
                         <TextBlock Text="Genre" Opacity="0.7" />
-                        <TextBox Text="{Binding Genre}" />
+                        <TextBox Text="{Binding Genre}" LostFocus="OnCommit" />
                         <TextBlock Text="Tone" Opacity="0.7" />
-                        <TextBox Text="{Binding Tone}" />
+                        <TextBox Text="{Binding Tone}" LostFocus="OnCommit" />
                         <TextBlock Text="Premise" Opacity="0.7" />
-                        <TextBox Text="{Binding Premise}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />
+                        <TextBox Text="{Binding Premise}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" LostFocus="OnCommit" />
                         <TextBlock Text="Direction" Opacity="0.7" />
-                        <TextBox Text="{Binding Direction}" />
+                        <TextBox Text="{Binding Direction}" LostFocus="OnCommit" />
                         <TextBlock Text="Chapter count" Opacity="0.7" />
                         <NumericUpDown Value="{Binding ChapterCount}"
                                        Minimum="1"
                                        Maximum="200"
                                        Width="140"
-                                       HorizontalAlignment="Left" />
+                                       HorizontalAlignment="Left"
+                                       LostFocus="OnCommit" />
                         <Button Content="Generate with AI"
                                 Tag="Premise"
                                 Click="OnGenerateClick"
@@ -99,7 +101,7 @@
                 <ScrollViewer>
                     <StackPanel Margin="16" Spacing="8">
                         <TextBlock Text="Time and place" Opacity="0.7" />
-                        <TextBox Text="{Binding WorldStateTimeAndPlace}" />
+                        <TextBox Text="{Binding WorldStateTimeAndPlace}" LostFocus="OnCommit" />
                         <Grid ColumnDefinitions="*,*">
                             <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
                                 <TextBlock Text="Characters" Opacity="0.7" />

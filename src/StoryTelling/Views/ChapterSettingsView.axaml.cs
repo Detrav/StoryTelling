@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using StoryTelling.ViewModels;
 
@@ -19,6 +20,9 @@ public partial class ChapterSettingsView : UserControl
         if (!string.IsNullOrWhiteSpace(result))
         {
             viewModel.ApplyGenerated(field, result);
+            viewModel.Commit();
         }
     }
+
+    private void OnCommit(object? sender, FocusChangedEventArgs e) => (DataContext as ChapterSettingsViewModel)?.Commit();
 }

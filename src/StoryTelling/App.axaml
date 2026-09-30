@@ -11,5 +11,8 @@
 
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="TextBox">
+            <Setter Property="IsUndoEnabled" Value="False" />
+        </Style>
     </Application.Styles>
 </Application>

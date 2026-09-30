@@ -1,16 +1,19 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Settings;
 
 namespace StoryTelling.ViewModels;
 
-public partial class SettingsWindowViewModel : ViewModelBase
+public partial class SettingsWindowViewModel : UndoableDialogViewModel
 {
     private readonly AppSettings _original;
 
-    public SettingsWindowViewModel(AppSettings settings)
+    public SettingsWindowViewModel(ITextDiff diff, AppSettings settings)
+        : base(diff)
     {
         _original = settings;
         Languages = new ObservableCollection<LanguageData>(settings.Languages);
@@ -23,6 +26,8 @@ public partial class SettingsWindowViewModel : ViewModelBase
         _temperature = settings.Temperature;
         _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
+
+        InitializeUndo();
     }
 
     public ObservableCollection<LanguageData> Languages { get; }
@@ -96,6 +101,7 @@ public partial class SettingsWindowViewModel : ViewModelBase
 
         NewLanguageCode = string.Empty;
         NewLanguageName = string.Empty;
+        Commit();
     }
 
     [RelayCommand]
@@ -104,6 +110,7 @@ public partial class SettingsWindowViewModel : ViewModelBase
         if (language is not null)
         {
             Languages.Remove(language);
+            Commit();
         }
     }
 
@@ -124,4 +131,57 @@ public partial class SettingsWindowViewModel : ViewModelBase
         Languages = Languages.ToList(),
         RecentProjects = _original.RecentProjects.ToList(),
     };
+
+    protected override string CaptureState()
+    {
+        var snapshot = new SettingsSnapshot(
+            Provider,
+            BaseUrl,
+            Model,
+            ApiKey,
+            TimeoutSeconds,
+            MaxTokens,
+            Temperature,
+            SelectedDefault?.Code ?? _original.DefaultLanguageCode,
+            [.. Languages]);
+
+        return JsonSerializer.Serialize(snapshot);
+    }
+
+    protected override void ApplyState(string state)
+    {
+        var snapshot = JsonSerializer.Deserialize<SettingsSnapshot>(state);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        Provider = snapshot.Provider;
+        BaseUrl = snapshot.BaseUrl;
+        Model = snapshot.Model;
+        ApiKey = snapshot.ApiKey;
+        TimeoutSeconds = snapshot.TimeoutSeconds;
+        MaxTokens = snapshot.MaxTokens;
+        Temperature = snapshot.Temperature;
+
+        Languages.Clear();
+        foreach (var language in snapshot.Languages)
+        {
+            Languages.Add(language);
+        }
+
+        SelectedDefault = Languages.FirstOrDefault(language => language.Code == snapshot.DefaultLanguageCode)
+            ?? Languages.FirstOrDefault();
+    }
+
+    private sealed record SettingsSnapshot(
+        string Provider,
+        string BaseUrl,
+        string Model,
+        string ApiKey,
+        int TimeoutSeconds,
+        int MaxTokens,
+        double Temperature,
+        string DefaultLanguageCode,
+        List<LanguageData> Languages);
 }

@@ -8,14 +8,21 @@
         Width="1180"
         Height="780">
 
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewProjectCommand}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenProjectCommand}" />
+        <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAsCommand}" />
+    </Window.KeyBindings>
+
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_New project" Command="{Binding NewProjectCommand}" />
-                <MenuItem Header="_Open project…" Click="OnOpenProjectClick" />
+                <MenuItem Header="_New project" Command="{Binding NewProjectCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="_Open project…" Click="OnOpenProjectClick" InputGesture="Ctrl+O" />
                 <Separator />
-                <MenuItem Header="_Save" Click="OnSaveClick" IsEnabled="{Binding HasProject}" />
-                <MenuItem Header="Save _as…" Click="OnSaveAsClick" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="_Save" Click="OnSaveClick" InputGesture="Ctrl+S" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="Save _as…" Click="OnSaveAsClick" InputGesture="Ctrl+Shift+S" IsEnabled="{Binding HasProject}" />
                 <Separator />
                 <MenuItem Header="Project _setup…" Click="OnProjectSetupClick" IsEnabled="{Binding HasProject}" />
                 <MenuItem Header="_Settings…" Click="OnSettingsClick" />
@@ -25,8 +32,8 @@
             </MenuItem>
 
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" IsEnabled="False" />
-                <MenuItem Header="_Redo" IsEnabled="False" />
+                <MenuItem Header="{Binding UndoLabel}" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+                <MenuItem Header="{Binding RedoLabel}" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
                 <Separator />
                 <MenuItem Header="Cu_t" IsEnabled="False" />
                 <MenuItem Header="Cop_y" IsEnabled="False" />
@@ -57,6 +64,17 @@
                 <MenuItem Header="_About" Click="OnAboutClick" />
             </MenuItem>
         </Menu>
+
+        <Border DockPanel.Dock="Top"
+                Padding="8,4"
+                BorderThickness="0,0,0,1"
+                BorderBrush="#22000000"
+                IsVisible="{Binding HasProject}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="{Binding UndoLabel}" />
+                <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="{Binding RedoLabel}" />
+            </StackPanel>
+        </Border>
 
         <ContentControl Content="{Binding Content}" />
     </DockPanel>

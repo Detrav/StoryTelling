@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using StoryTelling.ViewModels;
 
@@ -6,7 +7,11 @@ namespace StoryTelling.Views;
 
 public partial class SetupWindow : Window
 {
-    public SetupWindow() => InitializeComponent();
+    public SetupWindow()
+    {
+        InitializeComponent();
+        UndoRedoKeyboard.Attach(this);
+    }
 
     private void OnApplyClick(object? sender, RoutedEventArgs e) => Close(true);
 
@@ -26,4 +31,6 @@ public partial class SetupWindow : Window
             setup.ApplyGenerated(field, result);
         }
     }
+
+    private void OnCommit(object? sender, FocusChangedEventArgs e) => (DataContext as SetupViewModel)?.Commit();
 }

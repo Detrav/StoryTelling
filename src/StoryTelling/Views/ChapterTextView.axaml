@@ -16,7 +16,8 @@
                  AcceptsReturn="True"
                  AcceptsTab="True"
                  TextWrapping="Wrap"
-                 VerticalContentAlignment="Top" />
+                 VerticalContentAlignment="Top"
+                 LostFocus="OnCommit" />
     </Grid>
 
 </UserControl>

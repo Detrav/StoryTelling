@@ -134,7 +134,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
                 Direction = "Introduce Aria.",
                 Notes = "Keep it tense.",
                 ContentOriginal = "The smoke rose.",
-                Translations = new Dictionary<string, string> { ["ru"] = "Дым поднимался." },
+                Translations = new SortedDictionary<string, string> { ["ru"] = "Дым поднимался." },
                 Summary = "Aria escapes the burning keep.",
                 Logline = "A scout flees a burning keep.",
                 Status = ChapterStatus.Generated,

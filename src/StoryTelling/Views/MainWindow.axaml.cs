@@ -13,7 +13,11 @@ public partial class MainWindow : Window
 {
     private MainWindowViewModel? _viewModel;
 
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        UndoRedoKeyboard.Attach(this);
+    }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
@@ -23,6 +27,8 @@ public partial class MainWindow : Window
         {
             _viewModel.ErrorOccurred -= OnErrorOccurred;
             _viewModel.OpenProjectDialogRequested -= OnOpenProjectDialogRequested;
+            _viewModel.SaveRequested -= OnSaveRequested;
+            _viewModel.SaveAsRequested -= OnSaveAsRequested;
         }
 
         _viewModel = DataContext as MainWindowViewModel;
@@ -31,6 +37,8 @@ public partial class MainWindow : Window
         {
             _viewModel.ErrorOccurred += OnErrorOccurred;
             _viewModel.OpenProjectDialogRequested += OnOpenProjectDialogRequested;
+            _viewModel.SaveRequested += OnSaveRequested;
+            _viewModel.SaveAsRequested += OnSaveAsRequested;
         }
     }
 
@@ -64,7 +72,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnSaveClick(object? sender, RoutedEventArgs e)
+    private async void OnSaveRequested() => await SaveAsync();
+
+    private async void OnSaveAsRequested() => await SaveAsAsync();
+
+    private async void OnSaveClick(object? sender, RoutedEventArgs e) => await SaveAsync();
+
+    private async void OnSaveAsClick(object? sender, RoutedEventArgs e) => await SaveAsAsync();
+
+    private async System.Threading.Tasks.Task SaveAsync()
     {
         if (_viewModel?.Workspace is null)
         {
@@ -78,7 +94,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnSaveAsClick(object? sender, RoutedEventArgs e)
+    private async System.Threading.Tasks.Task SaveAsAsync()
     {
         if (_viewModel?.Workspace is null)
         {
@@ -114,7 +130,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var settings = new SettingsWindowViewModel(_viewModel.Settings);
+        var settings = new SettingsWindowViewModel(_viewModel.TextDiff, _viewModel.Settings);
         var window = new SettingsWindow { DataContext = settings };
         if (await window.ShowDialog<bool>(this))
         {

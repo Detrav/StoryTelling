@@ -8,7 +8,7 @@
         <StackPanel Margin="14" Spacing="8">
             <TextBlock Text="Title" Opacity="0.7" />
             <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding Title}" />
+                <TextBox Text="{Binding Title}" LostFocus="OnCommit" />
                 <Button Grid.Column="1"
                         Content="Generate with AI"
                         Tag="Title"
@@ -21,7 +21,8 @@
                 <TextBox Text="{Binding Direction}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
-                         Height="100" />
+                         Height="100"
+                         LostFocus="OnCommit" />
                 <Button Grid.Column="1"
                         Content="Generate with AI"
                         Tag="Direction"
@@ -34,7 +35,8 @@
             <TextBox Text="{Binding Notes}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
-                     Height="100" />
+                     Height="100"
+                     LostFocus="OnCommit" />
 
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Status:" Opacity="0.7" />

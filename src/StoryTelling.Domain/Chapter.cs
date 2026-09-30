@@ -12,7 +12,7 @@ public sealed class Chapter
 
     public string ContentOriginal { get; set; } = string.Empty;
 
-    public Dictionary<string, string> Translations { get; set; } = [];
+    public SortedDictionary<string, string> Translations { get; set; } = [];
 
     public string Summary { get; set; } = string.Empty;
 
