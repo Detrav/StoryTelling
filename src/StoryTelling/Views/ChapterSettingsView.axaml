@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:StoryTelling.ViewModels"
+             x:Class="StoryTelling.Views.ChapterSettingsView"
+             x:DataType="vm:ChapterSettingsViewModel">
+
+    <ScrollViewer>
+        <StackPanel Margin="14" Spacing="8">
+            <TextBlock Text="Title" Opacity="0.7" />
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding Title}" />
+                <Button Grid.Column="1"
+                        Content="Generate with AI"
+                        Tag="Title"
+                        Click="OnGenerateClick"
+                        Margin="8,0,0,0" />
+            </Grid>
+
+            <TextBlock Text="Direction — what should happen in this chapter" Opacity="0.7" />
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding Direction}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="100" />
+                <Button Grid.Column="1"
+                        Content="Generate with AI"
+                        Tag="Direction"
+                        Click="OnGenerateClick"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Top" />
+            </Grid>
+
+            <TextBlock Text="Notes / instructions" Opacity="0.7" />
+            <TextBox Text="{Binding Notes}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Height="100" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Status:" Opacity="0.7" />
+                <TextBlock Text="{Binding Status}" FontWeight="SemiBold" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

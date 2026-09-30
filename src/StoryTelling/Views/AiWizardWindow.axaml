@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:StoryTelling.ViewModels"
+        x:Class="StoryTelling.Views.AiWizardWindow"
+        x:DataType="vm:AiWizardViewModel"
+        Title="Generate with AI"
+        Width="680"
+        Height="660"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom"
+                Padding="14"
+                BorderThickness="0,1,0,0"
+                BorderBrush="#22000000">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" Click="OnCancelClick" />
+                <Button Content="Apply" Classes="accent" Click="OnApplyClick" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="18" Spacing="10">
+            <TextBlock Text="{Binding Header}" FontSize="18" FontWeight="SemiBold" />
+
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding Brief}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="64"
+                         PlaceholderText="Describe what you want (optional)" />
+                <Button Grid.Column="1"
+                        Content="More options"
+                        Command="{Binding MoreOptionsCommand}"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Top" />
+            </Grid>
+
+            <TextBlock Text="Options" FontWeight="SemiBold" />
+            <ListBox ItemsSource="{Binding Options}"
+                     SelectedItem="{Binding SelectedOption}"
+                     Height="260" />
+
+            <TextBlock Text="Your edits (optional — overrides the selection)" Opacity="0.7" />
+            <TextBox Text="{Binding Edits}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Height="80" />
+        </StackPanel>
+    </DockPanel>
+
+</Window>

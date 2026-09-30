@@ -6,5 +6,5 @@ public sealed class StorySettings
 
     public string OriginalLanguage { get; set; } = OriginalLanguageCode;
 
-    public string TargetLanguage { get; set; } = OriginalLanguageCode;
+    public List<string> TargetLanguages { get; set; } = [];
 }

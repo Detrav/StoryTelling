@@ -8,11 +8,15 @@ public sealed class Chapter
 
     public string Direction { get; set; } = string.Empty;
 
+    public string Notes { get; set; } = string.Empty;
+
     public string ContentOriginal { get; set; } = string.Empty;
 
-    public string? ContentTranslated { get; set; }
+    public Dictionary<string, string> Translations { get; set; } = [];
 
     public string Summary { get; set; } = string.Empty;
+
+    public string Logline { get; set; } = string.Empty;
 
     public ChapterStatus Status { get; set; } = ChapterStatus.Draft;
 

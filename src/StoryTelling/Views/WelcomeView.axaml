@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:StoryTelling.ViewModels"
+             x:Class="StoryTelling.Views.WelcomeView"
+             x:DataType="vm:WelcomeViewModel">
+
+    <Border Padding="48">
+        <StackPanel Width="420"
+                    Spacing="14"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+            <TextBlock Text="StoryTelling" FontSize="34" FontWeight="SemiBold" />
+            <TextBlock Text="Write multi-chapter stories with an AI assistant."
+                       Opacity="0.7"
+                       TextWrapping="Wrap" />
+
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+                <Button Content="New project" Classes="accent" Command="{Binding NewProjectCommand}" />
+                <Button Content="Open project…" Command="{Binding OpenProjectCommand}" />
+            </StackPanel>
+
+            <TextBlock Text="Recent" FontWeight="SemiBold" Margin="0,16,0,0" />
+            <ListBox ItemsSource="{Binding RecentProjects}" MinHeight="120" />
+        </StackPanel>
+    </Border>
+
+</UserControl>

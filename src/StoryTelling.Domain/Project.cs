@@ -22,11 +22,7 @@ public sealed class Project
 
     public List<ExtraFile> ExtraFiles { get; set; } = [];
 
-    public List<OutlineEntry> Outline { get; set; } = [];
-
     public List<Chapter> Chapters { get; set; } = [];
 
     public WorldState WorldState { get; set; } = new();
-
-    public List<AssistantMessage> Transcript { get; set; } = [];
 }

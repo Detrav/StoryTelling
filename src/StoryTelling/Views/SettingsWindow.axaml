@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:StoryTelling.ViewModels"
+        x:Class="StoryTelling.Views.SettingsWindow"
+        x:DataType="vm:SettingsWindowViewModel"
+        Title="Settings"
+        Width="720"
+        Height="640"
+        MinWidth="560"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom"
+                Padding="14"
+                BorderThickness="0,1,0,0"
+                BorderBrush="#22000000">
+            <Button Content="Close" HorizontalAlignment="Right" Click="OnCloseClick" />
+        </Border>
+
+        <TabControl HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <TabItem Header="Provider">
+                <StackPanel Margin="18" Spacing="10">
+                    <TextBlock Text="Provider" Opacity="0.7" />
+                    <ComboBox ItemsSource="{Binding Providers}"
+                              SelectedItem="{Binding Provider}"
+                              HorizontalAlignment="Stretch" />
+
+                    <TextBlock Text="Base URL" Opacity="0.7" />
+                    <TextBox Text="{Binding BaseUrl}" />
+
+                    <TextBlock Text="Model" Opacity="0.7" />
+                    <TextBox Text="{Binding Model}" />
+
+                    <TextBlock Text="API key" Opacity="0.7" />
+                    <TextBox Text="{Binding ApiKey}" PasswordChar="•" />
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="Parameters">
+                <StackPanel Margin="18" Spacing="12">
+                    <Grid ColumnDefinitions="*,*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                            <TextBlock Text="Timeout (s)" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding TimeoutSeconds}" Minimum="1" Maximum="600" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="6,0">
+                            <TextBlock Text="Max tokens" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="1" Maximum="32000" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                            <TextBlock Text="Temperature" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2" Increment="0.1" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="Test connection" Command="{Binding TestConnectionCommand}" />
+                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" Opacity="0.7" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="Languages">
+                <Grid Margin="18" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8">
+                    <TextBlock Grid.Row="0"
+                               Text="The selected row is the default language for new projects."
+                               Opacity="0.7"
+                               TextWrapping="Wrap" />
+
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding Languages}"
+                             SelectedItem="{Binding SelectedDefault}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LanguageOption">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Content="Remove"
+                                            Tag="{Binding}"
+                                            Click="OnRemoveLanguageClick" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Grid Grid.Row="2" ColumnDefinitions="*,*,Auto">
+                        <TextBox Grid.Column="0" Text="{Binding NewLanguageCode}" PlaceholderText="Code (e.g. it)" Margin="0,0,6,0" />
+                        <TextBox Grid.Column="1" Text="{Binding NewLanguageName}" PlaceholderText="Name" Margin="0,0,6,0" />
+                        <Button Grid.Column="2" Content="Add" Command="{Binding AddLanguageCommand}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="3"
+                               Text="Languages are stored globally and offered in each project's setup."
+                               Opacity="0.6"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+
+</Window>

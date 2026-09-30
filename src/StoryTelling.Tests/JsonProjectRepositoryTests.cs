@@ -27,7 +27,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Equal(StoryJson.Serialize(original), StoryJson.Serialize(loaded));
         Assert.Equal(original.Id, loaded.Id);
         Assert.Single(loaded.Chapters);
-        Assert.Equal("Дым поднимался.", loaded.Chapters[0].ContentTranslated);
+        Assert.Equal("Дым поднимался.", loaded.Chapters[0].Translations["ru"]);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Name = "The Ember Crown",
         CreatedUtc = DateTimeOffset.UnixEpoch,
         UpdatedUtc = DateTimeOffset.UnixEpoch.AddHours(2),
-        Settings = new StorySettings { TargetLanguage = "ru" },
+        Settings = new StorySettings { TargetLanguages = ["ru", "de"] },
         Lore = new WorldLore
         {
             Title = "Ashen Reach",
@@ -106,7 +106,6 @@ public sealed class JsonProjectRepositoryTests : IDisposable
             ChapterCount = 3,
         },
         ExtraFiles = [new ExtraFile { Name = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] }],
-        Outline = [new OutlineEntry { ChapterNumber = 1, Title = "Embers", Direction = "Introduce Aria.", Approved = true }],
         Chapters =
         [
             new Chapter
@@ -114,9 +113,11 @@ public sealed class JsonProjectRepositoryTests : IDisposable
                 Number = 1,
                 Title = "Embers",
                 Direction = "Introduce Aria.",
+                Notes = "Keep it tense.",
                 ContentOriginal = "The smoke rose.",
-                ContentTranslated = "Дым поднимался.",
+                Translations = new Dictionary<string, string> { ["ru"] = "Дым поднимался." },
                 Summary = "Aria escapes the burning keep.",
+                Logline = "A scout flees a burning keep.",
                 Status = ChapterStatus.Generated,
                 CreatedUtc = DateTimeOffset.UnixEpoch,
             },
@@ -143,6 +144,5 @@ public sealed class JsonProjectRepositoryTests : IDisposable
             RecentEvents = ["the keep fell at dusk"],
             OpenQuestions = ["what is the relic?"],
         },
-        Transcript = [new AssistantMessage { Role = AssistantRole.User, Content = "Plan the arc.", CreatedUtc = DateTimeOffset.UnixEpoch }],
     };
 }

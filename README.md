@@ -10,12 +10,14 @@ streamlined, token-budgeted memory instead of resending previous chapters.
 
 - **AI-assisted setup** — generate world lore, characters, plot and the chapter plan, or
   write them yourself; your own text is treated as a hard constraint.
-- **Chapter-by-chapter generation** — streamed to the editor, with a *rolling world state*
-  that keeps continuity chapter over chapter.
+- **Chapter-by-chapter generation** — streamed to the editor, with per-chapter summaries and a
+  per-chapter world state that keep continuity without resending earlier chapters.
 - **Reference files** — attach `.txt` / `.md` notes; only the relevant fragments are used.
 - **Single-file projects** — everything is stored in one portable `*.story.json` file.
-- **Translation on demand** — English originals plus a cached translation into your language.
-- **Assistant chat** — plan the story and accept, edit or discard proposed changes.
+- **Multi-language translation** — attach several target languages; each chapter gets a tab
+  per language, produced on demand and cached.
+- **Generate with AI** — a wizard that offers several AI options per field, with a brief and
+  your own edits.
 
 ## Documentation
 

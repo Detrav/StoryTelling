@@ -25,7 +25,7 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 ## Layers
 
 - **Domain** — pure data: `Project`, `Character`, `WorldLore`, `PlotDescription`, `Chapter`,
-  `OutlineEntry`, `WorldState`, `AssistantMessage`, `ExtraFile`.
+  `WorldState`, `ExtraFile`.
 - **Application** — behaviour: prompt building, pipeline orchestration, retrieval, validation.
   Declares the interfaces implemented by `Infrastructure`.
 - **Infrastructure** — external concerns: JSON project persistence, the HTTP LLM client,
@@ -39,8 +39,8 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 - `ISettingsService` — provider settings + API key (AppData + env override).
 - `IContextAssembler` — builds prompts within a token budget.
 - `IRetrievalService` — RAG-lite fragment selection.
-- `IAssistantService` — chat / planning, structured change proposals.
-- `IChapterWriter` / `IStateUpdater` / `ITranslationService`.
+- `IGenerationAssistant` — produces field options for the *Generate with AI* wizard.
+- `IChapterWriter` / `IChapterSummarizer` / `ITranslationService`.
 - `IStoryGenerationService` — pipeline orchestration (single chapter + batch run).
 - `IClock` / `IGuidGenerator` — injectable time and identity for testability.
 

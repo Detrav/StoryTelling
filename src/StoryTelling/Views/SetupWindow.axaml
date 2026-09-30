@@ -1,0 +1,154 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:StoryTelling.ViewModels"
+        x:Class="StoryTelling.Views.SetupWindow"
+        x:DataType="vm:SetupViewModel"
+        Title="Project setup"
+        Width="820"
+        Height="820"
+        MinWidth="640"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom"
+                Padding="14"
+                BorderThickness="0,1,0,0"
+                BorderBrush="#22000000">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" Click="OnCancelClick" />
+                <Button Content="Apply" Classes="accent" Click="OnApplyClick" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top"
+                Padding="18,16,18,12"
+                BorderThickness="0,0,0,1"
+                BorderBrush="#22000000">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="Book name"
+                           Opacity="0.7"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0" />
+                <TextBox Grid.Column="1" Text="{Binding ProjectName}" />
+                <Button Grid.Column="2"
+                        Content="Generate with AI"
+                        Tag="ProjectName"
+                        Click="OnGenerateClick"
+                        Margin="8,0,0,0" />
+            </Grid>
+        </Border>
+
+        <TabControl HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <TabItem Header="World">
+                <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
+                    <TextBlock Grid.Row="0" Text="Title" Opacity="0.7" />
+                    <TextBox Grid.Row="1" Text="{Binding WorldTitle}" />
+                    <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="6">
+                        <TextBlock Grid.Row="0" Text="Body" Opacity="0.7" />
+                        <TextBox Grid.Row="1"
+                                 Text="{Binding WorldBody}"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalContentAlignment="Top" />
+                    </Grid>
+                    <Button Grid.Row="3"
+                            Content="Generate with AI"
+                            Tag="WorldBody"
+                            Click="OnGenerateClick"
+                            HorizontalAlignment="Left" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Characters">
+                <Grid Margin="16" RowDefinitions="*,Auto" RowSpacing="8">
+                    <ListBox Grid.Row="0" ItemsSource="{Binding Characters}" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Add" />
+                        <Button Content="Generate with AI" Tag="Characters" Click="OnGenerateClick" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Plot">
+                <ScrollViewer>
+                    <StackPanel Margin="16" Spacing="8">
+                        <TextBlock Text="Genre" Opacity="0.7" />
+                        <TextBox Text="{Binding Genre}" />
+                        <TextBlock Text="Tone" Opacity="0.7" />
+                        <TextBox Text="{Binding Tone}" />
+                        <TextBlock Text="Premise" Opacity="0.7" />
+                        <TextBox Text="{Binding Premise}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />
+                        <TextBlock Text="Direction" Opacity="0.7" />
+                        <TextBox Text="{Binding Direction}" />
+                        <TextBlock Text="Chapter count" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding ChapterCount}"
+                                       Minimum="1"
+                                       Maximum="200"
+                                       Width="140"
+                                       HorizontalAlignment="Left" />
+                        <Button Content="Generate with AI"
+                                Tag="Premise"
+                                Click="OnGenerateClick"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="World state">
+                <ScrollViewer>
+                    <StackPanel Margin="16" Spacing="8">
+                        <TextBlock Text="Time and place" Opacity="0.7" />
+                        <TextBox Text="{Binding WorldStateTimeAndPlace}" />
+                        <Grid ColumnDefinitions="*,*">
+                            <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
+                                <TextBlock Text="Characters" Opacity="0.7" />
+                                <ListBox ItemsSource="{Binding WorldStateCharacters}" Height="90" />
+                                <TextBlock Text="Active threads" Opacity="0.7" />
+                                <ListBox ItemsSource="{Binding WorldStateThreads}" Height="70" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
+                                <TextBlock Text="Items" Opacity="0.7" />
+                                <ListBox ItemsSource="{Binding WorldStateItems}" Height="90" />
+                                <TextBlock Text="Open questions" Opacity="0.7" />
+                                <ListBox ItemsSource="{Binding WorldStateOpenQuestions}" Height="70" />
+                            </StackPanel>
+                        </Grid>
+                        <Button Content="Generate with AI"
+                                Tag="WorldState"
+                                Click="OnGenerateClick"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Languages">
+                <ScrollViewer>
+                    <StackPanel Margin="16" Spacing="6">
+                        <TextBlock Text="Pick the target languages for this project."
+                                   Opacity="0.7"
+                                   TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding LanguageSelections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LanguageSelectionViewModel">
+                                    <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Extra files">
+                <Grid Margin="16" RowDefinitions="*,Auto" RowSpacing="8">
+                    <ListBox Grid.Row="0" ItemsSource="{Binding ExtraFiles}" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Add file…" />
+                        <Button Content="Generate with AI" Tag="ExtraFiles" Click="OnGenerateClick" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+
+</Window>

@@ -1,22 +1,62 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:StoryTelling.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="StoryTelling.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
+        x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="StoryTelling">
+        Title="{Binding WindowTitle}"
+        Width="1180"
+        Height="780">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainViewModel />
-    </Design.DataContext>
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New project" Command="{Binding NewProjectCommand}" />
+                <MenuItem Header="_Open project…" Command="{Binding OpenProjectCommand}" />
+                <Separator />
+                <MenuItem Header="_Save" Command="{Binding SaveCommand}" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="Save _as…" Command="{Binding SaveAsCommand}" IsEnabled="{Binding HasProject}" />
+                <Separator />
+                <MenuItem Header="Project _setup…" Click="OnProjectSetupClick" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="_Settings…" Click="OnSettingsClick" />
+                <Separator />
+                <MenuItem Header="Cl_ose project" Command="{Binding CloseProjectCommand}" IsEnabled="{Binding HasProject}" />
+                <MenuItem Header="E_xit" Click="OnExitClick" />
+            </MenuItem>
 
-    <TextBox Text="{Binding Greeting}"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center" />
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" IsEnabled="False" />
+                <MenuItem Header="_Redo" IsEnabled="False" />
+                <Separator />
+                <MenuItem Header="Cu_t" IsEnabled="False" />
+                <MenuItem Header="Cop_y" IsEnabled="False" />
+                <MenuItem Header="_Paste" IsEnabled="False" />
+            </MenuItem>
+
+            <MenuItem Header="_View">
+                <MenuItem Header="Show _chapter list"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Workspace.IsSidebarVisible, Mode=TwoWay}"
+                          IsEnabled="{Binding HasProject}" />
+            </MenuItem>
+
+            <MenuItem Header="_Chapter" IsEnabled="{Binding HasProject}">
+                <MenuItem Header="_Generate chapter" Command="{Binding Workspace.GenerateCommand}" />
+                <MenuItem Header="_Regenerate" Command="{Binding Workspace.RegenerateCommand}" />
+                <MenuItem Header="_Stop" Command="{Binding Workspace.StopCommand}" />
+                <Separator />
+                <MenuItem Header="_Add chapter" Command="{Binding Workspace.AddChapterCommand}" />
+                <MenuItem Header="_Delete chapter" Command="{Binding Workspace.DeleteChapterCommand}" />
+                <MenuItem Header="Move _up" Command="{Binding Workspace.MoveChapterUpCommand}" />
+                <MenuItem Header="Move _down" Command="{Binding Workspace.MoveChapterDownCommand}" />
+            </MenuItem>
+
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="OnAboutClick" />
+            </MenuItem>
+        </Menu>
+
+        <ContentControl Content="{Binding Content}" />
+    </DockPanel>
 
 </Window>
