@@ -57,7 +57,10 @@ public partial class SetupViewModel : UndoableDialogViewModel
     [ObservableProperty]
     private string _worldStateTimeAndPlace = string.Empty;
 
-    public ObservableCollection<string> Characters { get; } = [];
+    public ObservableCollection<CharacterEditorViewModel> Characters { get; } = [];
+
+    [ObservableProperty]
+    private CharacterEditorViewModel? _selectedCharacter;
 
     public ObservableCollection<string> ExtraFiles { get; } = [];
 
@@ -81,26 +84,48 @@ public partial class SetupViewModel : UndoableDialogViewModel
         _ => field,
     };
 
-    public Task<IReadOnlyList<GenerationOption>> GenerateAsync(GenerationTarget target, string brief, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<GenerationOption>> GenerateAsync(GenerationTarget target, string brief, int options, CancellationToken cancellationToken)
     {
         var request = new GenerationRequest
         {
             Target = target,
             Brief = brief,
-            Context = new GenerationContext
-            {
-                ProjectName = ProjectName,
-                WorldTitle = WorldTitle,
-                WorldBody = WorldBody,
-                Genre = Genre,
-                Tone = Tone,
-                Premise = Premise,
-                Direction = Direction,
-            },
+            Variants = options,
+            Context = new GenerationContext { Fields = ProjectFields() },
         };
 
         return _assistant.GenerateAsync(request, cancellationToken);
     }
+
+    public Task<IReadOnlyList<GenerationOption>> GenerateCharacterAsync(CharacterEditorViewModel character, string brief, int options, CancellationToken cancellationToken)
+    {
+        var fields = ProjectFields();
+        foreach (var (key, value) in character.ToFields())
+        {
+            fields[key] = value;
+        }
+
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.Character,
+            Brief = brief,
+            Variants = options,
+            Context = new GenerationContext { Fields = fields },
+        };
+
+        return _assistant.GenerateAsync(request, cancellationToken);
+    }
+
+    private Dictionary<string, string> ProjectFields() => new()
+    {
+        ["ProjectName"] = ProjectName,
+        ["WorldTitle"] = WorldTitle,
+        ["WorldBody"] = WorldBody,
+        ["Genre"] = Genre,
+        ["Tone"] = Tone,
+        ["Premise"] = Premise,
+        ["Direction"] = Direction,
+    };
 
     public void ApplyGenerated(IReadOnlyDictionary<string, string> fields)
     {
@@ -128,9 +153,14 @@ public partial class SetupViewModel : UndoableDialogViewModel
             case "Premise":
                 Premise = text;
                 break;
-            case "Characters":
-                Characters.Clear();
-                Characters.Add(text);
+            case "Genre":
+                Genre = FirstLine(text);
+                break;
+            case "Tone":
+                Tone = FirstLine(text);
+                break;
+            case "Direction":
+                Direction = FirstLine(text);
                 break;
             case "ExtraFiles":
                 ExtraFiles.Add(FirstLine(text));
@@ -152,7 +182,16 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Premise,
             Direction,
             WorldStateTimeAndPlace,
-            [.. Characters],
+            [.. Characters.Select(character => new CharacterSnapshot(
+                character.Id,
+                character.Name,
+                character.Role,
+                character.Age,
+                character.Description,
+                character.Personality,
+                character.Background,
+                character.Goals,
+                character.Traits))],
             [.. ExtraFiles],
             [.. WorldStateCharacters],
             [.. WorldStateThreads],
@@ -180,7 +219,7 @@ public partial class SetupViewModel : UndoableDialogViewModel
         Direction = snapshot.Direction;
         WorldStateTimeAndPlace = snapshot.WorldStateTimeAndPlace;
 
-        Replace(Characters, snapshot.Characters);
+        ReplaceCharacters(snapshot.Characters);
         Replace(ExtraFiles, snapshot.ExtraFiles);
         Replace(WorldStateCharacters, snapshot.WorldStateCharacters);
         Replace(WorldStateThreads, snapshot.WorldStateThreads);
@@ -202,12 +241,55 @@ public partial class SetupViewModel : UndoableDialogViewModel
         }
     }
 
+    private void ReplaceCharacters(IReadOnlyList<CharacterSnapshot> values)
+    {
+        Characters.Clear();
+        SelectedCharacter = null;
+        foreach (var value in values)
+        {
+            Characters.Add(new CharacterEditorViewModel(
+                value.Id,
+                value.Name,
+                value.Role,
+                value.Age,
+                value.Description,
+                value.Personality,
+                value.Background,
+                value.Goals,
+                value.Traits));
+        }
+    }
+
+    public void AddCharacter(CharacterEditorViewModel character)
+    {
+        Characters.Add(character);
+        SelectedCharacter = character;
+        Commit();
+    }
+
+    public void ApplyCharacterEdit(CharacterEditorViewModel target, CharacterEditorViewModel draft)
+    {
+        target.CopyFrom(draft);
+        Commit();
+    }
+
+    public void RemoveCharacter(CharacterEditorViewModel character)
+    {
+        Characters.Remove(character);
+        if (ReferenceEquals(SelectedCharacter, character))
+        {
+            SelectedCharacter = null;
+        }
+
+        Commit();
+    }
+
     public static GenerationTarget MapTarget(string tag) => tag switch
     {
         "ProjectName" => GenerationTarget.ProjectName,
         "World" => GenerationTarget.World,
+        "Plot" => GenerationTarget.Plot,
         "Premise" => GenerationTarget.Premise,
-        "Characters" => GenerationTarget.Characters,
         "ExtraFiles" => GenerationTarget.ExtraFiles,
         "WorldState" => GenerationTarget.WorldState,
         _ => GenerationTarget.World,
@@ -228,11 +310,22 @@ public partial class SetupViewModel : UndoableDialogViewModel
         string Premise,
         string Direction,
         string WorldStateTimeAndPlace,
-        List<string> Characters,
+        List<CharacterSnapshot> Characters,
         List<string> ExtraFiles,
         List<string> WorldStateCharacters,
         List<string> WorldStateThreads,
         List<string> WorldStateItems,
         List<string> WorldStateOpenQuestions,
         List<string> Languages);
+
+    private sealed record CharacterSnapshot(
+        Guid Id,
+        string Name,
+        string Role,
+        string Age,
+        string Description,
+        string Personality,
+        string Background,
+        string Goals,
+        string Traits);
 }

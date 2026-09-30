@@ -60,7 +60,9 @@ scrolling. A fixed header holds the **book name** with its own *Generate with AI
 rest is split into tabs:
 
 - **World** — title and body.
-- **Characters** — list with add / generate.
+- **Characters** — list with add / edit / delete. The shared character dialog edits name, role,
+  age, description, personality, background, goals and traits (tags), and has its own *Generate
+  with AI* that uses the current field values as a draft (all fields are optional).
 - **Plot** — genre, tone, premise, direction.
 - **World state** — the initial world state: time and place, characters, active threads,
   items, open questions (the situation at the start of the story).

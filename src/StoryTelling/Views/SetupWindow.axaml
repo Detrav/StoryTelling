@@ -63,10 +63,25 @@
 
             <TabItem Header="Characters">
                 <Grid Margin="16" RowDefinitions="*,Auto" RowSpacing="8">
-                    <ListBox Grid.Row="0" ItemsSource="{Binding Characters}" />
+                    <ListBox Grid.Row="0"
+                             ItemsSource="{Binding Characters}"
+                             SelectedItem="{Binding SelectedCharacter}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CharacterEditorViewModel">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Role}" Opacity="0.6" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.7" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-                        <Button Content="Add" />
-                        <Button Content="Generate with AI" Tag="Characters" Click="OnGenerateClick" />
+                        <Button Content="Add" Click="OnAddCharacterClick" />
+                        <Button Content="Edit" Click="OnEditCharacterClick" />
+                        <Button Content="Delete" Click="OnDeleteCharacterClick" />
                     </StackPanel>
                 </Grid>
             </TabItem>

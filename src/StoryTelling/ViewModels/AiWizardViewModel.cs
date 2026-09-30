@@ -9,29 +9,37 @@ namespace StoryTelling.ViewModels;
 
 public partial class AiWizardViewModel : ViewModelBase
 {
-    public delegate Task<IReadOnlyList<GenerationOption>> GenerateOptions(string brief, CancellationToken cancellationToken);
+    public delegate Task<IReadOnlyList<GenerationOption>> GenerateOptions(string brief, int options, CancellationToken cancellationToken);
 
     private readonly GenerateOptions _generate;
-    private readonly IReadOnlyList<string> _fieldOrder;
+    private readonly IReadOnlyList<GenerationFieldSpec> _specs;
     private readonly string? _editableField;
+    private CancellationTokenSource? _cts;
 
     public AiWizardViewModel(string label, GenerationTarget target, GenerateOptions generate)
     {
         Header = $"Generate with AI — {label}";
         _generate = generate;
 
-        var fields = GenerationTargets.Fields(target);
-        _fieldOrder = fields.Select(spec => spec.Field).ToList();
-        _editableField = fields.Count == 1 ? fields[0].Field : null;
+        _specs = GenerationTargets.Fields(target);
+        _editableField = _specs.Count == 1 ? _specs[0].Field : null;
+        _optionCount = Math.Clamp(LastOptionCount, 1, 10);
 
-        _ = LoadAsync();
+        Initialization = LoadAsync();
     }
+
+    public static int LastOptionCount { get; set; } = 3;
+
+    public Task Initialization { get; }
 
     public string Header { get; }
 
     public bool AllowEdits => _editableField is not null;
 
     public ObservableCollection<GenerationOptionViewModel> Options { get; } = [];
+
+    [ObservableProperty]
+    private int _optionCount;
 
     [ObservableProperty]
     private string _brief = string.Empty;
@@ -61,8 +69,15 @@ public partial class AiWizardViewModel : ViewModelBase
         }
     }
 
+    partial void OnOptionCountChanged(int value) => LastOptionCount = Math.Clamp(value, 1, 10);
+
     [RelayCommand]
     private Task MoreOptions() => LoadAsync();
+
+    [RelayCommand]
+    private void Stop() => Cancel();
+
+    public void Cancel() => _cts?.Cancel();
 
     private async Task LoadAsync()
     {
@@ -71,19 +86,27 @@ public partial class AiWizardViewModel : ViewModelBase
             return;
         }
 
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
         IsBusy = true;
         Status = "Generating…";
+
         try
         {
-            var options = await _generate(Brief, CancellationToken.None);
-            Options.Clear();
+            var options = await _generate(Brief, OptionCount, token);
             foreach (var option in options)
             {
                 Options.Add(new GenerationOptionViewModel(Format(option), option.Fields));
             }
 
-            SelectedOption = Options.FirstOrDefault();
-            Status = Options.Count == 0 ? "No options were returned." : string.Empty;
+            SelectedOption ??= Options.FirstOrDefault();
+            Status = options.Count == 0 ? "No options were returned." : string.Empty;
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Stopped.";
         }
         catch (LlmException exception)
         {
@@ -99,6 +122,14 @@ public partial class AiWizardViewModel : ViewModelBase
         }
     }
 
-    private string Format(GenerationOption option) =>
-        string.Join("\n\n", _fieldOrder.Where(field => option.Fields.ContainsKey(field)).Select(field => option.Fields[field]));
+    private string Format(GenerationOption option)
+    {
+        var present = _specs.Where(spec => option.Fields.ContainsKey(spec.Field)).ToList();
+        if (present.Count <= 2)
+        {
+            return string.Join("\n\n", present.Select(spec => option.Fields[spec.Field]));
+        }
+
+        return string.Join("\n", present.Select(spec => $"{spec.Label}: {option.Fields[spec.Field]}"));
+    }
 }

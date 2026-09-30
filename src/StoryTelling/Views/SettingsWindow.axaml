@@ -51,7 +51,7 @@
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="6,0">
                             <TextBlock Text="Max tokens" Opacity="0.7" />
-                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="1" Maximum="32000" LostFocus="OnCommit" />
+                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="1" Maximum="131072" LostFocus="OnCommit" />
                         </StackPanel>
                         <StackPanel Grid.Column="2" Margin="6,0,0,0">
                             <TextBlock Text="Temperature" Opacity="0.7" />

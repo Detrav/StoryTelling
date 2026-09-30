@@ -19,7 +19,7 @@ internal static class Wizard
             DataContext = new AiWizardViewModel(
                 label,
                 GenerationTarget.Premise,
-                (_, _) => Task.FromResult<IReadOnlyList<GenerationOption>>([])),
+                (_, _, _) => Task.FromResult<IReadOnlyList<GenerationOption>>([])),
         };
 
         var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(window);

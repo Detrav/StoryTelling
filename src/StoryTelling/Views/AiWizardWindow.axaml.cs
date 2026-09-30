@@ -6,7 +6,11 @@ namespace StoryTelling.Views;
 
 public partial class AiWizardWindow : Window
 {
-    public AiWizardWindow() => InitializeComponent();
+    public AiWizardWindow()
+    {
+        InitializeComponent();
+        Closed += (_, _) => (DataContext as AiWizardViewModel)?.Cancel();
+    }
 
     private void OnApplyClick(object? sender, RoutedEventArgs e) =>
         Close((DataContext as AiWizardViewModel)?.Result);

@@ -4,8 +4,9 @@ public enum GenerationTarget
 {
     World,
     ProjectName,
+    Plot,
     Premise,
-    Characters,
+    Character,
     ExtraFiles,
     WorldState,
 }

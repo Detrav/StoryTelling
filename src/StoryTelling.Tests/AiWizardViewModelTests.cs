@@ -32,6 +32,49 @@ public sealed class AiWizardViewModelTests
         Assert.Equal("custom", viewModel.Result!["ProjectName"]);
     }
 
+    [Fact]
+    public void MoreOptions_AppendsInsteadOfReplacing()
+    {
+        var viewModel = new AiWizardViewModel("World", GenerationTarget.World, Options(
+            new GenerationOption(new Dictionary<string, string> { ["WorldTitle"] = "T", ["WorldBody"] = "B" })));
+
+        Assert.Single(viewModel.Options);
+
+        viewModel.MoreOptionsCommand.Execute(null);
+
+        Assert.Equal(2, viewModel.Options.Count);
+    }
+
+    [Fact]
+    public async Task Stop_CancelsGeneration()
+    {
+        var viewModel = new AiWizardViewModel("World", GenerationTarget.World, (_, _, token) =>
+        {
+            var completion = new TaskCompletionSource<IReadOnlyList<GenerationOption>>();
+            token.Register(() => completion.SetCanceled(token));
+            return completion.Task;
+        });
+
+        viewModel.StopCommand.Execute(null);
+        await viewModel.Initialization;
+
+        Assert.Equal("Stopped.", viewModel.Status);
+        Assert.False(viewModel.IsBusy);
+    }
+
+    [Fact]
+    public void OptionCount_PersistsAcrossInstances()
+    {
+        var first = new AiWizardViewModel("World", GenerationTarget.World, Options());
+        first.OptionCount = 5;
+
+        var second = new AiWizardViewModel("World", GenerationTarget.World, Options());
+
+        Assert.Equal(5, second.OptionCount);
+
+        AiWizardViewModel.LastOptionCount = 3;
+    }
+
     private static AiWizardViewModel.GenerateOptions Options(params GenerationOption[] options) =>
-        (_, _) => Task.FromResult<IReadOnlyList<GenerationOption>>(options);
+        (_, _, _) => Task.FromResult<IReadOnlyList<GenerationOption>>(options);
 }

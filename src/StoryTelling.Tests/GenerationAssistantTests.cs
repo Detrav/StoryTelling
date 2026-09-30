@@ -70,7 +70,10 @@ public sealed class GenerationAssistantTests
         var request = Request() with
         {
             Brief = "grim and cold",
-            Context = new GenerationContext { ProjectName = "Book", WorldBody = "old body" },
+            Context = new GenerationContext
+            {
+                Fields = new Dictionary<string, string> { ["ProjectName"] = "Book", ["WorldBody"] = "old body" },
+            },
         };
 
         await assistant.GenerateAsync(request);
@@ -85,6 +88,9 @@ public sealed class GenerationAssistantTests
     {
         Target = target,
         Variants = 2,
-        Context = new GenerationContext { ProjectName = "Book", WorldTitle = "Ashen Reach" },
+        Context = new GenerationContext
+        {
+            Fields = new Dictionary<string, string> { ["ProjectName"] = "Book", ["WorldTitle"] = "Ashen Reach" },
+        },
     };
 }

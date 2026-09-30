@@ -16,7 +16,7 @@ public sealed class AppSettings
 
     public int TimeoutSeconds { get; set; } = 120;
 
-    public int MaxTokens { get; set; } = 2048;
+    public int MaxTokens { get; set; } = 16384;
 
     public double Temperature { get; set; } = 0.8;
 

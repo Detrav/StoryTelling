@@ -9,28 +9,42 @@ public static class GenerationTargets
         {
             [GenerationTarget.World] =
             [
-                new("WorldTitle", "title", "A short, evocative name for the story's world or setting."),
-                new("WorldBody", "body", "A vivid description of the world and setting (2-5 sentences)."),
+                new("WorldTitle", "title", "World title", "A short, evocative name for the story's world or setting."),
+                new("WorldBody", "body", "World description", "A vivid description of the world and setting (2-5 sentences)."),
             ],
             [GenerationTarget.ProjectName] =
             [
-                new("ProjectName", "name", "A short, evocative title for the book."),
+                new("ProjectName", "name", "Book name", "A short, evocative title for the book."),
             ],
             [GenerationTarget.Premise] =
             [
-                new("Premise", "premise", "A compelling story premise (2-4 sentences)."),
+                new("Premise", "premise", "Premise", "A compelling story premise (2-4 sentences)."),
             ],
-            [GenerationTarget.Characters] =
+            [GenerationTarget.Plot] =
             [
-                new("Characters", "characters", "A cast of main characters: each a name plus a one-line description."),
+                new("Genre", "genre", "Genre", "The story's genre, e.g. 'dark fantasy'."),
+                new("Tone", "tone", "Tone", "The overall tone and mood, e.g. 'grim, hopeful, lyrical'."),
+                new("Premise", "premise", "Premise", "A compelling story premise (2-4 sentences)."),
+                new("Direction", "direction", "Direction", "The intended overall arc and where the story is heading (2-3 sentences)."),
+            ],
+            [GenerationTarget.Character] =
+            [
+                new("Name", "name", "Name", "The character's full name."),
+                new("Role", "role", "Role", "Their role in the story (protagonist, antagonist, supporting, ...). Leave empty if unclear."),
+                new("Age", "age", "Age", "Their age or age range. Leave empty if unknown."),
+                new("Description", "description", "Description", "Who they are and how they look (1-2 sentences)."),
+                new("Personality", "personality", "Personality", "Their character, temperament and voice (1-2 sentences)."),
+                new("Background", "background", "Background", "Their backstory and what shaped them (2-4 sentences)."),
+                new("Goals", "goals", "Goals", "What they want and why. Leave empty if unclear."),
+                new("Traits", "traits", "Traits", "Short comma-separated tags, e.g. 'brave, sarcastic, loyal'."),
             ],
             [GenerationTarget.ExtraFiles] =
             [
-                new("ExtraFiles", "notes", "Concise author's notes about the story's background."),
+                new("ExtraFiles", "notes", "Extra file", "Concise author's notes about the story's background."),
             ],
             [GenerationTarget.WorldState] =
             [
-                new("WorldState", "worldState", "The initial world state: time and place, characters present, active threads, notable items and open questions."),
+                new("WorldState", "worldState", "World state", "The initial world state: time and place, characters present, active threads, notable items and open questions."),
             ],
         };
 
@@ -40,8 +54,9 @@ public static class GenerationTargets
     {
         GenerationTarget.World => "World",
         GenerationTarget.ProjectName => "Book name",
+        GenerationTarget.Plot => "Plot",
         GenerationTarget.Premise => "Premise",
-        GenerationTarget.Characters => "Characters",
+        GenerationTarget.Character => "Character",
         GenerationTarget.ExtraFiles => "Extra file",
         GenerationTarget.WorldState => "World state",
         _ => target.ToString(),
@@ -51,8 +66,9 @@ public static class GenerationTargets
     {
         GenerationTarget.World => "Invent the story's world: a name and a vivid description of its setting.",
         GenerationTarget.ProjectName => "Suggest a short, evocative title for the book.",
+        GenerationTarget.Plot => "Outline the plot: genre, tone, premise and the overall direction, keeping them consistent with each other.",
         GenerationTarget.Premise => "Write a compelling story premise.",
-        GenerationTarget.Characters => "Propose a cast of main characters.",
+        GenerationTarget.Character => "Create a story character: name, role, age, description, personality, background, goals and traits. Any field may be left empty if it does not apply.",
         GenerationTarget.ExtraFiles => "Draft concise author's notes about the story's background.",
         GenerationTarget.WorldState => "Describe the initial world state of the story.",
         _ => "Describe the requested field.",

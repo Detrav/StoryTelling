@@ -29,7 +29,7 @@ public partial class SetupWindow : Window
             DataContext = new AiWizardViewModel(
                 setup.LabelFor(field),
                 target,
-                (brief, cancellationToken) => setup.GenerateAsync(target, brief, cancellationToken)),
+                (brief, options, cancellationToken) => setup.GenerateAsync(target, brief, options, cancellationToken)),
         };
 
         var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(this);
@@ -40,4 +40,52 @@ public partial class SetupWindow : Window
     }
 
     private void OnCommit(object? sender, FocusChangedEventArgs e) => (DataContext as SetupViewModel)?.Commit();
+
+    private async void OnAddCharacterClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup)
+        {
+            return;
+        }
+
+        var character = new CharacterEditorViewModel();
+        character.GenerateOptions = (brief, options, cancellationToken) => setup.GenerateCharacterAsync(character, brief, options, cancellationToken);
+
+        var window = new CharacterWindow { DataContext = character };
+        if (await window.ShowDialog<bool>(this))
+        {
+            setup.AddCharacter(character);
+        }
+    }
+
+    private async void OnEditCharacterClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup || setup.SelectedCharacter is not { } selected)
+        {
+            return;
+        }
+
+        var draft = selected.Clone();
+        draft.GenerateOptions = (brief, options, cancellationToken) => setup.GenerateCharacterAsync(draft, brief, options, cancellationToken);
+
+        var window = new CharacterWindow { DataContext = draft };
+        if (await window.ShowDialog<bool>(this))
+        {
+            setup.ApplyCharacterEdit(selected, draft);
+        }
+    }
+
+    private async void OnDeleteCharacterClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup || setup.SelectedCharacter is not { } selected)
+        {
+            return;
+        }
+
+        var name = string.IsNullOrWhiteSpace(selected.Name) ? "this character" : selected.Name;
+        if (await ConfirmDialog.ShowAsync(this, "Delete character", $"Delete \"{name}\"? This cannot be undone."))
+        {
+            setup.RemoveCharacter(selected);
+        }
+    }
 }

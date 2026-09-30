@@ -4,8 +4,10 @@
         x:Class="StoryTelling.Views.AiWizardWindow"
         x:DataType="vm:AiWizardViewModel"
         Title="Generate with AI"
-        Width="680"
-        Height="660"
+        Width="720"
+        Height="700"
+        MinWidth="520"
+        MinHeight="460"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
@@ -19,29 +21,32 @@
             </StackPanel>
         </Border>
 
-        <StackPanel Margin="18" Spacing="10">
-            <TextBlock Text="{Binding Header}" FontSize="18" FontWeight="SemiBold" />
+        <Grid Margin="18" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="10">
+            <TextBlock Grid.Row="0" Text="{Binding Header}" FontSize="18" FontWeight="SemiBold" />
 
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
                 <TextBox Text="{Binding Brief}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          Height="64"
                          PlaceholderText="Describe what you want (optional)" />
-                <Button Grid.Column="1"
-                        Content="More options"
-                        Command="{Binding MoreOptionsCommand}"
-                        IsEnabled="{Binding !IsBusy}"
-                        Margin="8,0,0,0"
-                        VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0">
+                    <TextBlock Text="Options" Opacity="0.7" />
+                    <NumericUpDown Value="{Binding OptionCount}" Minimum="1" Maximum="10" Width="140" />
+                    <Button Content="More options"
+                            Command="{Binding MoreOptionsCommand}"
+                            IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="Stop"
+                            Command="{Binding StopCommand}"
+                            IsVisible="{Binding IsBusy}" />
+                </StackPanel>
             </Grid>
 
-            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="4" />
+            <ProgressBar Grid.Row="2" IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="4" />
 
-            <TextBlock Text="Options" FontWeight="SemiBold" />
-            <ListBox ItemsSource="{Binding Options}"
-                     SelectedItem="{Binding SelectedOption}"
-                     Height="260">
+            <ListBox Grid.Row="3"
+                     ItemsSource="{Binding Options}"
+                     SelectedItem="{Binding SelectedOption}">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:GenerationOptionViewModel">
                         <TextBlock Text="{Binding Display}" TextWrapping="Wrap" />
@@ -49,16 +54,16 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <TextBlock Text="{Binding Status}" Opacity="0.7" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="4" Text="{Binding Status}" Opacity="0.7" TextWrapping="Wrap" />
 
-            <StackPanel IsVisible="{Binding AllowEdits}" Spacing="4">
+            <StackPanel Grid.Row="5" IsVisible="{Binding AllowEdits}" Spacing="4">
                 <TextBlock Text="Your edits (optional — overrides the selection)" Opacity="0.7" />
                 <TextBox Text="{Binding Edits}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          Height="80" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </DockPanel>
 
 </Window>

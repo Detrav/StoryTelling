@@ -74,15 +74,18 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
   build) reject it. `CheckStructuredOutputAsync` probes support with a minimal schema; *Test
   connection* runs both a chat ping and this probe and warns when structured output is missing.
   Typed operations (e.g. world-state updates) will require the probe to succeed.
-- **Generate with AI** — generation is group-based: a `GenerationTarget` (for example `World` =
-  title + body) defines the fields and their JSON-schema names. `GenerationAssistant` builds the
-  prompt from `PromptTemplates` (other filled fields as fixed constraints, the target's own
-  value as a "current draft", the user's brief as the main steer) and calls
-  `ILlmClient.CompleteJsonAsync` with a `json_schema` fixing the item shape and
-  `minItems`/`maxItems` to exactly the requested variant count (default 3). The wizard
-  (`AiWizardViewModel`) shows each option, loads on open and on *More options*, and *Apply*
-  returns the field values, which `SetupViewModel.ApplyGenerated` writes into the target fields.
-  Single-field targets also allow a free-text override.
+- **Generate with AI** — generation is group-based: a `GenerationTarget` defines the fields and
+  their JSON-schema names (for example `World` = title + body, `Character` = name/role/age/…).
+  `GenerationAssistant` builds the prompt from `PromptTemplates` — the current field values are
+  passed as context, where the target's own values become a "current draft" and other filled
+  fields become fixed constraints — and calls `ILlmClient.CompleteJsonAsync` with a `json_schema`
+  fixing the item shape and `minItems`/`maxItems` to exactly the requested variant count
+  (default 3). The wizard (`AiWizardViewModel`) shows each option, loads on open and on *More
+  options*, and *Apply* returns the field values. It is reused both in the setup dialog and inside
+  the character dialog; single-field targets also allow a free-text override. The wizard lets the
+  user pick how many options to request (1–10, remembered for the session in a static) and *More
+  options* appends to the existing list. Each run uses its own `CancellationTokenSource`: *Stop*
+  and closing the wizard cancel the in-flight request.
 - **Undo / redo** — `IUndoRedoService` keeps the current state (the project as JSON) plus a
   list of line diffs (like git) computed with DiffPlex. `Push(name)` is called after an
   explicit action; if nothing changed no entry is added. Before an undo/redo a safety snapshot

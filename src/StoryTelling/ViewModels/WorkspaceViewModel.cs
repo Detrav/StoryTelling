@@ -165,7 +165,16 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         foreach (var character in _project.Characters)
         {
-            setup.Characters.Add(FormatCharacter(character));
+            setup.Characters.Add(new CharacterEditorViewModel(
+                character.Id,
+                character.Name,
+                character.Role,
+                character.Age,
+                character.Description,
+                character.Personality,
+                character.Background,
+                character.Goals,
+                character.Traits));
         }
 
         foreach (var file in _project.ExtraFiles)
@@ -369,26 +378,24 @@ public partial class WorkspaceViewModel : ViewModelBase
             viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
     };
 
-    private static string FormatCharacter(Character character) =>
-        string.IsNullOrWhiteSpace(character.Description) ? character.Name : $"{character.Name} — {character.Description}";
-
-    private static List<Character> MergeCharacters(IReadOnlyList<Character> existing, IEnumerable<string> lines)
+    private static List<Character> MergeCharacters(IReadOnlyList<Character> existing, IEnumerable<CharacterEditorViewModel> editors)
     {
         var result = new List<Character>();
-        foreach (var line in lines)
+        foreach (var editor in editors)
         {
-            var parsed = ParseCharacter(line);
-            var match = existing.FirstOrDefault(character => string.Equals(character.Name, parsed.Name, StringComparison.Ordinal));
-            if (match is not null)
-            {
-                match.Name = parsed.Name;
-                match.Description = parsed.Description;
-                result.Add(match);
-            }
-            else
-            {
-                result.Add(parsed);
-            }
+            var match = existing.FirstOrDefault(character => character.Id == editor.Id)
+                ?? existing.FirstOrDefault(character => string.Equals(character.Name, editor.Name, StringComparison.Ordinal));
+
+            var character = match ?? new Character { Id = editor.Id };
+            character.Name = editor.Name;
+            character.Role = editor.Role;
+            character.Age = editor.Age;
+            character.Description = editor.Description;
+            character.Personality = editor.Personality;
+            character.Background = editor.Background;
+            character.Goals = editor.Goals;
+            character.Traits = [.. editor.TraitList];
+            result.Add(character);
         }
 
         return result;
@@ -416,20 +423,5 @@ public partial class WorkspaceViewModel : ViewModelBase
         }
 
         return result;
-    }
-
-    private static Character ParseCharacter(string text)
-    {
-        var separator = text.IndexOf(" — ", StringComparison.Ordinal);
-        if (separator < 0)
-        {
-            return new Character { Name = text.Trim() };
-        }
-
-        return new Character
-        {
-            Name = text[..separator].Trim(),
-            Description = text[(separator + 3)..].Trim(),
-        };
     }
 }
