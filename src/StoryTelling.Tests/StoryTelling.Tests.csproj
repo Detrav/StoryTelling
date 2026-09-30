@@ -22,6 +22,7 @@
     <ProjectReference Include="..\StoryTelling.Domain\StoryTelling.Domain.csproj" />
     <ProjectReference Include="..\StoryTelling.Application\StoryTelling.Application.csproj" />
     <ProjectReference Include="..\StoryTelling.Infrastructure\StoryTelling.Infrastructure.csproj" />
+    <ProjectReference Include="..\StoryTelling\StoryTelling.csproj" />
   </ItemGroup>
 
 </Project>

@@ -82,13 +82,6 @@
                         <TextBox Text="{Binding Premise}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" LostFocus="OnCommit" />
                         <TextBlock Text="Direction" Opacity="0.7" />
                         <TextBox Text="{Binding Direction}" LostFocus="OnCommit" />
-                        <TextBlock Text="Chapter count" Opacity="0.7" />
-                        <NumericUpDown Value="{Binding ChapterCount}"
-                                       Minimum="1"
-                                       Maximum="200"
-                                       Width="140"
-                                       HorizontalAlignment="Left"
-                                       LostFocus="OnCommit" />
                         <Button Content="Generate with AI"
                                 Tag="Premise"
                                 Click="OnGenerateClick"

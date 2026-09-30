@@ -1,3 +1,4 @@
+using System.Text.Json;
 using StoryTelling.Domain;
 using StoryTelling.Infrastructure;
 using StoryTelling.Infrastructure.Json;
@@ -84,6 +85,25 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Equal("Minimal", project.Name);
         Assert.Empty(project.Chapters);
         Assert.NotNull(project.Settings);
+    }
+
+    [Fact]
+    public async Task Load_CorruptJson_Throws()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "corrupt.story.json");
+        await File.WriteAllTextAsync(path, "{ not valid json");
+
+        await Assert.ThrowsAsync<JsonException>(() => repository.LoadAsync(path));
+    }
+
+    [Fact]
+    public async Task Load_MissingFile_Throws()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "does-not-exist.story.json");
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => repository.LoadAsync(path));
     }
 
     public void Dispose()

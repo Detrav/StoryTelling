@@ -61,7 +61,7 @@ rest is split into tabs:
 
 - **World** — title and body.
 - **Characters** — list with add / generate.
-- **Plot** — genre, tone, premise, direction, chapter count.
+- **Plot** — genre, tone, premise, direction.
 - **World state** — the initial world state: time and place, characters, active threads,
   items, open questions (the situation at the start of the story).
 - **Languages** — checkboxes picking the project's target languages from the global catalog.

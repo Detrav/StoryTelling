@@ -1,9 +1,9 @@
 # Overview
 
 StoryTelling is a cross-platform desktop application (C# / .NET 10 / Avalonia) for writing
-multi-chapter stories with an AI assistant. You describe characters, the world, the desired
-plot direction and a chapter count; the app generates a coherent, connected story chapter by
-chapter while staying inside the LLM context window.
+multi-chapter stories with an AI assistant. You describe characters, the world and the desired
+plot direction, then add as many chapters as you want; the app generates a coherent, connected
+story chapter by chapter while staying inside the LLM context window.
 
 All product content, prompts, code and UI strings are written in **English**. The reader can
 view a machine translation into their chosen target language, produced on demand and cached;

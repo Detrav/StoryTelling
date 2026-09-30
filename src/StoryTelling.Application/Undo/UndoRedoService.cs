@@ -36,6 +36,11 @@ public sealed class UndoRedoService : IUndoRedoService
 
     public void Reset(string state)
     {
+        if (_busy)
+        {
+            return;
+        }
+
         _entries.Clear();
         _index = 0;
         _current = state;
@@ -44,6 +49,11 @@ public sealed class UndoRedoService : IUndoRedoService
 
     public bool Push(string name)
     {
+        if (_busy)
+        {
+            return false;
+        }
+
         var state = _capture();
         if (state == _current)
         {

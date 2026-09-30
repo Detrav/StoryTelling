@@ -14,6 +14,13 @@ public sealed class TextPatchTests
     [InlineData("", "hello")]
     [InlineData("hello", "")]
     [InlineData("x\ny", "x\ny")]
+    [InlineData("a\r\nb", "a\nb")]
+    [InlineData("a\nb", "a\nb\n")]
+    [InlineData("  ", " ")]
+    [InlineData("привет мир", "привет мир!")]
+    [InlineData("a\nb\nc", "c\nb\na")]
+    [InlineData("\n\n", "")]
+    [InlineData("", "\n")]
     public void Patch_AppliesAndReverts(string oldText, string newText)
     {
         var patch = Diff.CreatePatch(oldText, newText);

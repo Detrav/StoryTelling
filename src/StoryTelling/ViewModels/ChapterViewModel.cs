@@ -30,6 +30,9 @@ public partial class ChapterViewModel : ObservableObject
     [ObservableProperty]
     private string _logline = string.Empty;
 
+    [ObservableProperty]
+    private DateTimeOffset _createdUtc;
+
     public ObservableCollection<TranslationViewModel> Translations { get; } = [];
 
     public ObservableCollection<ChapterTabViewModel> Tabs { get; } = [];

@@ -11,10 +11,12 @@ namespace StoryTelling.ViewModels;
 public partial class WorkspaceViewModel : ViewModelBase
 {
     private readonly Project _project;
+    private readonly IClock _clock;
 
-    public WorkspaceViewModel(Project project)
+    public WorkspaceViewModel(Project project, IClock clock)
     {
         _project = project;
+        _clock = clock;
         _projectName = project.Name;
 
         foreach (var code in project.Settings.TargetLanguages)
@@ -151,7 +153,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         var setup = new SetupViewModel(textDiff, catalog, Languages)
         {
             ProjectName = ProjectName,
-            ChapterCount = Chapters.Count,
             WorldTitle = _project.Lore.Title,
             WorldBody = _project.Lore.Body,
             Genre = _project.Plot.Genre,
@@ -202,21 +203,20 @@ public partial class WorkspaceViewModel : ViewModelBase
         _project.Settings.TargetLanguages = setup.SelectedLanguageCodes.ToList();
         _project.Lore.Title = setup.WorldTitle;
         _project.Lore.Body = setup.WorldBody;
-        _project.Characters = setup.Characters.Select(ParseCharacter).ToList();
+        _project.Characters = MergeCharacters(_project.Characters, setup.Characters);
         _project.Plot.Genre = setup.Genre;
         _project.Plot.Tone = setup.Tone;
         _project.Plot.Premise = setup.Premise;
         _project.Plot.Direction = setup.Direction;
-        _project.Plot.ChapterCount = setup.ChapterCount;
-        _project.ExtraFiles = setup.ExtraFiles.Select(name => new ExtraFile { Name = name }).ToList();
+        _project.ExtraFiles = MergeExtraFiles(_project.ExtraFiles, setup.ExtraFiles);
         _project.WorldState.TimeAndPlace = setup.WorldStateTimeAndPlace;
-        _project.WorldState.Characters = setup.WorldStateCharacters.Select(name => new CharacterState { Name = name }).ToList();
+        _project.WorldState.Characters = MergeCharacterStates(_project.WorldState.Characters, setup.WorldStateCharacters);
         _project.WorldState.ActiveThreads = setup.WorldStateThreads.ToList();
         _project.WorldState.Items = setup.WorldStateItems.ToList();
         _project.WorldState.OpenQuestions = setup.WorldStateOpenQuestions.ToList();
 
         UpdateLanguages(setup.SelectedLanguageCodes);
-        AdjustChapterCount(setup.ChapterCount);
+        _project.Plot.ChapterCount = Chapters.Count;
         IsDirty = true;
     }
 
@@ -236,6 +236,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             Number = Chapters.Count + 1,
             Title = $"Chapter {Chapters.Count + 1}",
             Status = ChapterStatus.Draft,
+            CreatedUtc = _clock.UtcNow,
         };
 
         foreach (var code in Languages)
@@ -246,28 +247,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         BuildTabs(chapter);
         Chapters.Add(chapter);
         return chapter;
-    }
-
-    private void AdjustChapterCount(int count)
-    {
-        count = Math.Max(1, count);
-
-        while (Chapters.Count < count)
-        {
-            AddNewChapter();
-        }
-
-        while (Chapters.Count > count)
-        {
-            Chapters.RemoveAt(Chapters.Count - 1);
-        }
-
-        Renumber();
-
-        if (!Chapters.Contains(SelectedChapter))
-        {
-            SelectedChapter = Chapters[0];
-        }
     }
 
     private void UpdateLanguages(IReadOnlyList<string> codes)
@@ -363,6 +342,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             Notes = chapter.Notes,
             Summary = chapter.Summary,
             Logline = chapter.Logline,
+            CreatedUtc = chapter.CreatedUtc,
         };
 
         foreach (var translation in chapter.Translations)
@@ -383,12 +363,59 @@ public partial class WorkspaceViewModel : ViewModelBase
         Notes = viewModel.Notes,
         Summary = viewModel.Summary,
         Logline = viewModel.Logline,
+        CreatedUtc = viewModel.CreatedUtc,
         Translations = new SortedDictionary<string, string>(
             viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
     };
 
     private static string FormatCharacter(Character character) =>
         string.IsNullOrWhiteSpace(character.Description) ? character.Name : $"{character.Name} — {character.Description}";
+
+    private static List<Character> MergeCharacters(IReadOnlyList<Character> existing, IEnumerable<string> lines)
+    {
+        var result = new List<Character>();
+        foreach (var line in lines)
+        {
+            var parsed = ParseCharacter(line);
+            var match = existing.FirstOrDefault(character => string.Equals(character.Name, parsed.Name, StringComparison.Ordinal));
+            if (match is not null)
+            {
+                match.Name = parsed.Name;
+                match.Description = parsed.Description;
+                result.Add(match);
+            }
+            else
+            {
+                result.Add(parsed);
+            }
+        }
+
+        return result;
+    }
+
+    private static List<ExtraFile> MergeExtraFiles(IReadOnlyList<ExtraFile> existing, IEnumerable<string> names)
+    {
+        var result = new List<ExtraFile>();
+        foreach (var name in names)
+        {
+            var match = existing.FirstOrDefault(file => string.Equals(file.Name, name, StringComparison.Ordinal));
+            result.Add(match ?? new ExtraFile { Name = name });
+        }
+
+        return result;
+    }
+
+    private static List<CharacterState> MergeCharacterStates(IReadOnlyList<CharacterState> existing, IEnumerable<string> names)
+    {
+        var result = new List<CharacterState>();
+        foreach (var name in names)
+        {
+            var match = existing.FirstOrDefault(state => string.Equals(state.Name, name, StringComparison.Ordinal));
+            result.Add(match ?? new CharacterState { Name = name });
+        }
+
+        return result;
+    }
 
     private static Character ParseCharacter(string text)
     {

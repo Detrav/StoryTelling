@@ -77,6 +77,62 @@ public sealed class UndoRedoServiceTests
     }
 
     [Fact]
+    public async Task Push_DropsRedoTail()
+    {
+        _state = "a";
+        var service = Create();
+        _state = "b";
+        service.Push("B");
+        _state = "c";
+        service.Push("C");
+
+        _state = await service.UndoAsync() ?? _state;
+        Assert.True(service.CanRedo);
+        Assert.Equal(new[] { "B", "C" }, service.History);
+
+        _state = "d";
+        service.Push("D");
+
+        Assert.False(service.CanRedo);
+        Assert.Equal(new[] { "B", "D" }, service.History);
+        Assert.Equal("D", service.NextUndoName);
+    }
+
+    [Fact]
+    public void Reset_ClearsHistory()
+    {
+        _state = "a";
+        var service = Create();
+        _state = "b";
+        service.Push("B");
+
+        _state = "c";
+        service.Reset("c");
+
+        Assert.False(service.CanUndo);
+        Assert.False(service.CanRedo);
+        Assert.Empty(service.History);
+        Assert.Null(service.NextUndoName);
+    }
+
+    [Fact]
+    public async Task Push_DuringUndo_IsDropped()
+    {
+        _state = "one";
+        var service = Create();
+        _state = "two";
+        service.Push("Edit");
+
+        var undo = service.UndoAsync();
+        var pushed = service.Push("During");
+        var state = await undo;
+
+        Assert.False(pushed);
+        Assert.Equal("one", state);
+        Assert.Equal(new[] { "Edit" }, service.History);
+    }
+
+    [Fact]
     public async Task ConcurrentCalls_AreDropped()
     {
         var service = Create();

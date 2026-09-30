@@ -47,9 +47,6 @@ public partial class SetupViewModel : UndoableDialogViewModel
     private string _direction = string.Empty;
 
     [ObservableProperty]
-    private int _chapterCount = 1;
-
-    [ObservableProperty]
     private string _worldStateTimeAndPlace = string.Empty;
 
     public ObservableCollection<string> Characters { get; } = [];
@@ -117,7 +114,6 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Tone,
             Premise,
             Direction,
-            ChapterCount,
             WorldStateTimeAndPlace,
             [.. Characters],
             [.. ExtraFiles],
@@ -145,7 +141,6 @@ public partial class SetupViewModel : UndoableDialogViewModel
         Tone = snapshot.Tone;
         Premise = snapshot.Premise;
         Direction = snapshot.Direction;
-        ChapterCount = snapshot.ChapterCount;
         WorldStateTimeAndPlace = snapshot.WorldStateTimeAndPlace;
 
         Replace(Characters, snapshot.Characters);
@@ -184,7 +179,6 @@ public partial class SetupViewModel : UndoableDialogViewModel
         string Tone,
         string Premise,
         string Direction,
-        int ChapterCount,
         string WorldStateTimeAndPlace,
         List<string> Characters,
         List<string> ExtraFiles,

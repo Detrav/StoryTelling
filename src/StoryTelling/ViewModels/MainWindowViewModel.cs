@@ -92,7 +92,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     [RelayCommand]
     private void NewProject()
     {
-        OpenWorkspace(new WorkspaceViewModel(CreateNewProject()) { IsDirty = true }, resetUndo: true);
+        OpenWorkspace(new WorkspaceViewModel(CreateNewProject(), _clock) { IsDirty = true }, resetUndo: true);
         _logger.LogInformation("New project created");
     }
 
@@ -145,7 +145,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         try
         {
             var project = await _repository.LoadAsync(path);
-            OpenWorkspace(new WorkspaceViewModel(project) { FilePath = path }, resetUndo: true);
+            OpenWorkspace(new WorkspaceViewModel(project, _clock) { FilePath = path }, resetUndo: true);
             AddRecent(path);
             _logger.LogInformation("Opened project {Path}", path);
         }
@@ -238,7 +238,15 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
 
     private void OpenRecent(string path) => _ = OpenProjectAsync(path);
 
-    private void OnWorkspaceMutated(string name) => _undoRedo?.Push(name);
+    private void OnWorkspaceMutated(string name)
+    {
+        if (Workspace is not null)
+        {
+            Workspace.IsDirty = true;
+        }
+
+        _undoRedo?.Push(name);
+    }
 
     private void ApplyState(string state)
     {
@@ -248,7 +256,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         var path = Workspace?.FilePath;
         var sidebar = Workspace?.IsSidebarVisible ?? true;
 
-        var workspace = new WorkspaceViewModel(project)
+        var workspace = new WorkspaceViewModel(project, _clock)
         {
             FilePath = path,
             IsSidebarVisible = sidebar,
@@ -355,7 +363,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
             CreatedUtc = _clock.UtcNow,
             UpdatedUtc = _clock.UtcNow,
             Settings = new StorySettings { TargetLanguages = targets },
-            Plot = new PlotDescription { ChapterCount = 3 },
+            Plot = new PlotDescription { ChapterCount = 1 },
         };
     }
 }
