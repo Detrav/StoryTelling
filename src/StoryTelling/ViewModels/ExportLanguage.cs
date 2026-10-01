@@ -17,6 +17,12 @@ public sealed record ExportLanguage(
 
     public bool MetadataComplete => IsOriginal || Metadata.IsComplete;
 
+    public bool MetadataOnlyStale => !IsOriginal
+        && Metadata.IsStale
+        && Metadata.HasBookTitle
+        && Metadata.HasAnnotation
+        && Metadata.TranslatedTitles >= Metadata.TotalTitles;
+
     public string MetadataCoverage
     {
         get

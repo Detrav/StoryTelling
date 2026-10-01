@@ -29,13 +29,24 @@ public sealed class JsonSettingsService : ISettingsService
     {
         if (!File.Exists(_path))
         {
-            return AppSettings.CreateDefault();
+            return ApplyEnvironmentOverrides(AppSettings.CreateDefault());
         }
 
         var json = await File.ReadAllTextAsync(_path, cancellationToken).ConfigureAwait(false);
         var settings = JsonSerializer.Deserialize<AppSettings>(json, _options);
-        return settings ?? AppSettings.CreateDefault();
+        return ApplyEnvironmentOverrides(settings ?? AppSettings.CreateDefault());
     }
+
+    private static AppSettings ApplyEnvironmentOverrides(AppSettings settings)
+    {
+        settings.BaseUrl = Override("STORYTELLING_BASE_URL", settings.BaseUrl);
+        settings.Model = Override("STORYTELLING_MODEL", settings.Model);
+        settings.ApiKey = Override("STORYTELLING_API_KEY", settings.ApiKey);
+        return settings;
+    }
+
+    private static string Override(string variable, string fallback) =>
+        Environment.GetEnvironmentVariable(variable) is { Length: > 0 } value ? value.Trim() : fallback;
 
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {

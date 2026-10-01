@@ -12,13 +12,17 @@ StoryTelling` (the leading `*` appears while there are unsaved changes).
 
 - **File** — New project, Open project…, Save, Save as…, Export FB2…, Project setup…, Settings…,
   Close project, Exit.
-- **Edit** — Undo, Redo, Cut, Copy, Paste (placeholders).
+- **Edit** — Undo, Redo.
 - **View** — Show chapter list (toggle the sidebar).
-- **Chapter** — Generate chapter, Complete book…, Translate book metadata…, Finish story, Regenerate,
-  Stop, Add chapter, Delete chapter, Move up, Move down.
-- **Help** — About.
+- **Chapter** — Generate chapter, Complete book…, Translate book metadata…, Finish story,
+  Regenerate, Stop, Add chapter, Delete chapter, Move up, Move down.
+- **Help** — Open logs folder, About.
 
-Every chapter action is available both from the toolbar and from the **Chapter** menu.
+Undo/Redo (`Ctrl+Z` / `Ctrl+Y`) cover project edits made in the current session; the same toolbar
+(`↶` `↷`) sits under the menu. Closing a dirty project or exiting the app asks what to do with the
+unsaved changes: **Save** (with a file picker when the project has never been saved), **Discard** or
+**Cancel**. *Plan chapters* lives only on the workspace toolbar; the rest of the chapter actions are
+available both from the toolbar and from the **Chapter** menu.
 
 ## Welcome
 
@@ -28,15 +32,16 @@ Every chapter action is available both from the toolbar and from the **Chapter**
 ## Workspace
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ File  Edit  View  Chapter  Help                            │
-├──────────────┬─────────────────────────────────────────────┤
-│ Chapters  [+]│  Chapter 3 — The Long Night        ▶ ↻ ■    │
-│ 1 Embers     ├─────────────────────────────────────────────┤
-│ 2 Ashes      │ Ch (EN) | Ch (RU) | Ch (DE) | Summary | Set │
-│ 3 Long Night │                                             │
-│ 4 …          │  editor text …                             │
-└──────────────┴─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│ File  Edit  View  Chapter  Help                                           │
+│ ↶ ↷                                                                     │
+├──────────────┬───────────────────────────────────────────────────────────┤
+│ Chapters  [+]│  Chapter 3 — The Long Night    ▶ ↻ Finish ≡ Book Aa ⇄ ■   │
+│ 1 Embers     ├───────────────────────────────────────────────────────────┤
+│ 2 Ashes      │ Ch (EN) | Ch (RU) | Ch (DE) | Summary | Settings         │
+│ 3 Long Night │                                                            │
+│ 4 …          │  editor text …                                            │
+└──────────────┴───────────────────────────────────────────────────────────┘
 ```
 
 - **Sidebar** — the list of chapters is always visible (unless toggled off in *View*). The
@@ -171,7 +176,9 @@ marked done and skipped). Each row shows `○` pending, `▶` running, `✓` don
 determinate progress bar runs above the list, and **Cancel / Close** mirror *Complete book*. The
 results are cached in the project per language; the chapter text tabs keep showing only the body,
 and the translated titles are used by FB2 export. Cached metadata is flagged **out of date** whenever
-the book name, the world, the chapter set or a chapter title changes, and the dialog re-translates it.
+the book name, the annotation source, the chapter set or a chapter title changes; re-running the dialog
+re-translates it. A field the model fails to translate is left empty on purpose, so the dialog and the
+export dialog keep reporting it as missing instead of pretending it is done.
 
 ## Settings (dialog)
 
@@ -182,6 +189,10 @@ A separate modal window, split into tabs:
   AI may make per generation), *Test connection*.
 - **Languages** — the global catalog: add (code + name), remove; the selected row is the
   default language for new projects.
+
+Provider settings are stored per user, never in the project file. `STORYTELLING_BASE_URL`,
+`STORYTELLING_MODEL` and `STORYTELLING_API_KEY` override the stored values on start-up, which keeps
+keys out of the settings file in shared environments.
 
 ## Status
 
@@ -196,5 +207,5 @@ Cancel button. A *Translate book metadata* action translates the book title, ann
 titles per language. Export to FB2 is available for the English original and every target language,
 with translated metadata and an English fallback.
 
-Remaining work is hardening and polish (environment-variable overrides / *clear secrets*, a
-structured-output capability gate, a translation glossary, embeddings for retrieval).
+Remaining work is hardening and polish (OS keychain for the API key, a translation glossary,
+embeddings for retrieval, packaging and installer).

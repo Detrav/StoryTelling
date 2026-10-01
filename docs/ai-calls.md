@@ -17,7 +17,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | Import chunk | 8000 chars | `KnowledgeChunker.ImportMaxChars` |
 | Retrieval fragment | 800 chars | `KnowledgeChunker.RetrievalMaxChars` |
 | Max import chunks | 20 | `KnowledgeImportRequest.DefaultMaxChunks` |
-| Structured retries | 3 | `GenerationAssistant` / `ChapterSummarizer` |
+| Structured retries | 3 | `GenerationAssistant` / `ChapterSummarizer` / `MetadataTranslationService` / `KnowledgeImporter` / `ProjectReviewAssistant` |
 | Temperature | `AppSettings.Temperature`, capped at 0.2–0.3 for deterministic calls (translation, metadata translation, import, design, summary, review, editor notes) | each service |
 
 ## 1. Calls overview

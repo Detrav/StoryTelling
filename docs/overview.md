@@ -14,8 +14,10 @@ the English original is always preserved.
 
 1. **Project-based workflow.** Create / save / open a story project. A project is a single
    JSON file (`*.story.json`) containing metadata, the **world** (setting + narrative frame), a
-   knowledge base of notes and entities, the chapters (each with translations, a logline, a world
-   state snapshot and its knowledge diff), the **initial world state** and the app settings.
+   knowledge base of notes and entities, the chapters (each with translations, translated titles, a
+   logline, a world state snapshot and its knowledge diff), the **initial world state**, the cached
+   per-language book metadata and the project's own settings (target languages). Provider settings
+   (base URL, model, API key) are **global per-user**, not part of the project file.
 2. **Form-driven setup with a split.** Only the **immutable** facts live in the typed setup form
    (the `World`); everything that can change during writing lives in the **knowledge base**
    (characters, places, factions, rules, …). Fields the user already filled are treated as hard
@@ -43,5 +45,14 @@ the English original is always preserved.
    addressable knowledge entries (a character is a `Kind = Character` entry); the writer pulls the
    ones it needs through read-only tools (including keyword search), so nothing irrelevant is sent.
    Entries can be imported from Markdown or designed from a large prompt.
-8. **Export.** *File → Export FB2…* writes the book as FictionBook 2.0 in English or any target
-   language, warning (but continuing) when some chapters are not translated.
+8. **Everything outstanding in one pass.** *Complete book* walks the book in reading order and writes,
+   summarizes and translates whatever is missing or out of date, with progress and a Cancel button.
+9. **Translation.** Chapters are translated per target language. A separate action translates the
+   book's **accompanying elements** — title, annotation and every chapter title — in one structured
+   request per language, caching the result and flagging it out of date when the source changes.
+10. **Export.** *File → Export FB2…* writes the book as FictionBook 2.0 in English or any target
+    language, using the cached translations and metadata with an English fallback. It warns (but
+    continues) when chapters are untranslated or the book metadata is incomplete. Export is a pure
+    function: it never calls the model.
+
+The same engine is available from the terminal as `storydev` — see [cli.md](cli.md).

@@ -33,6 +33,7 @@ public partial class MainWindow : Window
             _viewModel.OpenProjectDialogRequested -= OnOpenProjectDialogRequested;
             _viewModel.SaveRequested -= OnSaveRequested;
             _viewModel.SaveAsRequested -= OnSaveAsRequested;
+            _viewModel.SaveBeforeCloseRequested -= SaveBeforeCloseAsync;
         }
 
         _viewModel = DataContext as MainWindowViewModel;
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
             _viewModel.OpenProjectDialogRequested += OnOpenProjectDialogRequested;
             _viewModel.SaveRequested += OnSaveRequested;
             _viewModel.SaveAsRequested += OnSaveAsRequested;
+            _viewModel.SaveBeforeCloseRequested += SaveBeforeCloseAsync;
         }
     }
 
@@ -83,7 +85,7 @@ public partial class MainWindow : Window
 
     private async Task TranslateMetadataAsync()
     {
-        if (_viewModel?.Workspace is not { } workspace)
+        if (_viewModel?.Workspace is not { } workspace || workspace.IsBusy)
         {
             return;
         }
@@ -176,7 +178,9 @@ public partial class MainWindow : Window
 
             if (!language.MetadataComplete)
             {
-                reasons.Add($"the book metadata is not fully translated ({language.MetadataCoverage}); the English text will be used for it");
+                reasons.Add(language.MetadataOnlyStale
+                    ? "the cached book metadata is out of date and will be exported as it is; run Translate book metadata to refresh it"
+                    : $"the book metadata is incomplete ({language.MetadataCoverage}); the English text will be used for the missing parts");
             }
 
             if (!await ConfirmDialog.ShowAsync(this, "Incomplete export", string.Join("\n\n", reasons) + "\n\nExport anyway?"))
@@ -245,9 +249,31 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnAboutClick(object? sender, RoutedEventArgs e) => _ = new AboutWindow().ShowDialog(this);
+    private void OnAboutClick(object? sender, RoutedEventArgs e) => _ = new AboutWindow { DataContext = new AboutViewModel() }.ShowDialog(this);
 
-    private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+    private void OnExitClick(object? sender, RoutedEventArgs e) => _ = GuardedAsync(ExitAsync);
+
+    private async Task ExitAsync()
+    {
+        if (_viewModel is not null && await _viewModel.ConfirmCloseAsync())
+        {
+            Close();
+        }
+    }
+
+    private async Task<bool> SaveBeforeCloseAsync(string projectName)
+    {
+        switch (await UnsavedChangesDialog.ShowAsync(this, projectName))
+        {
+            case UnsavedChangesChoice.Discard:
+                return true;
+            case UnsavedChangesChoice.Save:
+                await SaveAsync();
+                return _viewModel?.Workspace?.IsDirty != true;
+            default:
+                return false;
+        }
+    }
 
     private async Task<string?> PickOpenPathAsync()
     {

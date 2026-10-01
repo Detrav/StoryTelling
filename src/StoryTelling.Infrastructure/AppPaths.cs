@@ -8,8 +8,28 @@ public static class AppPaths
 
     public static string LogsDirectory => Path.Combine(ConfigDirectory, "logs");
 
+    public const int MaxLogFiles = 20;
+
     public static string CreateLogFilePath() =>
         Path.Combine(LogsDirectory, $"app-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+
+    public static void PruneOldLogs()
+    {
+        if (!Directory.Exists(LogsDirectory))
+        {
+            return;
+        }
+
+        var files = new DirectoryInfo(LogsDirectory)
+            .GetFiles("app-*.log")
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .Skip(MaxLogFiles);
+
+        foreach (var file in files)
+        {
+            file.Delete();
+        }
+    }
 
     private static string ResolveConfigDirectory()
     {

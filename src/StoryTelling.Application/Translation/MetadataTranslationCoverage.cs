@@ -22,8 +22,9 @@ public static class MetadataTranslationCoverage
         }
 
         var cached = project.MetadataTranslations.TryGetValue(languageCode, out var translation);
-        var hasBookTitle = cached && !string.IsNullOrWhiteSpace(translation!.Name);
-        var hasAnnotation = string.IsNullOrWhiteSpace(project.World.Body)
+        var hasBookTitle = string.IsNullOrWhiteSpace(project.Name)
+            || (cached && !string.IsNullOrWhiteSpace(translation!.Name));
+        var hasAnnotation = string.IsNullOrWhiteSpace(project.World?.Body)
             || (cached && !string.IsNullOrWhiteSpace(translation!.Annotation));
 
         var titled = project.Chapters
@@ -37,6 +38,6 @@ public static class MetadataTranslationCoverage
             hasAnnotation,
             translatedTitles,
             titled.Count,
-            project.StaleMetadataTranslations.Contains(languageCode));
+            project.StaleMetadataTranslations.Any(code => string.Equals(code, languageCode, StringComparison.OrdinalIgnoreCase)));
     }
 }

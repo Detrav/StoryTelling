@@ -31,6 +31,33 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Equal("Дым поднимался.", loaded.Chapters[0].Translations["ru"]);
         Assert.Equal("bestiary.md", loaded.Knowledge.Single().Title);
         Assert.Equal(KnowledgeKind.Note, loaded.Knowledge.Single().Kind);
+        Assert.Equal("Корона из углей", loaded.MetadataTranslations["ru"].Name);
+        Assert.Equal("Умирающая империя.", loaded.MetadataTranslations["ru"].Annotation);
+        Assert.Equal(["ru"], loaded.StaleMetadataTranslations);
+        Assert.Equal("Угли", loaded.Chapters[0].TranslatedTitles["ru"]);
+    }
+
+    [Fact]
+    public async Task Load_MigratesVersion4_DefaultsMetadataFields()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "v4.story.json");
+        await File.WriteAllTextAsync(path, """
+        {
+          "schemaVersion": 4,
+          "name": "Legacy v4",
+          "chapters": [
+            { "number": 1, "title": "One", "contentOriginal": "Text.", "translations": { "ru": "Текст." } }
+          ]
+        }
+        """);
+
+        var project = await repository.LoadAsync(path);
+
+        Assert.Equal(ProjectSchema.Version, project.SchemaVersion);
+        Assert.Empty(project.MetadataTranslations);
+        Assert.Empty(project.StaleMetadataTranslations);
+        Assert.Empty(Assert.Single(project.Chapters).TranslatedTitles);
     }
 
     [Fact]
@@ -48,6 +75,9 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Contains("\"timeAndPlace\"", json);
         Assert.Contains("\"description\"", json);
         Assert.Contains("\"knowledge\"", json);
+        Assert.Contains("\"metadataTranslations\"", json);
+        Assert.Contains("\"staleMetadataTranslations\"", json);
+        Assert.Contains("\"translatedTitles\"", json);
         Assert.Contains("\"Generated\"", json);
         Assert.Contains("Дым поднимался.", json);
         Assert.DoesNotContain(Directory.GetFiles(_directory), file => file.EndsWith(".tmp", StringComparison.Ordinal));
@@ -200,6 +230,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
                 Notes = "Keep it tense.",
                 ContentOriginal = "The smoke rose.",
                 Translations = new SortedDictionary<string, string> { ["ru"] = "Дым поднимался." },
+                TranslatedTitles = new SortedDictionary<string, string> { ["ru"] = "Угли" },
                 Logline = "A scout flees a burning keep.",
                 Status = ChapterStatus.Generated,
                 CreatedUtc = DateTimeOffset.UnixEpoch,
@@ -210,5 +241,10 @@ public sealed class JsonProjectRepositoryTests : IDisposable
             TimeAndPlace = "Dusk, the cliffs above the keep",
             Description = "Aria crouches in the ruins of the keep with the relic.",
         },
+        MetadataTranslations = new SortedDictionary<string, MetadataTranslation>
+        {
+            ["ru"] = new MetadataTranslation { Name = "Корона из углей", Annotation = "Умирающая империя." },
+        },
+        StaleMetadataTranslations = ["ru"],
     };
 }

@@ -1,9 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:StoryTelling.ViewModels"
         x:Class="StoryTelling.Views.AboutWindow"
+        x:DataType="vm:AboutViewModel"
+        Icon="/Assets/storytelling.ico"
         Title="About StoryTelling"
         Width="380"
-        Height="220"
+        Height="240"
         WindowStartupLocation="CenterOwner">
 
     <StackPanel Margin="20" Spacing="8">
@@ -11,7 +14,8 @@
         <TextBlock Text="Write multi-chapter stories with an AI assistant."
                    TextWrapping="Wrap"
                    Opacity="0.7" />
-        <TextBlock Text="Version 0.1 (UI mock)" Opacity="0.6" />
+        <TextBlock Text="{Binding Version}" Opacity="0.6" />
+        <TextBlock Text="{Binding Copyright}" FontSize="11" Opacity="0.5" TextWrapping="Wrap" />
         <Button Content="Close" HorizontalAlignment="Right" Click="OnCloseClick" Margin="0,8,0,0" />
     </StackPanel>
 

@@ -125,17 +125,18 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
     private async Task TestConnectionAsync()
     {
         Status = "Testing connection…";
-        var connection = LlmConnection.From(BaseUrl, ApiKey, TimeoutSeconds);
-        var request = new LlmRequest
-        {
-            Model = Model,
-            Messages = [LlmMessage.User("Reply with the single word OK.")],
-            Temperature = 0,
-            MaxTokens = 16,
-        };
 
         try
         {
+            var connection = LlmConnection.From(BaseUrl, ApiKey, TimeoutSeconds);
+            var request = new LlmRequest
+            {
+                Model = Model,
+                Messages = [LlmMessage.User("Reply with the single word OK.")],
+                Temperature = 0,
+                MaxTokens = 16,
+            };
+
             var completion = await _llmClient.CompleteAsync(connection, request);
             var reply = completion.Content.Trim();
             var chat = string.IsNullOrEmpty(reply) ? "chat OK" : $"chat OK ({reply})";
@@ -149,6 +150,10 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         catch (LlmException exception)
         {
             Status = $"Failed ({exception.Kind}): {exception.Message}";
+        }
+        catch (Exception exception)
+        {
+            Status = $"Failed: {exception.Message}";
         }
     }
 

@@ -91,7 +91,7 @@ public static partial class Fb2Exporter
         && project.MetadataTranslations.TryGetValue(languageCode, out var metadata)
         && !string.IsNullOrWhiteSpace(metadata.Annotation)
             ? metadata.Annotation.Trim()
-            : project.World.Body ?? string.Empty;
+            : project.World?.Body ?? string.Empty;
 
     private static string ResolveChapterTitle(Chapter chapter, string languageCode)
     {
@@ -109,7 +109,7 @@ public static partial class Fb2Exporter
         string.Equals(languageCode, "en", StringComparison.OrdinalIgnoreCase);
 
     private static string ResolveGenre(Project project) =>
-        string.IsNullOrWhiteSpace(project.World.Genre) ? "prose" : project.World.Genre.Trim();
+        string.IsNullOrWhiteSpace(project.World?.Genre) ? "prose" : project.World.Genre.Trim();
 
     private static string ResolveLanguage(string languageCode) =>
         string.IsNullOrWhiteSpace(languageCode) ? "en" : languageCode.Trim().ToLowerInvariant();

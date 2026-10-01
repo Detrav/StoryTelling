@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using StoryTelling.Domain;
@@ -25,7 +27,13 @@ public partial class WorkspaceView : UserControl
     private void SetStatus(object? sender, ChapterStatus status) =>
         Execute(vm => vm.SetChapterStatus(Chapter(sender), status));
 
-    private async void OnPlanChaptersClick(object? sender, RoutedEventArgs e)
+    private void OnPlanChaptersClick(object? sender, RoutedEventArgs e) => Guarded(RunPlanChaptersAsync);
+
+    private void OnCompleteBookClick(object? sender, RoutedEventArgs e) => Guarded(RunCompleteBookAsync);
+
+    private void OnTranslateMetadataClick(object? sender, RoutedEventArgs e) => Guarded(RunTranslateMetadataAsync);
+
+    private async Task RunPlanChaptersAsync()
     {
         if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
         {
@@ -50,7 +58,7 @@ public partial class WorkspaceView : UserControl
         workspace.ApplyChapterPlan([.. viewModel.Chapters.Select(chapter => (chapter.Title, chapter.Direction))]);
     }
 
-    private async void OnCompleteBookClick(object? sender, RoutedEventArgs e)
+    private async Task RunCompleteBookAsync()
     {
         if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
         {
@@ -62,9 +70,11 @@ public partial class WorkspaceView : UserControl
         await dialog.ShowDialog(window);
     }
 
-    private async void OnTranslateMetadataClick(object? sender, RoutedEventArgs e)
+    private async Task RunTranslateMetadataAsync()
     {
-        if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
+        if (DataContext is not WorkspaceViewModel workspace
+            || TopLevel.GetTopLevel(this) is not Window window
+            || workspace.IsBusy)
         {
             return;
         }
@@ -72,6 +82,26 @@ public partial class WorkspaceView : UserControl
         var viewModel = new MetadataTranslationViewModel(workspace.MetadataLanguages, workspace.NeedsMetadataTranslation, workspace.TranslateMetadataAsync);
         var dialog = new MetadataTranslationWindow { DataContext = viewModel };
         await dialog.ShowDialog(window);
+    }
+
+    private void Guarded(Func<Task> action)
+    {
+        _ = GuardedAsync(action);
+    }
+
+    private async Task GuardedAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            if (TopLevel.GetTopLevel(this) is Window owner)
+            {
+                ErrorDialog.Show(owner, "Something went wrong", exception.Message);
+            }
+        }
     }
 
     private void Execute(Action<WorkspaceViewModel> action)

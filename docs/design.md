@@ -17,10 +17,13 @@ Built:
   alone.
 - Chapter planning (a whole-book arc) and a *Finish* action for the concluding chapter.
 - Per-language translation (stale flags, wrong-script repair) and FB2 export.
+- Book-metadata translation: title, annotation and chapter titles per language, cached with a
+  coarse per-language stale flag; FB2 export reads only those caches.
+- A *Complete book* action that walks the whole book and performs every outstanding pass.
 - Setup keeps only immutable facts (`World`); everything mutable lives in the knowledge base.
 
-Still to build: remaining settings hardening (env-var overrides, *clear secrets*), a structured-output
-capability gate, a translation glossary, embeddings.
+Still to build: an OS keychain for the API key, a translation glossary, embeddings, and packaging
+(installer / publish profiles).
 
 The product is, in the end, an AI **writer** that produces a coherent multi-chapter story plus an
 AI **editor** that fixes it, backed by a **queryable knowledge base** and a set of read-only
@@ -40,8 +43,10 @@ sessions and by different developers.
   against a schema; invalid output is retried or surfaced, never parsed leniently.
 - **Every AI step is a separate, testable pass.** Planner / writer / editor / summarizer are
   independent units.
+- **Export is a pure function.** FB2 export reads cached translations and metadata and never calls
+  the model, so the same input always produces the same file.
 
-## 2. Data model (target)
+## 2. Data model
 
 ```text
 Project
@@ -51,6 +56,8 @@ Project
   Knowledge:         KnowledgeEntry[]
   InitialWorldState: WorldState { TimeAndPlace, Description }   // situation before chapter 1
   Chapters:          Chapter[]
+  MetadataTranslations{ languageCode -> MetadataTranslation { Name, Annotation } },
+  StaleMetadataTranslations[],       // language codes whose book metadata is out of date
 
 World = the static "story bible": the setting (title + body) and the narrative frame
         (genre, tone, style, point of view, tense, rating). It never changes.
@@ -66,6 +73,7 @@ Chapter {
   ContentOriginal,
   Translations{ languageCode -> text },
   StaleTranslations[],               // language codes whose translation is out of date
+  TranslatedTitles{ languageCode -> title },
   Logline,
   WorldState?,                       // snapshot of the situation AFTER this chapter
   KnowledgeChanges[],                // this chapter's diff against the knowledge base (RAG-like)
@@ -93,6 +101,23 @@ Notes on the model:
 - `InitialWorldState` is the small rolling seed for chapter 1; each chapter stores the snapshot of
   the situation *after* it in `Chapter.WorldState`. The state is **not** merged into the knowledge
   base — it changes every chapter and must stay cheap.
+- The "accompanying elements" of the book — its title, the annotation and the chapter titles — are
+  translated as one structured request per language and cached per language. A field the model does
+  not translate stays **empty** so that coverage reporting stays honest; only the exporter falls back
+  to the English source. `StaleMetadataTranslations` is one flag per language (coarse by design):
+  changing the book name, the annotation source, the chapter set or a chapter title marks it, and the
+  next *Translate book metadata* run refreshes it.
+- The provider settings (base URL, model, API key, limits) are **not** part of the project: they are
+  global per-user settings, optionally overridden by `STORYTELLING_BASE_URL` / `STORYTELLING_MODEL` /
+  `STORYTELLING_API_KEY`.
+
+### Schema versioning
+
+`Project.SchemaVersion` is currently **5** (`ProjectSchema.Version`). Older files are migrated on load
+(`ProjectMigrations`): v1 is rewritten (`frame`/`lore`/`characters`/`worldState` → `world`/`knowledge`/
+`initialWorldState`), v2–v4 load as they are and are re-stamped to the current version, and the fields
+added in v5 (`MetadataTranslations`, `StaleMetadataTranslations`, `TranslatedTitles`) simply default.
+A file whose version is **newer** than the app is rejected instead of being silently truncated.
 
 ## 3. Setup sequence
 
@@ -167,7 +192,7 @@ Read-only, deterministic, deduplicated, and bounded by a max-call count and a to
 | `initial_world_state` | — | `{ timeAndPlace, description }` |
 | `recent_loglines` | `count` | `[{ number, logline }]` |
 | `list_entries` | `kind?` | `[{ title, kind, tags }]` |
-| `get_entry` | `title` / `id` | `{ title, kind, tags, content }` |
+| `get_entry` | `key` (id or title) | `{ title, kind, tags, content }` |
 | `search_knowledge` | `query`, `kind?`, `topK?` | ranked fragments |
 
 The writer and the editor are both seeded with only a minimal fixed context (brief, world frame,

@@ -15,6 +15,7 @@ public partial class BookCompletionWindow : Window
         DataContextChanged += OnDataContextChanged;
         Opened += OnOpened;
         Closing += OnClosing;
+        Closed += OnClosed;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -38,6 +39,8 @@ public partial class BookCompletionWindow : Window
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs e) => _viewModel?.CancelWork();
+
+    private void OnClosed(object? sender, EventArgs e) => Detach();
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 

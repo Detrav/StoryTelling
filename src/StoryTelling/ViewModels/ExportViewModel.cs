@@ -40,5 +40,8 @@ public partial class ExportViewModel : ViewModelBase
     public ObservableCollection<ExportLanguage> Languages { get; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
     private ExportLanguage? _selected;
+
+    public bool HasSelection => Selected is not null;
 }

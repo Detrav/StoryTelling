@@ -3,7 +3,7 @@
         xmlns:vm="using:StoryTelling.ViewModels"
         x:Class="StoryTelling.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/storytelling.ico"
         Title="{Binding WindowTitle}"
         Width="1180"
         Height="780">
@@ -35,10 +35,6 @@
             <MenuItem Header="_Edit">
                 <MenuItem Header="{Binding UndoLabel}" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
                 <MenuItem Header="{Binding RedoLabel}" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
-                <Separator />
-                <MenuItem Header="Cu_t" IsEnabled="False" />
-                <MenuItem Header="Cop_y" IsEnabled="False" />
-                <MenuItem Header="_Paste" IsEnabled="False" />
             </MenuItem>
 
             <MenuItem Header="_View">

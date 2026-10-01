@@ -13,7 +13,9 @@ public partial class BookCompletionViewModel : ViewModelBase
         CancellationToken cancellationToken);
 
     private readonly CompletionRunner _run;
+    private readonly object _gate = new();
     private CancellationTokenSource? _cts;
+    private bool _finished;
 
     public BookCompletionViewModel(Func<IReadOnlyList<BookOperation>> plan, CompletionRunner run)
     {
@@ -45,6 +47,8 @@ public partial class BookCompletionViewModel : ViewModelBase
 
     public async Task StartAsync()
     {
+        _finished = false;
+
         if (Operations.Count == 0)
         {
             Status = "Everything is already up to date.";
@@ -68,26 +72,38 @@ public partial class BookCompletionViewModel : ViewModelBase
             await _run([.. Operations.Select(item => item.Operation)], progress, token);
             if (!token.IsCancellationRequested)
             {
-                Status = "Done.";
-                Progress = 100;
-                ProgressText = $"{Operations.Count} / {Operations.Count}";
-                UpdateOperations(Operations.Count, -1, string.Empty);
+                Finish(() =>
+                {
+                    Status = "Done.";
+                    Progress = 100;
+                    ProgressText = $"{Operations.Count} / {Operations.Count}";
+                    UpdateOperations(Operations.Count, -1, string.Empty);
+                });
             }
         }
         catch (OperationCanceledException)
         {
-            Status = "Cancelled.";
-            CancelRunning();
+            Finish(() =>
+            {
+                Status = "Cancelled.";
+                CancelRunning();
+            });
         }
         catch (Exception exception)
         {
-            Status = $"Failed: {exception.Message}";
-            FailRunning(exception.Message);
+            Finish(() =>
+            {
+                Status = $"Failed: {exception.Message}";
+                FailRunning(exception.Message);
+            });
         }
         finally
         {
-            IsBusy = false;
-            IsFinished = true;
+            Finish(() =>
+            {
+                IsBusy = false;
+                IsFinished = true;
+            });
         }
     }
 
@@ -100,17 +116,34 @@ public partial class BookCompletionViewModel : ViewModelBase
 
     public void CancelWork() => _cts?.Cancel();
 
+    private void Finish(Action apply)
+    {
+        lock (_gate)
+        {
+            _finished = true;
+            apply();
+        }
+    }
+
     private void Apply(BookCompletionProgress report)
     {
-        Progress = report.Total <= 0 ? 100 : Math.Min(100, report.Completed * 100.0 / report.Total);
-        ProgressText = $"{report.Completed} / {report.Total}";
-
-        if (report.CurrentIndex >= 0 && report.CurrentIndex < Operations.Count)
+        lock (_gate)
         {
-            Status = Operations[report.CurrentIndex].Header;
-        }
+            if (_finished)
+            {
+                return;
+            }
 
-        UpdateOperations(report.Completed, report.CurrentIndex, report.Stage);
+            Progress = report.Total <= 0 ? 100 : Math.Min(100, report.Completed * 100.0 / report.Total);
+            ProgressText = $"{report.Completed} / {report.Total}";
+
+            if (report.CurrentIndex >= 0 && report.CurrentIndex < Operations.Count)
+            {
+                Status = Operations[report.CurrentIndex].Header;
+            }
+
+            UpdateOperations(report.Completed, report.CurrentIndex, report.Stage);
+        }
     }
 
     private void UpdateOperations(int completed, int currentIndex, string stage)

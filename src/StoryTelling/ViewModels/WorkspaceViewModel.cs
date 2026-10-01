@@ -319,6 +319,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         _suppressMutation = true;
 
         var completed = 0;
+        var applied = 0;
         void Report(int currentIndex, string stage) =>
             progress.Report(new BookCompletionProgress(completed, operations.Count, currentIndex, stage));
 
@@ -343,6 +344,7 @@ public partial class WorkspaceViewModel : ViewModelBase
                         Report(index, DescribeStage(report)));
                     Report(index, "Writing…");
                     await WriteChapterCoreAsync(chapter, writeProgress, stream: false, cancellationToken);
+                    applied++;
                 }
                 else if (operation.Kind == BookOperationKind.SummarizeChapter)
                 {
@@ -350,6 +352,7 @@ public partial class WorkspaceViewModel : ViewModelBase
                         Report(index, DescribeStage(report)));
                     Report(index, "Summarizing…");
                     await RegenerateSummaryAsync(chapter, summaryProgress, cancellationToken);
+                    applied++;
                 }
                 else if (operation.Kind == BookOperationKind.TranslateChapter && operation.LanguageCode is { Length: > 0 } code)
                 {
@@ -357,6 +360,7 @@ public partial class WorkspaceViewModel : ViewModelBase
                         Report(index, DescribeStage(report)));
                     Report(index, "Translating…");
                     await TranslateLanguageAsync(chapter, code, translationProgress, cancellationToken);
+                    applied++;
                 }
 
                 completed++;
@@ -370,8 +374,11 @@ public partial class WorkspaceViewModel : ViewModelBase
         {
             _suppressMutation = false;
             IsBusy = false;
-            IsDirty = true;
-            Mutated?.Invoke("Complete book");
+            if (applied > 0)
+            {
+                IsDirty = true;
+                Mutated?.Invoke("Complete book");
+            }
         }
     }
 
@@ -391,16 +398,16 @@ public partial class WorkspaceViewModel : ViewModelBase
         IProgress<MetadataTranslationProgress> progress,
         CancellationToken cancellationToken)
     {
+        var languages = MetadataLanguages.ToList();
         if (IsBusy)
         {
-            progress.Report(new MetadataTranslationProgress(0, 0, -1, string.Empty));
-            return;
+            throw new InvalidOperationException("Another operation is in progress. Wait for it to finish.");
         }
 
-        var languages = MetadataLanguages.ToList();
         IsBusy = true;
 
         var completed = 0;
+        var applied = 0;
         void Report(int currentIndex, string stage) =>
             progress.Report(new MetadataTranslationProgress(completed, languages.Count, currentIndex, stage));
 
@@ -427,6 +434,7 @@ public partial class WorkspaceViewModel : ViewModelBase
                 var request = new MetadataTranslationRequest(code, project.Name, project.World.Body, ChapterTitles());
                 var result = await _metadataTranslator.TranslateAsync(request, translationProgress, cancellationToken);
                 ApplyMetadataTranslation(code, result);
+                applied++;
 
                 completed++;
                 Report(-1, string.Empty);
@@ -437,8 +445,11 @@ public partial class WorkspaceViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
-            IsDirty = true;
-            Mutated?.Invoke("Translate book metadata");
+            if (applied > 0)
+            {
+                IsDirty = true;
+                Mutated?.Invoke("Translate book metadata");
+            }
         }
     }
 
@@ -802,6 +813,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         var before = SetupSignature(_project);
         var beforeName = _project.Name;
+        var beforeBody = _project.World.Body;
 
         _project.Name = setup.ProjectName;
         _project.Settings.TargetLanguages = setup.SelectedLanguageCodes.ToList();
@@ -825,7 +837,8 @@ public partial class WorkspaceViewModel : ViewModelBase
             MarkAllStale();
         }
 
-        if (signatureChanged || !string.Equals(beforeName, _project.Name, StringComparison.Ordinal))
+        if (!string.Equals(beforeName, _project.Name, StringComparison.Ordinal)
+            || !string.Equals(beforeBody, _project.World.Body, StringComparison.Ordinal))
         {
             MarkMetadataStale();
         }

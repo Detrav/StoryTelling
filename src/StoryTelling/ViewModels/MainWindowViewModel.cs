@@ -75,6 +75,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
 
     public event Action? SaveAsRequested;
 
+    public event Func<string, Task<bool>>? SaveBeforeCloseRequested;
+
     [ObservableProperty]
     private object _content;
 
@@ -127,7 +129,28 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     }
 
     [RelayCommand]
-    private void CloseProject() => ShowWelcome();
+    private async Task CloseProjectAsync()
+    {
+        if (await ConfirmCloseAsync())
+        {
+            ShowWelcome();
+        }
+    }
+
+    public async Task<bool> ConfirmCloseAsync()
+    {
+        if (Workspace is not { IsDirty: true } workspace)
+        {
+            return true;
+        }
+
+        if (SaveBeforeCloseRequested is null)
+        {
+            return false;
+        }
+
+        return await SaveBeforeCloseRequested(workspace.ProjectName);
+    }
 
     [RelayCommand]
     private void OpenProject() => RequestOpenProject();
@@ -244,7 +267,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     {
         Detach();
         workspace.PropertyChanged += OnWorkspacePropertyChanged;
-        workspace.CloseRequested += CloseProject;
+        workspace.CloseRequested += RequestClose;
         workspace.Mutated += OnWorkspaceMutated;
         workspace.WarningRequested += OnWorkspaceWarning;
         Workspace = workspace;
@@ -259,6 +282,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
             NotifyUndoRedo();
         }
     }
+
+    private void RequestClose() => _ = CloseProjectAsync();
 
     private void ShowWelcome()
     {
@@ -348,7 +373,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         }
 
         Workspace.PropertyChanged -= OnWorkspacePropertyChanged;
-        Workspace.CloseRequested -= CloseProject;
+        Workspace.CloseRequested -= RequestClose;
         Workspace.Mutated -= OnWorkspaceMutated;
         Workspace.WarningRequested -= OnWorkspaceWarning;
     }

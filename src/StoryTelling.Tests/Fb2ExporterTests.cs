@@ -70,6 +70,73 @@ public sealed class Fb2ExporterTests
     }
 
     [Fact]
+    public void Build_BlankChapterTitle_FallsBackToChapterNumber()
+    {
+        var project = Project();
+        project.Chapters[0].Title = "   ";
+
+        var xml = Fb2Exporter.Build(project, "en");
+        var document = XDocument.Parse(xml);
+
+        var title = document.Root!.Element(_fb + "body")!.Elements(_fb + "section").First().Element(_fb + "title");
+        Assert.Equal("Chapter 1", title?.Value);
+    }
+
+    [Fact]
+    public void Build_BlankGenre_FallsBackToProse()
+    {
+        var project = Project();
+        project.World.Genre = "  ";
+
+        var xml = Fb2Exporter.Build(project, "en");
+
+        Assert.Contains("<genre>prose</genre>", xml);
+    }
+
+    [Fact]
+    public void Build_BlankLanguage_FallsBackToEnglish()
+    {
+        var xml = Fb2Exporter.Build(Project(), "   ");
+
+        Assert.Contains("<lang>en</lang>", xml);
+    }
+
+    [Fact]
+    public void Build_BlankAnnotation_OmitsAnnotationElement()
+    {
+        var project = Project();
+        project.World.Body = "   ";
+
+        var xml = Fb2Exporter.Build(project, "en");
+
+        Assert.DoesNotContain("<annotation>", xml);
+    }
+
+    [Fact]
+    public void Build_MissingWorld_DoesNotThrow()
+    {
+        var project = Project();
+        project.World = null!;
+
+        var xml = Fb2Exporter.Build(project, "ru");
+
+        Assert.Contains("<genre>prose</genre>", xml);
+        Assert.Contains("<book-title>Корона из углей</book-title>", xml);
+    }
+
+    [Fact]
+    public void Build_English_IgnoresTranslatedMetadata()
+    {
+        var xml = Fb2Exporter.Build(Project(), "en");
+        var document = XDocument.Parse(xml);
+        var titleInfo = document.Root!.Element(_fb + "description")!.Element(_fb + "title-info")!;
+
+        Assert.Equal("The Ember Crown", titleInfo.Element(_fb + "book-title")?.Value);
+        Assert.Equal("A dying empire.", titleInfo.Element(_fb + "annotation")?.Value);
+        Assert.Equal("Embers", document.Root!.Element(_fb + "body")!.Elements(_fb + "section").First().Element(_fb + "title")?.Value);
+    }
+
+    [Fact]
     public void Build_EscapesSpecialCharacters()
     {
         var project = Project();

@@ -25,7 +25,11 @@ internal static class AppServices
         services.AddLogging(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Information);
-            builder.AddProvider(new FileLoggerProvider(AppPaths.CreateLogFilePath()));
+            var logFile = TryCreateLogFile();
+            if (logFile is not null)
+            {
+                builder.AddProvider(new FileLoggerProvider(logFile));
+            }
         });
 
         services.AddSingleton<IClock, SystemClock>();
@@ -49,5 +53,19 @@ internal static class AppServices
         services.AddSingleton<MainWindowViewModel>();
 
         Provider = services.BuildServiceProvider();
+    }
+
+    private static string? TryCreateLogFile()
+    {
+        try
+        {
+            AppPaths.PruneOldLogs();
+            return AppPaths.CreateLogFilePath();
+        }
+        catch (Exception exception)
+        {
+            AppDiagnostics.Write(exception);
+            return null;
+        }
     }
 }

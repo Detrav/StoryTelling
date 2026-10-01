@@ -1,0 +1,68 @@
+# Developer CLI — `storydev`
+
+`StoryTelling.Cli` is a thin terminal front end over the same engine the desktop app uses. It exists
+to drive one pass at a time when debugging the prompts, to batch-generate content, and to produce an
+FB2 without launching the UI. It shares the project format, the services and the user settings with the
+app.
+
+```powershell
+dotnet run --project src/StoryTelling.Cli -- <command> [options]
+```
+
+Run `storydev` with no command (or `help`) for the usage summary.
+
+## Commands
+
+| Command | What it does |
+|---------|--------------|
+| `ping` | Checks provider connectivity and whether the model supports JSON-schema structured output. |
+| `raw` | Sends a raw prompt: `--prompt <text> [--system <text>]`. |
+| `probe` | Prints the raw schema output for one `GenerationTarget` without applying it: `--target <Target> [--variants N] [--file <path>] [--brief ...] [--out <path>]`. |
+| `gen` | Generates one target and applies it into a project: `--target <Target> --file <path> [--variants N] [--brief ...] [--out <path>] [--replace]`. |
+| `setup` | Generates a fresh project setup: `--out <path> [--brief ...] [--characters N]`. |
+| `write` | Writes chapters into an existing project: `--file <path> [--chapters N]`. |
+| `summarize` | Rebuilds loglines, world state and knowledge diffs: `--file <path> [--chapter N \| --all] [--out <path>]`. |
+| `translate` | Translates every chapter into a language: `--file <path> --language <code> [--out <path>]`. |
+| `design` | Builds knowledge entries from a description: `--file <path> --prompt <text> [--out <path>]`. |
+| `recompute` | Refreshes summaries/world state from a chapter onward: `--file <path> [--from N] [--out <path>]`. |
+| `edit` | Runs the editor on one chapter (debug aid): `--file <path> --number N [--in <draft.txt>] [--out <edited.txt>]`. |
+| `draft` | Runs the writer on one chapter without persisting (debug aid): `--file <path> --number N [--out <draft.txt>]`. |
+| `create` | Full run (setup + chapters): `--out <path> [--chapters N] [--brief ...] [--characters N]`. |
+| `export` | Writes an FB2 from a project: `--file <path> [--language <code>] [--out <path.fb2>]`. |
+
+## Common options
+
+Every command accepts the provider overrides, which take precedence over `settings.json` (and over
+the `STORYTELLING_*` environment variables):
+
+```
+--base-url --model --api-key --max-tokens --max-tool-calls --temperature --timeout
+```
+
+`Ctrl+C` cancels the running pass; partial progress is never written over the project file.
+
+## Notes and limitations
+
+- The CLI covers the engine passes, not the app-level orchestration: there is no *Complete book*
+  equivalent, no knowledge review and no setup/knowledge review dialog.
+- It does **not** translate the book's metadata (title, annotation, chapter titles) — that action lives
+  in the desktop app. Use the app once before exporting if the target language needs it; the CLI
+  `export` command reads whatever the app already cached and otherwise falls back to English.
+- Generation via `gen`/`setup`/`create` reuses the same prompts and tools as the app, so output is
+  comparable between the two.
+
+## Examples
+
+```powershell
+# is the provider reachable and structured-output capable?
+dotnet run --project src/StoryTelling.Cli -- ping
+
+# look at the raw schema output for the chapter-plan target before trusting it
+dotnet run --project src/StoryTelling.Cli -- probe --target ChapterPlan --variants 5 --out examples/probe-plan.json
+
+# translate a project into Russian
+dotnet run --project src/StoryTelling.Cli -- translate --file examples/story.story.json --language ru
+
+# export the Russian FB2
+dotnet run --project src/StoryTelling.Cli -- export --file examples/story.story.json --language ru
+```

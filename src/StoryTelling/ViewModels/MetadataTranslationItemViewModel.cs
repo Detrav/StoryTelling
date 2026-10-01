@@ -23,15 +23,17 @@ public partial class MetadataTranslationItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRunning;
 
-    public bool HasStage => Stage.Length > 0;
+    [ObservableProperty]
+    private bool _isDone;
 
-    public bool IsDone => Marker == "✓";
+    public bool HasStage => Stage.Length > 0;
 
     public void MarkPending()
     {
         Marker = "○";
         Stage = string.Empty;
         IsRunning = false;
+        IsDone = false;
     }
 
     public void MarkRunning(string stage)
@@ -39,6 +41,7 @@ public partial class MetadataTranslationItemViewModel : ObservableObject
         Marker = "▶";
         Stage = string.IsNullOrEmpty(stage) ? "…" : stage;
         IsRunning = true;
+        IsDone = false;
     }
 
     public void MarkDone()
@@ -46,6 +49,7 @@ public partial class MetadataTranslationItemViewModel : ObservableObject
         Marker = "✓";
         Stage = string.Empty;
         IsRunning = false;
+        IsDone = true;
     }
 
     public void MarkFailed(string message)
@@ -53,5 +57,6 @@ public partial class MetadataTranslationItemViewModel : ObservableObject
         Marker = "✗";
         Stage = message;
         IsRunning = false;
+        IsDone = false;
     }
 }

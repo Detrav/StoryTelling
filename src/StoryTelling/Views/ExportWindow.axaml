@@ -17,7 +17,7 @@
                 BorderBrush="#22000000">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button Content="Cancel" Click="OnCancelClick" />
-                <Button Content="Export" Classes="accent" Click="OnExportClick" IsEnabled="{Binding Selected}" />
+                <Button Content="Export" Classes="accent" Click="OnExportClick" IsEnabled="{Binding HasSelection}" />
             </StackPanel>
         </Border>
 

@@ -46,10 +46,10 @@ public sealed class MetadataTranslationService : IMetadataTranslator
             .CompleteJsonAsync(connection, llmRequest, "MetadataTranslation", MetadataTranslationSchema.Build(), cancellationToken)
             .ConfigureAwait(false);
 
-        return Parse(content, request);
+        return Parse(content);
     }
 
-    private static MetadataTranslationResult Parse(string content, MetadataTranslationRequest request)
+    private static MetadataTranslationResult Parse(string content)
     {
         JsonElement root;
         try
@@ -60,6 +60,11 @@ public sealed class MetadataTranslationService : IMetadataTranslator
         catch (JsonException exception)
         {
             throw new LlmException(LlmErrorKind.InvalidResponse, $"The model returned invalid metadata JSON: {exception.Message}");
+        }
+
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new LlmException(LlmErrorKind.InvalidResponse, "The model returned metadata JSON that is not an object.");
         }
 
         var name = GetString(root, "name");
@@ -76,6 +81,7 @@ public sealed class MetadataTranslationService : IMetadataTranslator
             {
                 if (element.ValueKind != JsonValueKind.Object
                     || !element.TryGetProperty("number", out var numberElement)
+                    || numberElement.ValueKind != JsonValueKind.Number
                     || !numberElement.TryGetInt32(out var number)
                     || number <= 0)
                 {
@@ -90,10 +96,7 @@ public sealed class MetadataTranslationService : IMetadataTranslator
             }
         }
 
-        return new MetadataTranslationResult(
-            string.IsNullOrWhiteSpace(name) ? request.BookName : name.Trim(),
-            string.IsNullOrWhiteSpace(annotation) ? request.Annotation : annotation.Trim(),
-            titles);
+        return new MetadataTranslationResult(name.Trim(), annotation.Trim(), titles);
     }
 
     private static string GetString(JsonElement element, string property) =>
