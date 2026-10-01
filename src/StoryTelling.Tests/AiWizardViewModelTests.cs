@@ -75,6 +75,21 @@ public sealed class AiWizardViewModelTests
         AiWizardViewModel.LastOptionCount = 3;
     }
 
+    [Fact]
+    public async Task Constructor_InitialBrief_SeedsFirstRequest()
+    {
+        var briefs = new List<string>();
+        var viewModel = new AiWizardViewModel("Knowledge entry", GenerationTarget.Knowledge, (brief, _, _, _, _) =>
+        {
+            briefs.Add(brief);
+            return Task.FromResult<IReadOnlyList<GenerationOption>>([]);
+        }, "seed brief");
+
+        await viewModel.Initialization;
+
+        Assert.Contains("seed brief", briefs);
+    }
+
     private static AiWizardViewModel.GenerateOptions Options(params GenerationOption[] options) =>
         (_, _, _, _, _) => Task.FromResult<IReadOnlyList<GenerationOption>>(options);
 }

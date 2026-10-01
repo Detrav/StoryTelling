@@ -9,13 +9,16 @@ internal sealed class ScriptedLlmClient : ILlmClient
 {
     private readonly Queue<LlmToolResponse> _toolResponses;
 
-    public ScriptedLlmClient(string jsonResponse, IEnumerable<LlmToolResponse> toolResponses)
+    public ScriptedLlmClient(string jsonResponse, IEnumerable<LlmToolResponse> toolResponses, string streamText = "")
     {
         JsonResponse = jsonResponse;
         _toolResponses = new Queue<LlmToolResponse>(toolResponses);
+        StreamText = streamText;
     }
 
     public string JsonResponse { get; set; }
+
+    public string StreamText { get; set; }
 
     public List<LlmRequest> ToolRequests { get; } = [];
 
@@ -35,7 +38,10 @@ internal sealed class ScriptedLlmClient : ILlmClient
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.Yield();
-        yield break;
+        if (!string.IsNullOrEmpty(StreamText))
+        {
+            yield return StreamText;
+        }
     }
 
     public Task<string> CompleteJsonAsync(

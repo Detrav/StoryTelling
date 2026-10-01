@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
+using StoryTelling.Application.Review;
 using StoryTelling.Infrastructure;
 using StoryTelling.Infrastructure.Diff;
 using StoryTelling.Infrastructure.Llm;
@@ -34,6 +36,9 @@ internal static class AppServices
         services.AddSingleton<ILlmClient, OpenAiCompatibleLlmClient>();
         services.AddSingleton<IGenerationAssistant, GenerationAssistant>();
         services.AddSingleton<IKnowledgeImporter, KnowledgeImporter>();
+        services.AddSingleton<IProjectReviewAssistant, ProjectReviewAssistant>();
+        services.AddSingleton<IContextAssembler, ChapterContextAssembler>();
+        services.AddSingleton<IChapterAgent, ChapterAgent>();
         services.AddSingleton<MainWindowViewModel>();
 
         Provider = services.BuildServiceProvider();

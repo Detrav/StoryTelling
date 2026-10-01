@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using StoryTelling.Application.Generation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
@@ -22,6 +23,8 @@ public partial class KnowledgeEntryEditorViewModel : ObservableObject
 
     public Guid Id { get; init; } = Guid.NewGuid();
 
+    public Func<string, int, GenerationSession, IProgress<GenerationProgress>?, CancellationToken, Task<IReadOnlyList<GenerationOption>>>? GenerateOptions { get; set; }
+
     public IReadOnlyList<KnowledgeKind> Kinds => _allKinds;
 
     [ObservableProperty]
@@ -40,7 +43,7 @@ public partial class KnowledgeEntryEditorViewModel : ObservableObject
     public bool HasTitle => !string.IsNullOrWhiteSpace(Title);
 
     public IReadOnlyList<string> TagList =>
-        Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Tags.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public KnowledgeEntry ToEntry() => new()
     {
@@ -60,4 +63,26 @@ public partial class KnowledgeEntryEditorViewModel : ObservableObject
         Tags = other.Tags;
         Content = other.Content;
     }
+
+    public IReadOnlyDictionary<string, string> ToFields() => new Dictionary<string, string>
+    {
+        ["Kind"] = Kind.ToString(),
+        ["Title"] = Title,
+        ["Tags"] = Tags,
+        ["Content"] = Content,
+    };
+
+    public void ApplyFields(IReadOnlyDictionary<string, string> fields)
+    {
+        Kind = GetKind(fields, "Kind", Kind);
+        Title = Get(fields, "Title", Title);
+        Tags = Get(fields, "Tags", Tags);
+        Content = Get(fields, "Content", Content);
+    }
+
+    private static string Get(IReadOnlyDictionary<string, string> fields, string key, string fallback) =>
+        fields.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : fallback;
+
+    private static KnowledgeKind GetKind(IReadOnlyDictionary<string, string> fields, string key, KnowledgeKind fallback) =>
+        fields.TryGetValue(key, out var value) && Enum.TryParse<KnowledgeKind>(value, ignoreCase: true, out var kind) ? kind : fallback;
 }

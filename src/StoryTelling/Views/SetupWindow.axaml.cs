@@ -19,6 +19,21 @@ public partial class SetupWindow : Window
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) => Close(false);
 
+    private void OnReviewClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SetupViewModel setup)
+        {
+            return;
+        }
+
+        var viewModel = new ProjectReviewViewModel(
+            (brief, progress, cancellationToken) => setup.RunReviewAsync(brief, progress, cancellationToken),
+            setup);
+
+        var window = new ProjectReviewWindow { DataContext = viewModel };
+        window.Show(this);
+    }
+
     private async void OnGenerateClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string field } || DataContext is not SetupViewModel setup)
@@ -100,6 +115,7 @@ public partial class SetupWindow : Window
         }
 
         var entry = new KnowledgeEntryEditorViewModel();
+        entry.GenerateOptions = (brief, options, session, progress, cancellationToken) => setup.GenerateKnowledgeAsync(entry, brief, options, session, progress, cancellationToken);
         var window = new KnowledgeEntryWindow { DataContext = entry };
         if (await window.ShowDialog<bool>(this))
         {
@@ -115,6 +131,7 @@ public partial class SetupWindow : Window
         }
 
         var draft = selected.Clone();
+        draft.GenerateOptions = (brief, options, session, progress, cancellationToken) => setup.GenerateKnowledgeAsync(draft, brief, options, session, progress, cancellationToken);
         var window = new KnowledgeEntryWindow { DataContext = draft };
         if (await window.ShowDialog<bool>(this))
         {
@@ -167,6 +184,18 @@ public partial class SetupWindow : Window
         }
 
         var source = builder.ToString();
+
+        var plan = setup.PlanKnowledgeImport(source);
+        if (plan.TooLarge)
+        {
+            ErrorDialog.Show(
+                this,
+                "File too large",
+                $"This file splits into {plan.ChunkCount} chunks, but the import limit is {plan.MaxChunks}. "
+                + "Split it into smaller Markdown files and import them one by one.");
+            return;
+        }
+
         var viewModel = new KnowledgeImportViewModel((brief, progress, cancellationToken) =>
             setup.ExtractKnowledgeAsync(source, brief, progress, cancellationToken));
 

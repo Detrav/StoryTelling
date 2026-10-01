@@ -7,5 +7,6 @@ public enum GenerationTarget
     Frame,
     Premise,
     Character,
+    Knowledge,
     WorldState,
 }

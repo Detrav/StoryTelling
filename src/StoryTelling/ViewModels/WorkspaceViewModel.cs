@@ -1,10 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
+using StoryTelling.Application.Llm;
+using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -14,11 +18,14 @@ public partial class WorkspaceViewModel : ViewModelBase
 {
     private readonly Project _project;
     private readonly IClock _clock;
+    private readonly IChapterAgent _chapterAgent;
+    private CancellationTokenSource? _chapterCts;
 
-    public WorkspaceViewModel(Project project, IClock clock)
+    public WorkspaceViewModel(Project project, IClock clock, IChapterAgent chapterAgent)
     {
         _project = project;
         _clock = clock;
+        _chapterAgent = chapterAgent;
         _projectName = project.Name;
 
         foreach (var code in project.Settings.TargetLanguages)
@@ -59,6 +66,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     [ObservableProperty]
     private ChapterViewModel _selectedChapter;
+
+    [ObservableProperty]
+    private bool _isBusy;
+
+    [ObservableProperty]
+    private string _status = string.Empty;
 
     public ObservableCollection<string> Languages { get; } = [];
 
@@ -129,26 +142,75 @@ public partial class WorkspaceViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Generate()
-    {
-    }
+    private Task Generate() => WriteChapterAsync();
 
     [RelayCommand]
-    private void Regenerate()
-    {
-    }
+    private Task Regenerate() => WriteChapterAsync();
 
     [RelayCommand]
-    private void Stop()
+    private void Stop() => _chapterCts?.Cancel();
+
+    private async Task WriteChapterAsync()
     {
+        if (IsBusy || SelectedChapter is not { } chapter)
+        {
+            return;
+        }
+
+        _chapterCts?.Dispose();
+        _chapterCts = new CancellationTokenSource();
+        var token = _chapterCts.Token;
+
+        IsBusy = true;
+        Status = "Writing…";
+
+        var index = Chapters.IndexOf(chapter);
+        var stateBefore = index > 0 ? Chapters[index - 1].WorldState ?? _project.WorldState : _project.WorldState;
+        var context = new WriterContext(ToProject(), ToChapter(chapter), stateBefore, ChapterContextAssembler.DefaultTokenBudget);
+        var editor = chapter.PrimaryTextEditor;
+        editor?.BeginStream();
+
+        var progress = new Progress<GenerationProgress>(report =>
+            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…");
+
+        try
+        {
+            var draft = await _chapterAgent.WriteAsync(context, progress, delta =>
+            {
+                Dispatcher.UIThread.Post(() => editor?.AppendStreaming(delta));
+                return Task.CompletedTask;
+            }, token);
+
+            editor?.EndStream(draft.Text);
+            chapter.ContentOriginal = draft.Text;
+            chapter.Status = ChapterStatus.Generated;
+            Status = $"Chapter {chapter.Number} generated ({draft.ToolCalls} tool calls).";
+            Mutated?.Invoke($"Generate chapter {chapter.Number}");
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Stopped.";
+        }
+        catch (LlmException exception)
+        {
+            Status = $"Failed ({exception.Kind}): {exception.Message}";
+        }
+        catch (Exception exception)
+        {
+            Status = $"Failed: {exception.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
 
-    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog, ITextDiff textDiff, IGenerationAssistant assistant, IKnowledgeImporter importer)
+    public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog, ITextDiff textDiff, IGenerationAssistant assistant, IKnowledgeImporter importer, IProjectReviewAssistant review)
     {
-        var setup = new SetupViewModel(textDiff, catalog, Languages, assistant, importer)
+        var setup = new SetupViewModel(textDiff, catalog, Languages, assistant, importer, review)
         {
             ProjectName = ProjectName,
             WorldTitle = _project.Lore.Title,
@@ -290,14 +352,14 @@ public partial class WorkspaceViewModel : ViewModelBase
     private void BuildTabs(ChapterViewModel chapter)
     {
         chapter.Tabs.Clear();
-        chapter.Tabs.Add(new ChapterTabViewModel(
+        var text = new ChapterTextViewModel(
             "Chapter (EN)",
-            new ChapterTextViewModel(
-                "Chapter (EN)",
-                chapter.ContentOriginal,
-                isTranslation: false,
-                value => chapter.ContentOriginal = value,
-                () => Mutated?.Invoke($"Edit chapter {chapter.Number}"))));
+            chapter.ContentOriginal,
+            isTranslation: false,
+            value => chapter.ContentOriginal = value,
+            () => Mutated?.Invoke($"Edit chapter {chapter.Number}"));
+        chapter.PrimaryTextEditor = text;
+        chapter.Tabs.Add(new ChapterTabViewModel("Chapter (EN)", text));
 
         foreach (var translation in chapter.Translations)
         {

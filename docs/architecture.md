@@ -44,6 +44,10 @@ Implemented:
 - `ILlmClient` — `CompleteAsync`, `StreamAsync`, `CompleteStructuredAsync<T>` (JSON schema),
   `CompleteWithToolsAsync` (tool calling), `CheckStructuredOutputAsync` (capability probe).
 - `IGenerationAssistant` — field options for the *Generate with AI* wizard (small seed + tool loop).
+- `IProjectReviewAssistant` — reviews the project for lore/consistency problems (tool-backed),
+  returning findings (severity, area, title, detail, suggestion). A finding may carry an optional
+  structured `fix` (validated `ReviewEdit`s: target, reference, field, value) so it can be applied
+  against the in-progress setup after a diff preview; otherwise the UI falls back to *Fix with AI…*.
 - `IKnowledgeImporter` — turns imported Markdown into typed `KnowledgeEntry` records via the LLM.
 - `StoryQuery` — read facade over a `Project` (frame, cast, state, loglines, knowledge).
 - `IKnowledgeRetriever` / `Bm25KnowledgeRetriever` — BM25 over chunked `KnowledgeEntry` content.

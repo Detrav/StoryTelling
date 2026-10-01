@@ -17,7 +17,7 @@ public partial class AiWizardViewModel : ViewModelBase
     private CancellationTokenSource? _cts;
     private GenerationSession _session = new();
 
-    public AiWizardViewModel(string label, GenerationTarget target, GenerateOptions generate)
+    public AiWizardViewModel(string label, GenerationTarget target, GenerateOptions generate, string initialBrief = "")
     {
         Header = $"Generate with AI — {label}";
         _generate = generate;
@@ -25,6 +25,7 @@ public partial class AiWizardViewModel : ViewModelBase
         _specs = GenerationTargets.Fields(target);
         _editableField = _specs.Count == 1 ? _specs[0].Field : null;
         _optionCount = Math.Clamp(LastOptionCount, 1, 10);
+        _brief = initialBrief;
 
         Initialization = LoadAsync();
     }

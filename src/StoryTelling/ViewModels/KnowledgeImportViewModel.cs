@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Llm;
 using StoryTelling.Domain;
 
@@ -8,7 +9,7 @@ namespace StoryTelling.ViewModels;
 
 public partial class KnowledgeImportViewModel : ViewModelBase
 {
-    public delegate Task<IReadOnlyList<KnowledgeEntry>> Extract(string brief, IProgress<int>? progress, CancellationToken cancellationToken);
+    public delegate Task<IReadOnlyList<KnowledgeEntry>> Extract(string brief, IProgress<KnowledgeImportProgress>? progress, CancellationToken cancellationToken);
 
     private readonly Extract _extract;
     private CancellationTokenSource? _cts;
@@ -58,7 +59,8 @@ public partial class KnowledgeImportViewModel : ViewModelBase
         Status = "Analyzing…";
         Entries.Clear();
 
-        var progress = new Progress<int>(done => Status = $"Analyzing… ({done} chunks done)");
+        var progress = new Progress<KnowledgeImportProgress>(report =>
+            Status = $"Importing chunk {report.Done} of {report.Total}…");
 
         try
         {

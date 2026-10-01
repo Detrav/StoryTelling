@@ -45,4 +45,58 @@ public sealed class KnowledgeEntryEditorViewModelTests
         Assert.Equal("history", target.Tags);
         Assert.Equal("It fell at dusk.", target.Content);
     }
+
+    [Fact]
+    public void ToFields_IncludesKindAndValues()
+    {
+        var editor = new KnowledgeEntryEditorViewModel
+        {
+            Kind = KnowledgeKind.Item,
+            Title = "Ember Crown",
+            Tags = "relic",
+            Content = "A relic.",
+        };
+
+        var fields = editor.ToFields();
+
+        Assert.Equal("Item", fields["Kind"]);
+        Assert.Equal("Ember Crown", fields["Title"]);
+        Assert.Equal("relic", fields["Tags"]);
+        Assert.Equal("A relic.", fields["Content"]);
+    }
+
+    [Fact]
+    public void ApplyFields_ParsesKindAndSetsFields()
+    {
+        var editor = new KnowledgeEntryEditorViewModel
+        {
+            Kind = KnowledgeKind.Note,
+            Title = "Old",
+            Tags = "old",
+            Content = "old content",
+        };
+
+        editor.ApplyFields(new Dictionary<string, string>
+        {
+            ["Kind"] = "place",
+            ["Title"] = "  Ashen Reach  ",
+            ["Tags"] = "region, cold",
+            ["Content"] = "A frozen frontier.",
+        });
+
+        Assert.Equal(KnowledgeKind.Place, editor.Kind);
+        Assert.Equal("Ashen Reach", editor.Title);
+        Assert.Equal("region, cold", editor.Tags);
+        Assert.Equal("A frozen frontier.", editor.Content);
+    }
+
+    [Fact]
+    public void ApplyFields_UnknownKind_KeepsCurrent()
+    {
+        var editor = new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Faction };
+
+        editor.ApplyFields(new Dictionary<string, string> { ["Kind"] = "Creature" });
+
+        Assert.Equal(KnowledgeKind.Faction, editor.Kind);
+    }
 }

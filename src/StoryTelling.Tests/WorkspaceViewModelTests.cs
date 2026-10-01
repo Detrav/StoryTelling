@@ -13,7 +13,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void ToProject_PreservesChapterFields()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp));
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterAgent());
 
         var chapter = Assert.Single(workspace.ToProject().Chapters);
 
@@ -32,8 +32,8 @@ public sealed class WorkspaceViewModelTests
     public void ApplySetup_DoesNotDestroyDomainData()
     {
         var project = SampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp));
-        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterAgent());
+        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
         workspace.ApplySetup(setup);
 
@@ -47,7 +47,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void AddChapter_RenumbersAndMarksDirty()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp));
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterAgent());
         workspace.IsDirty = false;
 
         workspace.AddChapterCommand.Execute(null);
@@ -60,11 +60,28 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void DeleteChapter_BlocksWhenOnlyOneRemains()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp));
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterAgent());
 
         workspace.DeleteChapterCommand.Execute(workspace.SelectedChapter);
 
         Assert.Single(workspace.Chapters);
+    }
+
+    [Fact]
+    public async Task Generate_WritesDraftIntoChapterAndMarksGenerated()
+    {
+        var agent = new FakeChapterAgent { Text = "Aria stepped into the dark." };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), agent);
+        var chapter = workspace.SelectedChapter;
+        chapter.Status = ChapterStatus.Draft;
+        chapter.ContentOriginal = string.Empty;
+
+        await workspace.GenerateCommand.ExecuteAsync(null);
+
+        Assert.Equal("Aria stepped into the dark.", chapter.ContentOriginal);
+        Assert.Equal(ChapterStatus.Generated, chapter.Status);
+        Assert.NotNull(agent.LastContext);
+        Assert.Contains("Dusk above the keep", agent.LastContext!.StateBefore.TimeAndPlace);
     }
 
     private static IReadOnlyList<LanguageData> Catalog() => [new LanguageData("ru", "Russian")];

@@ -5,11 +5,13 @@ namespace StoryTelling.Application.Retrieval;
 
 public static class KnowledgeChunker
 {
-    public const int DefaultMaxChars = 800;
+    public const int RetrievalMaxChars = 800;
+
+    public const int ImportMaxChars = 8000;
 
     private static readonly Regex _heading = new("^#{1,6}\\s", RegexOptions.Compiled);
 
-    public static IReadOnlyList<string> Split(string content, int maxChars = DefaultMaxChars)
+    public static IReadOnlyList<string> Split(string content, int maxChars = RetrievalMaxChars)
     {
         if (string.IsNullOrWhiteSpace(content) || maxChars <= 0)
         {
@@ -18,12 +20,43 @@ public static class KnowledgeChunker
 
         var normalized = content.Replace("\r\n", "\n");
         var fragments = new List<string>();
+        var buffer = new StringBuilder();
+
         foreach (var section in SplitSections(normalized))
         {
-            fragments.AddRange(ChunkParagraphs(section, maxChars));
+            if (section.Length > maxChars)
+            {
+                Flush(buffer, fragments);
+                fragments.AddRange(ChunkParagraphs(section, maxChars));
+                continue;
+            }
+
+            if (buffer.Length > 0 && buffer.Length + section.Length + 2 > maxChars)
+            {
+                Flush(buffer, fragments);
+            }
+
+            if (buffer.Length > 0)
+            {
+                buffer.Append("\n\n");
+            }
+
+            buffer.Append(section);
         }
 
+        Flush(buffer, fragments);
         return fragments;
+    }
+
+    private static void Flush(StringBuilder buffer, List<string> fragments)
+    {
+        if (buffer.Length == 0)
+        {
+            return;
+        }
+
+        fragments.Add(buffer.ToString().Trim());
+        buffer.Clear();
     }
 
     private static List<string> SplitSections(string text)

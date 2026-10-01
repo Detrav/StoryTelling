@@ -37,11 +37,27 @@ public sealed class KnowledgeChunkerTests
     public void Split_BlankContent_ReturnsEmpty() => Assert.Empty(KnowledgeChunker.Split("   "));
 
     [Fact]
-    public void Split_UsesHeadingsAsSectionBoundaries()
+    public void Split_MergesSmallSections()
     {
         const string content = "# Region\nA frozen frontier.\n\n## Keep\nKethral Keep fell at dusk.\n\n## Vault\nThe Ember Vault is hidden.";
 
-        var chunks = KnowledgeChunker.Split(content, maxChars: 200);
+        var chunks = KnowledgeChunker.Split(content, maxChars: 500);
+
+        var chunk = Assert.Single(chunks);
+        Assert.Contains("# Region", chunk);
+        Assert.Contains("## Keep", chunk);
+        Assert.Contains("## Vault", chunk);
+    }
+
+    [Fact]
+    public void Split_KeepsSectionsSeparate_WhenTheyDoNotFit()
+    {
+        const string content =
+            "# Region\nA frozen frontier of ash and ruined keeps lay beyond the wall.\n\n"
+            + "## Keep\nKethral Keep fell at dusk and no one knows why it happened.\n\n"
+            + "## Vault\nThe Ember Vault is hidden and guarded by dead wards.";
+
+        var chunks = KnowledgeChunker.Split(content, maxChars: 100);
 
         Assert.Equal(3, chunks.Count);
         Assert.StartsWith("# Region", chunks[0]);

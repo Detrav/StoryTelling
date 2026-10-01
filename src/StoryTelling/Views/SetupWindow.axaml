@@ -17,6 +17,7 @@
                 BorderBrush="#22000000">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button Content="Cancel" Click="OnCancelClick" />
+                <Button Content="Settings review" Click="OnReviewClick" />
                 <Button Content="Apply" Classes="accent" Click="OnApplyClick" />
             </StackPanel>
         </Border>

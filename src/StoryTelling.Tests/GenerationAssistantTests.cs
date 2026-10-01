@@ -163,6 +163,74 @@ public sealed class GenerationAssistantTests
     }
 
     [Fact]
+    public async Task GenerateAsync_Character_JoinsArrayTraits()
+    {
+        const string json = """[{"name":"Vesper","role":"rival","age":"31","description":"","personality":"","background":"","goals":"","traits":["brave","sarcastic","loyal"]}]""";
+        var assistant = new GenerationAssistant(new FakeLlmClient(json), new FakeSettingsService());
+
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Character));
+
+        Assert.Equal("brave, sarcastic, loyal", Assert.Single(options).Fields["Traits"]);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RejectsStructuralJunkAndRetries()
+    {
+        const string junk = """[{"name":"Vesper","age":"},{"}]""";
+        const string good = """[{"name":"Vesper","role":"rival","age":"31","description":"","personality":"","background":"","goals":"","traits":[]}]""";
+        var llm = new FakeLlmClient(good);
+        llm.JsonQueue.Enqueue(junk);
+        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
+
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Character));
+
+        Assert.Equal("Vesper", Assert.Single(options).Fields["Name"]);
+        Assert.Equal(2, llm.JsonCallCount);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AllAttemptsInvalid_ReturnsEmpty()
+    {
+        var llm = new FakeLlmClient("""[{"name":"Vesper","age":"},{"}]""");
+        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
+
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Character));
+
+        Assert.Empty(options);
+        Assert.Equal(GenerationAssistant.MaxStructuredAttempts, llm.JsonCallCount);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_Knowledge_ParsesKindAndFields()
+    {
+        const string json = """[{"kind":"Place","title":"Ashen Reach","tags":"region, cold","content":"A frozen frontier."}]""";
+        var client = new ScriptedLlmClient(json,
+        [
+            new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "list_entries", "{}")]),
+            new LlmToolResponse(string.Empty, "stop", []),
+        ]);
+        var assistant = new GenerationAssistant(client, new FakeSettingsService
+        {
+            Settings = new AppSettings { Model = "m", MaxToolCalls = 5 },
+        });
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.Knowledge,
+            Variants = 1,
+            Context = new GenerationContext { Fields = new Dictionary<string, string> { ["ProjectName"] = "Book" } },
+            Snapshot = new Project(),
+        };
+
+        var options = await assistant.GenerateAsync(request);
+
+        var fields = Assert.Single(options).Fields;
+        Assert.Equal("Place", fields["Kind"]);
+        Assert.Equal("Ashen Reach", fields["Title"]);
+        Assert.Equal("region, cold", fields["Tags"]);
+        Assert.Equal("A frozen frontier.", fields["Content"]);
+    }
+
+    [Fact]
     public async Task GenerateAsync_WithoutSnapshot_DoesNotUseTools()
     {
         var client = new ScriptedLlmClient("""[{"title":"T","body":"B"}]""", []);

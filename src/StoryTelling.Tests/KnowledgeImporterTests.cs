@@ -6,6 +6,29 @@ namespace StoryTelling.Tests;
 public sealed class KnowledgeImporterTests
 {
     [Fact]
+    public void Plan_ShortContent_IsNotTooLarge()
+    {
+        var importer = new KnowledgeImporter(new FakeLlmClient("{}"), new FakeSettingsService());
+
+        var plan = importer.Plan("A short note.");
+
+        Assert.Equal(1, plan.ChunkCount);
+        Assert.False(plan.TooLarge);
+    }
+
+    [Fact]
+    public void Plan_LargeContent_IsTooLarge()
+    {
+        var importer = new KnowledgeImporter(new FakeLlmClient("{}"), new FakeSettingsService());
+        var content = string.Join("\n\n", Enumerable.Range(0, 21).Select(_ => new string('a', 8001)));
+
+        var plan = importer.Plan(content);
+
+        Assert.True(plan.ChunkCount > plan.MaxChunks);
+        Assert.True(plan.TooLarge);
+    }
+
+    [Fact]
     public async Task ExtractAsync_ParsesEntriesAndKinds()
     {
         const string json = """
@@ -60,7 +83,7 @@ public sealed class KnowledgeImporterTests
     {
         const string json = """{"entries":[{"kind":"Note","title":"Aria","tags":[],"content":"first"}]}""";
         var importer = new KnowledgeImporter(new FakeLlmClient(json), new FakeSettingsService());
-        var content = $"{new string('a', 1500)}\n\n{new string('b', 1500)}";
+        var content = $"{new string('a', 5000)}\n\n{new string('b', 5000)}";
 
         var entries = await importer.ExtractAsync(new KnowledgeImportRequest(content, string.Empty));
 

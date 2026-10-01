@@ -35,12 +35,19 @@ public static class GenerationTargets
             [
                 new("Name", "name", "Name", "The character's full name."),
                 new("Role", "role", "Role", "Their role in the story (protagonist, antagonist, supporting, ...). Leave empty if unclear."),
-                new("Age", "age", "Age", "Their age or age range. Leave empty if unknown."),
+                new("Age", "age", "Age", "Their age or age range as a short phrase, e.g. '27' or 'mid-30s'. Do not repeat the role here."),
                 new("Description", "description", "Description", "Who they are and how they look (1-2 sentences)."),
                 new("Personality", "personality", "Personality", "Their character, temperament and voice (1-2 sentences)."),
                 new("Background", "background", "Background", "Their backstory and what shaped them (2-4 sentences)."),
                 new("Goals", "goals", "Goals", "What they want and why. Leave empty if unclear."),
-                new("Traits", "traits", "Traits", "Short comma-separated tags, e.g. 'brave, sarcastic, loyal'."),
+                new("Traits", "traits", "Traits", "Three to six very short tags, e.g. 'brave', 'sarcastic', 'loyal'. Never write sentences.", IsList: true),
+            ],
+            [GenerationTarget.Knowledge] =
+            [
+                new("Kind", "kind", "Kind", "One of: Note, Place, Item, Event, Faction, Rule, Background."),
+                new("Title", "title", "Title", "A short, specific name for the entry."),
+                new("Tags", "tags", "Tags", "A few short tags, e.g. 'city', 'port', 'trade'. Never write sentences.", IsList: true),
+                new("Content", "content", "Content", "A self-contained description of the entry; keep the important details."),
             ],
             [GenerationTarget.WorldState] =
             [
@@ -51,6 +58,16 @@ public static class GenerationTargets
 
     public static IReadOnlyList<GenerationFieldSpec> Fields(GenerationTarget target) => _specs[target];
 
+    public static IReadOnlyList<GenerationTarget> AllTargets => Enum.GetValues<GenerationTarget>();
+
+    public static IReadOnlyList<string> AllFieldNames =>
+        [.. AllTargets.SelectMany(Fields).Select(spec => spec.Field).Distinct()];
+
+    public static GenerationFieldSpec? FindField(GenerationTarget target, string field) =>
+        Fields(target).FirstOrDefault(spec => string.Equals(spec.Field, field, StringComparison.OrdinalIgnoreCase));
+
+    public static bool HasField(GenerationTarget target, string field) => FindField(target, field) is not null;
+
     public static string Label(GenerationTarget target) => target switch
     {
         GenerationTarget.World => "World",
@@ -58,6 +75,7 @@ public static class GenerationTargets
         GenerationTarget.Frame => "Frame",
         GenerationTarget.Premise => "Premise",
         GenerationTarget.Character => "Character",
+        GenerationTarget.Knowledge => "Knowledge entry",
         GenerationTarget.WorldState => "World state",
         _ => target.ToString(),
     };
@@ -69,6 +87,7 @@ public static class GenerationTargets
         GenerationTarget.Frame => "Define the story's frame: genre, tone, narrative style, point of view, tense, rating, premise and overall direction. Keep them consistent with each other.",
         GenerationTarget.Premise => "Write a compelling story premise.",
         GenerationTarget.Character => "Create a story character: name, role, age, description, personality, background, goals and traits. Any field may be left empty if it does not apply.",
+        GenerationTarget.Knowledge => "Create a story-wiki knowledge entry: choose a kind (Note, Place, Item, Event, Faction, Rule or Background), a short title, a few short tags and a self-contained content body.",
         GenerationTarget.WorldState => "Describe the situation right before chapter 1: when and where the story opens, and what is happening.",
         _ => "Describe the requested field.",
     };
@@ -81,11 +100,18 @@ public static class GenerationTargets
         var required = new JsonArray();
         foreach (var spec in Fields(target))
         {
-            properties[spec.JsonName] = new JsonObject
-            {
-                ["type"] = "string",
-                ["description"] = spec.Description,
-            };
+            properties[spec.JsonName] = spec.IsList
+                ? new JsonObject
+                {
+                    ["type"] = "array",
+                    ["items"] = new JsonObject { ["type"] = "string" },
+                    ["description"] = spec.Description,
+                }
+                : new JsonObject
+                {
+                    ["type"] = "string",
+                    ["description"] = spec.Description,
+                };
             required.Add(spec.JsonName);
         }
 

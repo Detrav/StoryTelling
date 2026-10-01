@@ -10,10 +10,15 @@ Already built (see `architecture.md`):
 - `StoryQuery`, BM25 retrieval, `StoryToolset`, `ToolAgent`, LLM tool calling (phase 5).
 - The *Generate with AI* wizard is tool-backed: any setting is generated from the whole project
   (knowledge base included) through tools.
+- *Settings review*: an AI lore/consistency check of the project settings (non-blocking window).
+  Findings can carry a structured **fix** (field replacements) applied in one click after a diff
+  preview; **Fix with AI…** is offered on every finding — it re-generates the affected part via
+  the tool-backed wizard (asking for a target when the finding is ambiguous).
 
 Still to build:
 
-- The chapter agent (writer → editor → summarizer) and `IContextAssembler` (phase 6).
+- The chapter pipeline continues past the **writer** (built) with the editor and summarizer passes,
+  stale marking and *run remaining* (phase 6).
 - Translation and the remaining settings work (phase 7).
 - Setup rework: reorder tabs, keep docs in sync (phase 8).
 
@@ -114,11 +119,15 @@ This sequence is a *recommended order*, not a blocking wizard; the author may ju
 - **Addressable entries.** Everything the writer may need is a `KnowledgeEntry` with `Kind`,
   `Title` and `Tags`. Retrieval and tools operate on these records.
 - **Import (Markdown).** Importing a `.md` file runs the AI over the content and turns it into
-  several typed entries: the text is chunked (preferring Markdown heading boundaries), each chunk
-  is extracted into `KnowledgeEntry` records via a `json_schema` (kind enum), and the results are
-  merged and de-duplicated by title. The user reviews the proposed entries (with checkboxes)
-  before they are added. This works for arbitrary material (campaign notes, game or world
-  descriptions).
+  several typed entries: the text is chunked — preferring Markdown heading boundaries, but
+  **merging small sections** up to the size limit so each request carries enough (coherent)
+  text — each chunk is extracted into `KnowledgeEntry` records via a `json_schema` (kind enum),
+  and the results are merged and de-duplicated by title. A file that would need more than the
+  chunk limit is **rejected with an error** before running (split it and import in parts). The
+  user reviews the proposed entries (with checkboxes) before they are added. This works for
+  arbitrary material (campaign notes, game or world descriptions). Import targets large chunks
+  (~8000 characters, fewer requests); retrieval keeps small fragments (~800) for BM25 precision —
+  both sizes are defined once in `KnowledgeChunker`.
 - **Retrieval.** A keyword/BM25 ranker (embeddings later) selects the most relevant entries or
   fragments for a query. Retrieval is exposed to the model as `search_knowledge`.
 - **State vs knowledge.** The rolling `WorldState` is always sent and kept tiny; durable facts
@@ -215,7 +224,8 @@ assembler drops in priority order when over budget.
 2. **Story query layer** — *done*: `StoryQuery` over `Project` + BM25 retrieval.
 3. **Tool calling** — *done*: LLM client `tools`/`tool_calls`, `StoryToolset` + `ToolAgent`;
    field generation is tool-backed.
-4. **Agent pipeline** — *next*: writer loop, then editor, then summarizer; stale marking.
+4. **Agent pipeline** — writer *done* (`IContextAssembler` seed + `ChapterAgent` tool loop + streamed
+   draft); next: editor, then summarizer; stale marking.
 5. **Setup rework** — partially done (Frame + Knowledge tabs, checkboxes removed); still to do:
    tab reordering.
 

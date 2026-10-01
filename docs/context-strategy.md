@@ -47,12 +47,17 @@ are removed.
 
 ## Seed priority order
 
-When the seed itself is over budget, items are dropped from the bottom:
+The writer seed is built by `ChapterContextAssembler` under a budget (`DefaultTokenBudget = 2000`
+tokens, roughly 8000 characters). Sections are added in priority order; the **required** ones
+(brief, frame, state, premise) are always included, and the **optional** ones (world lore, then the
+manifest) are added only while budget remains and are truncated when they do not fit:
 
-1. system / style rules (frame);
-2. current chapter brief;
+1. chapter brief (number / title / direction / notes);
+2. story frame (genre, tone, style, point of view, tense, rating);
 3. current world state;
-4. cheap manifest (cast, entry titles).
+4. premise + overall direction;
+5. world lore (title + body) — optional, truncated;
+6. cheap manifest (book, chapter count, cast, entry titles + kinds) — optional, truncated.
 
 Tool results are appended after the seed and are themselves bounded.
 

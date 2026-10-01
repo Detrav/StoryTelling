@@ -85,7 +85,7 @@ public partial class CharacterEditorViewModel : ObservableObject
     public bool HasName => !string.IsNullOrWhiteSpace(Name);
 
     public IReadOnlyList<string> TraitList =>
-        Traits.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Traits.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public IReadOnlyDictionary<string, string> ToFields() => new Dictionary<string, string>
     {

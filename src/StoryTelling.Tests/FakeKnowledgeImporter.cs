@@ -9,13 +9,15 @@ internal sealed class FakeKnowledgeImporter : IKnowledgeImporter
 
     public KnowledgeImportRequest? LastRequest { get; private set; }
 
+    public KnowledgeImportPlan Plan(string content) => new(0, KnowledgeImportRequest.DefaultMaxChunks);
+
     public Task<IReadOnlyList<KnowledgeEntry>> ExtractAsync(
         KnowledgeImportRequest request,
-        IProgress<int>? progress = null,
+        IProgress<KnowledgeImportProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         LastRequest = request;
-        progress?.Report(1);
+        progress?.Report(new KnowledgeImportProgress(1, 1));
         return Task.FromResult(Entries);
     }
 }

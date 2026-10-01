@@ -69,12 +69,28 @@ are being moved into it, so the order below is the target, not necessarily the c
    with AI* that uses the current field values as a draft (all fields are optional).
 4. **Knowledge** — notes and entities (places, items, events, factions, rules) stored as
    knowledge entries. The list shows each entry's title, kind and tags; entries can be added,
-   edited, deleted, or **imported**: importing a `.md` (Markdown) file runs the AI over its content
+   edited or deleted. The entry editor has its own *Generate with AI* that fills kind, title, tags
+   and content from a description (using the project as context), just like the other editors.
+   Entries can also be **imported**: importing a `.md` (Markdown) file runs the AI over its content
    (any material — campaign notes, game or world descriptions), which proposes typed entries in a
-   review dialog (checkboxes) before they are added.
+   review dialog (checkboxes) before they are added. While it runs, the dialog shows progress
+   ("Importing chunk X of N"). The text is chunked at Markdown headings, but
+   small sections are merged so each request stays substantial; a file that would need too many
+   chunks is rejected with an explanatory error (split it and import in parts).
 5. **World state** — the situation before chapter 1: time and place plus a free-form description,
    with a group *Generate with AI*.
 6. **Languages** — checkboxes picking the project's target languages from the global catalog.
+
+The dialog's bottom bar has **Cancel / Settings review / Apply**. *Settings review* opens a
+**non-blocking** window (so the setup can still be edited next to it) that runs an AI check over
+the *current* setup values: it lists findings (severity, area, title, detail, optional suggestion)
+about inconsistencies and gaps in the lore, characters, frame or knowledge. It is a helper, not a
+validator — *Apply* is never blocked. Each finding can be fixed: **Fix** applies the AI's
+structured edits after showing a **diff preview** (the change lands in the setup fields and is a
+single undo step), while **Fix with AI…** is available on every finding — it opens the *Generate
+with AI* wizard seeded with the finding (for a named character or entry it targets that object
+directly; for a cross-cutting finding it first asks what to fix). Fixed findings are marked as
+such; re-running the review checks the project again.
 
 Each field group has a *Generate with AI* button.
 

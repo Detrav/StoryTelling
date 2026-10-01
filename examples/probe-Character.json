@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Corvain Thel",
+    "role": "Forge-tyrant enforcer and Ash Warder",
+    "age": "name, role, age, description, personality, background, goals and traits. Any field may be left empty if it does not apply.",
+    "description": "A scarred iron-clad officer who wears a mask of slagged bronze over half his face. His coat is stitched from heat-scarred leathers, and each step he takes carries the dry rasp of ash under steel boots.",
+    "personality": "Disciplined, cold, and fanatically dutiful to the forge-tyrants, though privately haunted by the memory of a smelting hall collapse that killed dozens. He believes order is the only thing standing between Vhorath and total annihilation.",
+    "background": "Born in the lower forges among slag pits and iron vats, he rose through the patrol ranks after proving ruthless enough to be trusted. When records revealed hidden faults beneath the empire’s core spires, he was assigned as an Ash Warder tasked with silencing anyone who gets too close to the buried truth.",
+    "goals": "Stop Rurka Vahn, Davra Keth, and Liora Venn from reaching the deep vaults without causing mass panic. Preserve enough of Vhorath for survival while erasing evidence that the empire’s iron faith is built on a failing foundation.",
+    "traits": [
+      "methodical",
+      "fanatical",
+      "pragmatic",
+      "haunted",
+      "loyal to duty"
+    ]
+  }
+]

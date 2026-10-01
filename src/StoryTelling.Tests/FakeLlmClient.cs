@@ -23,6 +23,10 @@ internal sealed class FakeLlmClient : ILlmClient
 
     public LlmStructuredSupport StructuredSupport { get; set; } = new(true, null);
 
+    public Queue<string> JsonQueue { get; } = new();
+
+    public int JsonCallCount { get; private set; }
+
     public LlmToolResponse ToolResponse { get; set; } = new(string.Empty, "stop", []);
 
     public Task<LlmCompletion> CompleteAsync(
@@ -55,7 +59,8 @@ internal sealed class FakeLlmClient : ILlmClient
         LastRequest = request;
         LastSchemaName = schemaName;
         LastSchema = schema;
-        return Task.FromResult(_response);
+        JsonCallCount++;
+        return Task.FromResult(JsonQueue.Count > 0 ? JsonQueue.Dequeue() : _response);
     }
 
     public Task<T> CompleteStructuredAsync<T>(

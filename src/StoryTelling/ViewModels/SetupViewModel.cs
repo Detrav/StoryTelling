@@ -5,26 +5,37 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
+using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
 
-public partial class SetupViewModel : UndoableDialogViewModel
+public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
 {
+    private static readonly HashSet<string> _singletonFields =
+    [
+        "ProjectName", "WorldTitle", "WorldBody", "Premise",
+        "Genre", "Tone", "Style", "PointOfView", "Tense", "Rating", "Direction",
+        "TimeAndPlace", "Description",
+    ];
+
     private readonly IGenerationAssistant _assistant;
     private readonly IKnowledgeImporter _importer;
+    private readonly IProjectReviewAssistant _review;
 
     public SetupViewModel(
         ITextDiff diff,
         IReadOnlyList<LanguageData> catalog,
         IEnumerable<string> selectedCodes,
         IGenerationAssistant assistant,
-        IKnowledgeImporter importer)
+        IKnowledgeImporter importer,
+        IProjectReviewAssistant review)
         : base(diff)
     {
         _assistant = assistant;
         _importer = importer;
+        _review = review;
         var selected = selectedCodes.ToList();
 
         LanguageSelections = new ObservableCollection<LanguageSelectionViewModel>(
@@ -126,6 +137,26 @@ public partial class SetupViewModel : UndoableDialogViewModel
             Brief = brief,
             Variants = options,
             Context = new GenerationContext { Fields = fields, Cast = BuildCast(character) },
+            Snapshot = BuildSnapshot(),
+        };
+
+        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<GenerationOption>> GenerateKnowledgeAsync(KnowledgeEntryEditorViewModel entry, string brief, int options, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
+    {
+        var fields = ProjectFields();
+        foreach (var (key, value) in entry.ToFields())
+        {
+            fields[key] = value;
+        }
+
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.Knowledge,
+            Brief = brief,
+            Variants = options,
+            Context = new GenerationContext { Fields = fields, Cast = BuildCast() },
             Snapshot = BuildSnapshot(),
         };
 
@@ -376,8 +407,169 @@ public partial class SetupViewModel : UndoableDialogViewModel
         }
     }
 
-    public Task<IReadOnlyList<KnowledgeEntry>> ExtractKnowledgeAsync(string content, string brief, IProgress<int>? progress, CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<KnowledgeEntry>> ExtractKnowledgeAsync(string content, string brief, IProgress<KnowledgeImportProgress>? progress, CancellationToken cancellationToken) =>
         _importer.ExtractAsync(new KnowledgeImportRequest(content, brief), progress, cancellationToken);
+
+    public KnowledgeImportPlan PlanKnowledgeImport(string content) => _importer.Plan(content);
+
+    public Task<IReadOnlyList<ReviewFinding>> RunReviewAsync(string brief, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken) =>
+        _review.ReviewAsync(BuildSnapshot(), brief, progress, cancellationToken);
+
+    public IReadOnlyList<ReviewChange> PreviewFix(ReviewFix fix) => ResolveFix(fix, apply: false);
+
+    public string? SingleReference(GenerationTarget target) => target switch
+    {
+        GenerationTarget.Character => Single(Characters.Select(character => character.Name.Trim()).Where(name => name.Length > 0)),
+        GenerationTarget.Knowledge => Single(Knowledge.Select(entry => entry.Title.Trim()).Where(title => title.Length > 0)),
+        _ => null,
+    };
+
+    private static string? Single(IEnumerable<string> values)
+    {
+        var found = values.Take(2).ToList();
+        return found.Count == 1 ? found[0] : null;
+    }
+
+    public IReadOnlyList<ReviewFixTarget> FixTargets()
+    {
+        var targets = new List<ReviewFixTarget>
+        {
+            new(GenerationTarget.ProjectName, string.Empty, "Book name"),
+            new(GenerationTarget.World, string.Empty, "World"),
+            new(GenerationTarget.Frame, string.Empty, "Frame"),
+            new(GenerationTarget.WorldState, string.Empty, "World state"),
+        };
+
+        targets.AddRange(Characters
+            .Where(character => !string.IsNullOrWhiteSpace(character.Name))
+            .Select(character => new ReviewFixTarget(GenerationTarget.Character, character.Name.Trim(), $"Character: {character.Name.Trim()}")));
+
+        targets.AddRange(Knowledge
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Title))
+            .Select(entry => new ReviewFixTarget(GenerationTarget.Knowledge, entry.Title.Trim(), $"Knowledge: {entry.Title.Trim()}")));
+
+        return targets;
+    }
+
+
+    public void ApplyFix(ReviewFix fix, string label)
+    {
+        if (ResolveFix(fix, apply: true).Count > 0)
+        {
+            PushUndo(label);
+        }
+    }
+
+    private List<ReviewChange> ResolveFix(ReviewFix fix, bool apply)
+    {
+        var changes = new List<ReviewChange>();
+        foreach (var edit in fix.Edits)
+        {
+            if (!TryResolveEdit(edit, out var label, out var current, out var set))
+            {
+                continue;
+            }
+
+            if (apply)
+            {
+                set(edit.Value);
+            }
+
+            changes.Add(new ReviewChange(label, current, edit.Value));
+        }
+
+        return changes;
+    }
+
+    private bool TryResolveEdit(ReviewEdit edit, out string label, out string current, out Action<string> set)
+    {
+        label = string.Empty;
+        current = string.Empty;
+        set = _ => { };
+
+        if (GenerationTargets.FindField(edit.Target, edit.Field) is not { } spec)
+        {
+            return false;
+        }
+
+        var field = spec.Field;
+        switch (edit.Target)
+        {
+            case GenerationTarget.Character:
+                {
+                    var character = FindCharacter(edit.Reference);
+                    if (character is null || !character.ToFields().TryGetValue(field, out var characterValue))
+                    {
+                        return false;
+                    }
+
+                    current = characterValue!;
+                    label = $"{character.Name} · {spec.Label}";
+                    set = value => character.ApplyFields(new Dictionary<string, string> { [field] = value });
+                    return true;
+                }
+
+            case GenerationTarget.Knowledge:
+                {
+                    var entry = FindKnowledge(edit.Reference);
+                    if (entry is null || !entry.ToFields().TryGetValue(field, out var entryValue))
+                    {
+                        return false;
+                    }
+
+                    current = entryValue!;
+                    label = $"{entry.Title} · {spec.Label}";
+                    set = value => entry.ApplyFields(new Dictionary<string, string> { [field] = value });
+                    return true;
+                }
+
+            default:
+                {
+                    if (!TryGetSingletonField(field, out var singletonValue))
+                    {
+                        return false;
+                    }
+
+                    current = singletonValue;
+                    label = spec.Label;
+                    set = value => ApplyField(field, value);
+                    return true;
+                }
+        }
+    }
+
+    private bool TryGetSingletonField(string field, out string value)
+    {
+        value = field switch
+        {
+            "ProjectName" => ProjectName,
+            "WorldTitle" => WorldTitle,
+            "WorldBody" => WorldBody,
+            "Premise" => Premise,
+            "Genre" => Genre,
+            "Tone" => Tone,
+            "Style" => Style,
+            "PointOfView" => PointOfView,
+            "Tense" => Tense,
+            "Rating" => Rating,
+            "Direction" => Direction,
+            "TimeAndPlace" => WorldStateTimeAndPlace,
+            "Description" => WorldStateDescription,
+            _ => string.Empty,
+        };
+
+        return _singletonFields.Contains(field);
+    }
+
+    private CharacterEditorViewModel? FindCharacter(string reference) =>
+        string.IsNullOrWhiteSpace(reference)
+            ? null
+            : Characters.FirstOrDefault(character => string.Equals(character.Name.Trim(), reference.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private KnowledgeEntryEditorViewModel? FindKnowledge(string reference) =>
+        string.IsNullOrWhiteSpace(reference)
+            ? null
+            : Knowledge.FirstOrDefault(entry => string.Equals(entry.Title.Trim(), reference.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public void ApplyKnowledgeEdit(KnowledgeEntryEditorViewModel target, KnowledgeEntryEditorViewModel draft)
     {

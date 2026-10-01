@@ -7,8 +7,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
+using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
+using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Application.Undo;
 using StoryTelling.Domain;
@@ -25,6 +27,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     private readonly ILlmClient _llmClient;
     private readonly IGenerationAssistant _assistant;
     private readonly IKnowledgeImporter _importer;
+    private readonly IProjectReviewAssistant _review;
+    private readonly IChapterAgent _chapterAgent;
     private readonly ILogger<MainWindowViewModel> _logger;
     private AppSettings _settings = AppSettings.CreateDefault();
     private IUndoRedoService? _undoRedo;
@@ -37,6 +41,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         ILlmClient llmClient,
         IGenerationAssistant assistant,
         IKnowledgeImporter importer,
+        IProjectReviewAssistant review,
+        IChapterAgent chapterAgent,
         ILogger<MainWindowViewModel> logger)
     {
         _repository = repository;
@@ -46,6 +52,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         _llmClient = llmClient;
         _assistant = assistant;
         _importer = importer;
+        _review = review;
+        _chapterAgent = chapterAgent;
         _logger = logger;
         _content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
     }
@@ -105,7 +113,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     [RelayCommand]
     private void NewProject()
     {
-        OpenWorkspace(new WorkspaceViewModel(CreateNewProject(), _clock) { IsDirty = true }, resetUndo: true);
+        OpenWorkspace(new WorkspaceViewModel(CreateNewProject(), _clock, _chapterAgent) { IsDirty = true }, resetUndo: true);
         _logger.LogInformation("New project created");
     }
 
@@ -158,7 +166,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         try
         {
             var project = await _repository.LoadAsync(path);
-            OpenWorkspace(new WorkspaceViewModel(project, _clock) { FilePath = path }, resetUndo: true);
+            OpenWorkspace(new WorkspaceViewModel(project, _clock, _chapterAgent) { FilePath = path }, resetUndo: true);
             AddRecent(path);
             _logger.LogInformation("Opened project {Path}", path);
         }
@@ -209,8 +217,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     }
 
     public SetupViewModel CreateSetupViewModel() =>
-        Workspace?.CreateSetup(_settings.Languages, _textDiff, _assistant, _importer)
-        ?? new SetupViewModel(_textDiff, _settings.Languages, [], _assistant, _importer);
+        Workspace?.CreateSetup(_settings.Languages, _textDiff, _assistant, _importer, _review)
+        ?? new SetupViewModel(_textDiff, _settings.Languages, [], _assistant, _importer, _review);
 
     public void ApplySetup(SetupViewModel setup)
     {
@@ -270,7 +278,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         var path = Workspace?.FilePath;
         var sidebar = Workspace?.IsSidebarVisible ?? true;
 
-        var workspace = new WorkspaceViewModel(project, _clock)
+        var workspace = new WorkspaceViewModel(project, _clock, _chapterAgent)
         {
             FilePath = path,
             IsSidebarVisible = sidebar,

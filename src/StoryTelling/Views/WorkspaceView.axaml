@@ -56,14 +56,16 @@
                     BorderThickness="0,0,0,1"
                     BorderBrush="#22000000">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Text="{Binding SelectedChapter.Title}"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SelectedChapter.Title}"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Status}" FontSize="11" Opacity="0.7" />
+                    </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                        <Button Content="▶" Command="{Binding GenerateCommand}" ToolTip.Tip="Generate this chapter" />
-                        <Button Content="↻" Command="{Binding RegenerateCommand}" ToolTip.Tip="Regenerate" />
-                        <Button Content="■" Command="{Binding StopCommand}" ToolTip.Tip="Stop" />
+                        <Button Content="▶" Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate this chapter" />
+                        <Button Content="↻" Command="{Binding RegenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Regenerate" />
+                        <Button Content="■" Command="{Binding StopCommand}" IsEnabled="{Binding IsBusy}" ToolTip.Tip="Stop" />
                     </StackPanel>
                 </Grid>
             </Border>

@@ -23,6 +23,10 @@
 
         <ScrollViewer>
             <StackPanel Margin="18" Spacing="6">
+                <Button Content="Generate with AI"
+                        Click="OnGenerateClick"
+                        HorizontalAlignment="Right" />
+
                 <TextBlock Text="Kind" Opacity="0.7" />
                 <ComboBox ItemsSource="{Binding Kinds}" SelectedItem="{Binding Kind}" HorizontalAlignment="Left" Width="200" />
 

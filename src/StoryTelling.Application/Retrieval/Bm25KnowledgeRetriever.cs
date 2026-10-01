@@ -14,7 +14,7 @@ public sealed class Bm25KnowledgeRetriever : IKnowledgeRetriever
     private readonly Dictionary<string, int> _documentFrequency;
     private readonly double _averageLength;
 
-    public Bm25KnowledgeRetriever(IEnumerable<KnowledgeEntry> entries, int maxChars = KnowledgeChunker.DefaultMaxChars)
+    public Bm25KnowledgeRetriever(IEnumerable<KnowledgeEntry> entries, int maxChars = KnowledgeChunker.RetrievalMaxChars)
     {
         var documents = new List<(KnowledgeFragment, string[])>();
         var documentFrequency = new Dictionary<string, int>();

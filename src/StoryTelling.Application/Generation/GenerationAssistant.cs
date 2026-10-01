@@ -10,6 +10,8 @@ namespace StoryTelling.Application.Generation;
 
 public sealed class GenerationAssistant : IGenerationAssistant
 {
+    public const int MaxStructuredAttempts = 3;
+
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -41,11 +43,30 @@ public sealed class GenerationAssistant : IGenerationAssistant
         };
 
         var schema = GenerationTargets.BuildSchema(request.Target, request.Variants);
-        var content = await _llmClient
-            .CompleteJsonAsync(connection, finalRequest, GenerationTargets.SchemaName(request.Target), schema, cancellationToken)
-            .ConfigureAwait(false);
 
-        return ParseOptions(content, request.Target);
+        for (var attempt = 1; ; attempt++)
+        {
+            var content = await _llmClient
+                .CompleteJsonAsync(connection, finalRequest, GenerationTargets.SchemaName(request.Target), schema, cancellationToken)
+                .ConfigureAwait(false);
+
+            var options = ParseOptions(content, request.Target);
+            if (options.Count > 0 || attempt >= MaxStructuredAttempts)
+            {
+                return options;
+            }
+
+            progress?.Report(new GenerationProgress($"Retrying ({attempt})", session?.ToolCalls ?? 0));
+            finalRequest = finalRequest with
+            {
+                Messages =
+                [
+                    .. finalRequest.Messages,
+                    LlmMessage.Assistant(content),
+                    LlmMessage.User("That reply was not valid JSON matching the schema. Reply again with ONLY the JSON and nothing else."),
+                ],
+            };
+        }
     }
 
     private async Task<IReadOnlyList<LlmMessage>> GatherAsync(
@@ -157,38 +178,99 @@ public sealed class GenerationAssistant : IGenerationAssistant
 
     private static Dictionary<string, string> ReadOption(JsonElement element, IReadOnlyList<GenerationFieldSpec> specs)
     {
-        var fields = new Dictionary<string, string>();
+        var empty = new Dictionary<string, string>();
 
         if (element.ValueKind == JsonValueKind.String && specs.Count == 1)
         {
-            var single = element.GetString()?.Trim();
-            if (!string.IsNullOrEmpty(single))
-            {
-                fields[specs[0].Field] = single;
-            }
-
-            return fields;
+            var single = ReadField(element, out var singleImplausible);
+            return !singleImplausible && single is not null
+                ? new Dictionary<string, string> { [specs[0].Field] = single }
+                : empty;
         }
 
         if (element.ValueKind != JsonValueKind.Object)
         {
-            return fields;
+            return empty;
         }
 
+        var fields = new Dictionary<string, string>();
         foreach (var spec in specs)
         {
-            if (element.TryGetProperty(spec.JsonName, out var value) && value.ValueKind == JsonValueKind.String)
+            if (!element.TryGetProperty(spec.JsonName, out var value))
             {
-                var text = value.GetString()?.Trim();
-                if (!string.IsNullOrEmpty(text))
-                {
-                    fields[spec.Field] = text;
-                }
+                continue;
+            }
+
+            var text = ReadField(value, out var implausible);
+            if (implausible)
+            {
+                return empty;
+            }
+
+            if (text is not null)
+            {
+                fields[spec.Field] = text;
             }
         }
 
         return fields;
     }
+
+    private static string? ReadField(JsonElement value, out bool implausible)
+    {
+        implausible = false;
+
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            var items = new List<string>();
+            foreach (var item in value.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var text = Clean(item.GetString());
+                if (text is null)
+                {
+                    continue;
+                }
+
+                if (IsImplausible(text))
+                {
+                    implausible = true;
+                    return null;
+                }
+
+                items.Add(text);
+            }
+
+            return items.Count == 0 ? null : string.Join(", ", items);
+        }
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var scalar = Clean(value.GetString());
+        if (scalar is null)
+        {
+            return null;
+        }
+
+        if (IsImplausible(scalar))
+        {
+            implausible = true;
+            return null;
+        }
+
+        return scalar;
+    }
+
+    private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private static bool IsImplausible(string text) => text.Any(character => character is '{' or '}' or '[' or ']');
 
     private static string StripCodeFence(string text)
     {

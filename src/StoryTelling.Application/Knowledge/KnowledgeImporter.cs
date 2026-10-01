@@ -10,7 +10,7 @@ namespace StoryTelling.Application.Knowledge;
 
 public sealed class KnowledgeImporter : IKnowledgeImporter
 {
-    private const int _chunkChars = 2000;
+    private const int _chunkChars = KnowledgeChunker.ImportMaxChars;
 
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
@@ -21,9 +21,15 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
         _settingsService = settingsService;
     }
 
+    public KnowledgeImportPlan Plan(string content)
+    {
+        var chunks = KnowledgeChunker.Split(content, _chunkChars);
+        return new KnowledgeImportPlan(chunks.Count, KnowledgeImportRequest.DefaultMaxChunks);
+    }
+
     public async Task<IReadOnlyList<KnowledgeEntry>> ExtractAsync(
         KnowledgeImportRequest request,
-        IProgress<int>? progress = null,
+        IProgress<KnowledgeImportProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var chunks = KnowledgeChunker.Split(request.Content, _chunkChars);
@@ -61,7 +67,7 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
                 }
             }
 
-            progress?.Report(index + 1);
+            progress?.Report(new KnowledgeImportProgress(index + 1, total));
         }
 
         return entries;
