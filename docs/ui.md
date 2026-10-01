@@ -42,8 +42,12 @@ Every chapter action is available both from the toolbar and from the **Chapter**
 - **Sidebar** — the list of chapters is always visible (unless toggled off in *View*). The
   chapter list **is** the outline; there is no separate outline section.
   - `+` adds a chapter; a right-click context menu offers Delete / Move up / Move down.
-- **Toolbar** — icon buttons for Generate (`▶`), Regenerate (`↻`) and Stop (`■`), with
-  tooltips.
+- **Toolbar** — icon buttons for Generate (`▶`), Regenerate (`↻`), Finish (`Finish`), Plan chapters
+  (`≡`), Translate (`⇄`) and Stop (`■`), with tooltips. *Plan chapters* opens a dialog where the
+  author sets the chapter count and an optional brief; the AI proposes that many chapter
+  titles + directions forming a complete arc, and *Apply* replaces the chapter list (with a
+  confirmation when chapters already contain written text). *Finish* appends a final chapter and
+  plans its title + direction as the story's resolution (no cliffhanger); review it, then Generate.
 - **Editor tabs** — built per chapter:
   - *Chapter (EN)* — the original text.
   - *Chapter (XX)* — one tab per project target language, each with a *Translate with AI* button

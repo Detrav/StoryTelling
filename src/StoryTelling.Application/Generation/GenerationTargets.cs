@@ -39,6 +39,16 @@ public static class GenerationTargets
                 new("Title", "title", "Chapter title", "A short, evocative chapter title."),
                 new("Direction", "direction", "Direction", "What should happen in this chapter (2-4 sentences), continuing coherently from the current state and the previous chapters."),
             ],
+            [GenerationTarget.ChapterPlan] =
+            [
+                new("Title", "title", "Chapter title", "A short, evocative chapter title."),
+                new("Direction", "direction", "Direction", "What should happen in this chapter (2-4 sentences), continuing naturally from the previous chapter."),
+            ],
+            [GenerationTarget.Finale] =
+            [
+                new("Title", "title", "Chapter title", "A short, evocative title for the final chapter."),
+                new("Direction", "direction", "Direction", "How the final chapter resolves the story (2-4 sentences): what is concluded and how every open thread ends."),
+            ],
         };
 
     public static IReadOnlyList<GenerationFieldSpec> Fields(GenerationTarget target) => _specs[target];
@@ -60,6 +70,8 @@ public static class GenerationTargets
         GenerationTarget.Knowledge => "Knowledge entry",
         GenerationTarget.InitialWorldState => "Initial world state",
         GenerationTarget.ChapterSettings => "Chapter",
+        GenerationTarget.ChapterPlan => "Chapter plan",
+        GenerationTarget.Finale => "Final chapter",
         _ => target.ToString(),
     };
 
@@ -70,6 +82,8 @@ public static class GenerationTargets
         GenerationTarget.Knowledge => "Create a story-wiki knowledge entry: choose a kind (Note, Character, Place, Item, Event, Faction, Rule or Background), a short title, a few short tags and a self-contained content body. For a character, use the kind Character, the name as the title and a free-form description of who they are as the content. Never reuse a name that already exists in the knowledge base.",
         GenerationTarget.InitialWorldState => "Describe the situation right before chapter 1: when and where the story opens, and what is happening.",
         GenerationTarget.ChapterSettings => "Propose a chapter title and a direction for this chapter. Continue coherently from the current state, the previous chapters and the knowledge base; consult the project with the tools first.",
+        GenerationTarget.ChapterPlan => "Plan the whole story as the requested number of chapters, in reading order, forming a complete arc: an opening that establishes the situation, a rising middle, a climax and a resolution. Give each chapter a short title and a direction (2-4 sentences) that follows naturally from the previous chapter. The final chapter must bring the story to a complete resolution with no cliffhanger and no setup for a sequel. Consult the project with the tools to stay consistent with the world, characters and knowledge base.",
+        GenerationTarget.Finale => "Propose the FINAL chapter of the story: a title and a direction that resolves every open thread and ends the story — no cliffhanger and nothing set up for a sequel. Use the previous chapters, the current state and the knowledge base to make sure nothing is left unresolved; consult the project with the tools first.",
         _ => "Describe the requested field.",
     };
 

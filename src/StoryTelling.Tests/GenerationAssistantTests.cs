@@ -245,6 +245,24 @@ public sealed class GenerationAssistantTests
     }
 
     [Fact]
+    public async Task GenerateAsync_ChapterPlan_ForcesResolutionInLastChapter()
+    {
+        var llm = new FakeLlmClient("[]");
+        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
+
+        await assistant.GenerateAsync(new GenerationRequest
+        {
+            Target = GenerationTarget.ChapterPlan,
+            Variants = 5,
+            Context = new GenerationContext(),
+        });
+
+        var user = llm.LastRequest!.Messages[1].Content;
+        Assert.Contains("exactly 5 chapters", user);
+        Assert.Contains("FULL resolution in chapter 5", user);
+    }
+
+    [Fact]
     public async Task GenerateAsync_WithoutSnapshot_DoesNotUseTools()
     {
         var client = new ScriptedLlmClient("""[{"title":"T","body":"B"}]""", []);

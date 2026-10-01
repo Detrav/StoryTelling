@@ -67,7 +67,7 @@ public static class PromptTemplates
             }
         }
 
-        if (request.Target == GenerationTarget.ChapterSettings && request.Snapshot is { } project)
+        if (request.Target is GenerationTarget.ChapterSettings or GenerationTarget.Finale && request.Snapshot is { } project)
         {
             AppendPreviousChapters(user, project);
         }
@@ -104,6 +104,22 @@ public static class PromptTemplates
         if (useTools)
         {
             user.AppendLine("Consult the project with the tools (characters, initial world state, knowledge entries, search) before answering; prefer checking the project over guessing.");
+        }
+
+        if (request.Target == GenerationTarget.ChapterPlan)
+        {
+            user.AppendLine();
+            user.AppendLine($"Plan exactly {request.Variants} chapters. Spread the whole story across them "
+                + $"(setup, rising action, climax, resolution) and make sure it reaches a FULL resolution in "
+                + $"chapter {request.Variants}: the last chapter must resolve every open thread — no cliffhanger, "
+                + "no new mystery, nothing left for a sequel.");
+        }
+
+        if (request.Target == GenerationTarget.Finale)
+        {
+            user.AppendLine();
+            user.AppendLine("This is the FINAL chapter. Resolve every open thread and end the story — no "
+                + "cliffhanger and no setup for a sequel.");
         }
 
         if (!string.IsNullOrWhiteSpace(request.Brief))
@@ -258,7 +274,8 @@ public static class PromptTemplates
         $"Now write chapter {chapter.Number}"
         + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
         + " as a full chapter of roughly 1500-2500 words. Output only the chapter prose in English — "
-        + "no headings, notes or commentary.";
+        + "no headings, notes or commentary. Do not begin with the chapter title or a heading line; "
+        + "start directly with the prose.";
 
     public static string WriterBrief(Chapter chapter)
     {
@@ -470,7 +487,8 @@ public static class PromptTemplates
         user.AppendLine("Revise the chapter draft below for continuity, pacing, repetition, clarity and style. "
             + "Preserve the author's voice and the established facts. Keep the revision at the draft's full "
             + "length and detail — never summarize or shorten it. Output only the revised chapter text, in "
-            + "English, with no notes or commentary.");
+            + "English, with no notes or commentary. Do not begin with the chapter title or a heading line; "
+            + "start directly with the prose.");
         user.AppendLine();
         user.AppendLine("Draft to revise:");
         user.AppendLine(draft);

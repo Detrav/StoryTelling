@@ -29,6 +29,8 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Generate — Knowledge entry** | knowledge editor | yes | JSON array (kind/title/tags/content ×N) | applied into editor |
 | **Generate — Initial world state** | Setup *Initial world state* tab | yes | JSON array (timeAndPlace/description ×N) | applied into Setup |
 | **Generate — Chapter settings** | chapter *Settings* tab | yes | JSON array (title/direction ×N) | chapter Title/Direction |
+| **Generate — Chapter plan** | toolbar *Plan chapters* | yes | JSON array of N chapters (title/direction, in reading order) | replaces the chapter list (with confirmation) |
+| **Generate — Final chapter** | toolbar *Finish* | yes | JSON (title/direction) resolving the story | appends a chapter |
 | **Writer** | Generate / Write next | yes | streamed prose | `Chapter.ContentOriginal` |
 | **Editor** | same run (after writer) | yes | streamed revised prose | `Chapter.ContentOriginal` (replaces draft) |
 | **Editor notes** | same run (after edit) | no | JSON (`changes[]`: kind + note) from the local diff hunks | `Chapter.EditorNotes` |
@@ -48,6 +50,8 @@ Legend: `yes` always · `opt` included but truncated/optional · `-` not include
 | Generate — World / Book name / Initial state | generic | yes | - | yes (titles+kinds) | - | yes | yes | - | yes |
 | Generate — Knowledge entry | generic | yes | - | yes | - | yes | yes | yes (existing titles except the edited one) | yes |
 | Generate — Chapter settings | generic | yes (world) | - | yes (composed) | yes (≤5 loglines + previous state) | yes | yes | yes (other chapter titles) | yes |
+| Generate — Chapter plan | generic | yes (world) | - | yes (base) | - | - | yes | - | yes |
+| Generate — Final chapter | generic | yes (world) | - | yes (composed) | yes (≤5 loglines + previous state) | - | yes | yes (other chapter titles) | - |
 | Writer | WriterSystem | - | - | opt (manifest, budgeted) | state yes; loglines via tool | - | WriterWrite | - | yes |
 | Editor | EditorSystem | - | - | yes (manifest) | state yes; loglines via tool | draft (write step) | via write step | - | yes |
 | Editor notes | notes system | - | - | - | - | original + revised text | yes | - | - |
@@ -97,6 +101,8 @@ demand from the base plus the previous chapters' diffs (`KnowledgeComposer`).
 - The editor streams text and then runs a separate structured call for change notes over the
   **local diff hunks** (best-effort: parse failure yields no notes; no notes when nothing changed).
 - Generation options are de-duplicated and filtered against the **avoid list** before being shown.
+- The writer and editor are told not to start with the chapter title or a heading; a deterministic
+  cleanup also strips a leading line that repeats the chapter title (or a `Chapter N` heading).
 - Editing a chapter's knowledge diff / summary, and changing the Setup world / knowledge / initial
   state, mark the affected chapters **stale**.
 - Translation is checked deterministically: a paragraph whose letters are in the wrong script for the

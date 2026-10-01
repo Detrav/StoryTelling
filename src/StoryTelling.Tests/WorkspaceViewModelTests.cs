@@ -1,5 +1,6 @@
 using System.Linq;
 using StoryTelling.Application.Chapters;
+using StoryTelling.Application.Generation;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 using StoryTelling.Infrastructure.Diff;
@@ -167,6 +168,56 @@ public sealed class WorkspaceViewModelTests
         Assert.Contains("frame", warning);
         Assert.Contains("initial world state", warning);
         Assert.Null(runner.LastStateBefore);
+    }
+
+    [Fact]
+    public void ApplyChapterPlan_ReplacesChapters()
+    {
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        workspace.IsDirty = false;
+
+        workspace.ApplyChapterPlan([("Embers", "Open quietly."), ("Ash", "Raise the stakes.")]);
+
+        Assert.Equal(2, workspace.Chapters.Count);
+        Assert.Equal("Embers", workspace.Chapters[0].Title);
+        Assert.Equal("Open quietly.", workspace.Chapters[0].Direction);
+        Assert.Equal(ChapterStatus.Draft, workspace.Chapters[0].Status);
+        Assert.Same(workspace.Chapters[0], workspace.SelectedChapter);
+        Assert.True(workspace.IsDirty);
+    }
+
+    [Fact]
+    public async Task PlanChaptersAsync_UsesChapterPlanTarget()
+    {
+        var assistant = new FakeGenerationAssistant();
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService());
+
+        await workspace.PlanChaptersAsync(3, "dark fantasy", new GenerationSession(), null, CancellationToken.None);
+
+        Assert.NotNull(assistant.LastRequest);
+        Assert.Equal(GenerationTarget.ChapterPlan, assistant.LastRequest!.Target);
+        Assert.Equal(3, assistant.LastRequest.Variants);
+        Assert.Empty(assistant.LastRequest.Snapshot!.Chapters);
+    }
+
+    [Fact]
+    public async Task FinishStory_AddsChapterWithPlannedFinale()
+    {
+        var assistant = new FakeGenerationAssistant
+        {
+            Options = [new GenerationOption(new Dictionary<string, string> { ["Title"] = "The End", ["Direction"] = "Everything resolves." })],
+        };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService());
+        var before = workspace.Chapters.Count;
+
+        await workspace.FinishStoryCommand.ExecuteAsync(null);
+
+        Assert.Equal(before + 1, workspace.Chapters.Count);
+        var last = workspace.Chapters[^1];
+        Assert.Equal("The End", last.Title);
+        Assert.Equal("Everything resolves.", last.Direction);
+        Assert.Same(last, workspace.SelectedChapter);
+        Assert.Equal(GenerationTarget.Finale, assistant.LastRequest!.Target);
     }
 
     [Fact]

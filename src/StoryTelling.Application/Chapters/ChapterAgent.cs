@@ -67,6 +67,7 @@ public sealed class ChapterAgent : IChapterAgent
             }
         }
 
+        text = ChapterTextCleaner.StripLeadingTitle(text, context.Chapter);
         return new ChapterDraft(text, toolCalls);
     }
 

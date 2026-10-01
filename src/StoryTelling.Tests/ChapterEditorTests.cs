@@ -65,6 +65,18 @@ public sealed class ChapterEditorTests
     }
 
     [Fact]
+    public async Task EditAsync_StripsLeadingTitleLine()
+    {
+        var client = new FakeLlmClient("[]");
+        client.StreamQueue.Enqueue("Embers\nThe real prose starts here.");
+        var editor = Editor(client, new FakeSettingsService());
+
+        var edit = await editor.EditAsync(new Project(), new Chapter { Number = 1, Title = "Embers" }, "draft", new WorldState());
+
+        Assert.Equal("The real prose starts here.", edit.Text);
+    }
+
+    [Fact]
     public async Task EditAsync_ParsesEditorNotes()
     {
         const string notes = """{"changes":[{"kind":"Continuity","note":"Fixed the timeline."},{"kind":"Style","note":"Tightened prose."}]}""";

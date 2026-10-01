@@ -80,6 +80,8 @@ public sealed class ChapterEditor : IChapterEditor
             revised = draft;
         }
 
+        revised = ChapterTextCleaner.StripLeadingTitle(revised, chapter);
+
         var notes = await ExtractNotesAsync(connection, settings, draft, revised, cancellationToken).ConfigureAwait(false);
         return new ChapterEdit(revised, notes);
     }
@@ -170,7 +172,9 @@ public sealed class ChapterEditor : IChapterEditor
         try
         {
             using var document = JsonDocument.Parse(GeneratedText.StripCodeFence(content.Trim()));
-            if (!document.RootElement.TryGetProperty("changes", out var changes) || changes.ValueKind != JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("changes", out var changes)
+                || changes.ValueKind != JsonValueKind.Array)
             {
                 return notes;
             }

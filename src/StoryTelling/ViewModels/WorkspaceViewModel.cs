@@ -156,10 +156,77 @@ public partial class WorkspaceViewModel : ViewModelBase
     private Task Regenerate() => WriteChapterAsync();
 
     [RelayCommand]
-    private Task WriteNextChapter()
+    private async Task FinishStory()
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
         AddChapter();
-        return WriteChapterAsync();
+        var chapter = SelectedChapter;
+
+        _chapterCts?.Dispose();
+        _chapterCts = new CancellationTokenSource();
+        var token = _chapterCts.Token;
+
+        IsBusy = true;
+        Status = "Planning the final chapter…";
+
+        try
+        {
+            var project = ToProject();
+            var priorChapters = project.Chapters.Where(candidate => candidate.Number < chapter.Number).ToList();
+            var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number), priorChapters);
+            var request = new GenerationRequest
+            {
+                Target = GenerationTarget.Finale,
+                Variants = 1,
+                Context = new GenerationContext { Fields = ProjectFields() },
+                Snapshot = effective,
+                Avoid =
+                [
+                    .. project.Chapters
+                        .Where(candidate => candidate.Number != chapter.Number)
+                        .Select(candidate => candidate.Title.Trim())
+                        .Where(title => title.Length > 0),
+                ],
+            };
+
+            var options = await _assistant.GenerateAsync(request, new GenerationSession(), null, token);
+            var option = options.FirstOrDefault();
+            if (option is null)
+            {
+                Status = "Could not plan the final chapter.";
+                WarningRequested?.Invoke("Could not plan the final chapter", "The model returned no usable plan. Try again.");
+                return;
+            }
+
+            if (option.Fields.TryGetValue("Title", out var title) && !string.IsNullOrWhiteSpace(title))
+            {
+                chapter.Title = title.Trim();
+            }
+
+            if (option.Fields.TryGetValue("Direction", out var direction))
+            {
+                chapter.Direction = direction.Trim();
+            }
+
+            Status = "Final chapter planned — review the direction, then Generate.";
+            Mutated?.Invoke("Plan final chapter");
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Stopped.";
+        }
+        catch (Exception exception)
+        {
+            Status = $"Failed: {exception.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]
@@ -498,6 +565,58 @@ public partial class WorkspaceViewModel : ViewModelBase
         _project.Settings.TargetLanguages = Languages.ToList();
         _project.Chapters = Chapters.Select(ToChapter).ToList();
         return _project;
+    }
+
+    public Task<IReadOnlyList<GenerationOption>> PlanChaptersAsync(int count, string brief, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
+    {
+        var project = ToProject();
+        var snapshot = WithKnowledge(project, KnowledgeComposer.Compose(project, 1), []);
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.ChapterPlan,
+            Brief = brief,
+            Variants = count,
+            Context = new GenerationContext { Fields = ProjectFields() },
+            Snapshot = snapshot,
+        };
+
+        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
+    }
+
+    public bool HasWrittenContent => Chapters.Any(chapter => !string.IsNullOrWhiteSpace(chapter.ContentOriginal));
+
+    public void ApplyChapterPlan(IReadOnlyList<(string Title, string Direction)> plan)
+    {
+        Chapters.Clear();
+        foreach (var (title, direction) in plan)
+        {
+            var chapter = new ChapterViewModel
+            {
+                Number = Chapters.Count + 1,
+                Title = title,
+                Direction = direction,
+                Status = ChapterStatus.Draft,
+                CreatedUtc = _clock.UtcNow,
+            };
+
+            foreach (var code in Languages)
+            {
+                chapter.Translations.Add(new TranslationViewModel(code, string.Empty));
+            }
+
+            BuildTabs(chapter);
+            Chapters.Add(chapter);
+        }
+
+        if (Chapters.Count == 0)
+        {
+            AddNewChapter();
+        }
+
+        SelectedChapter = Chapters[0];
+        SelectedTabIndex = 0;
+        IsDirty = true;
+        Mutated?.Invoke("Plan chapters");
     }
 
     private ChapterViewModel AddNewChapter()

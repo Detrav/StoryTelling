@@ -21,7 +21,6 @@ Already built (see `architecture.md`):
 
 Still to build:
 
-- A planner pass for the chapter pipeline (phase 6, optional).
 - Remaining settings hardening (env-var overrides, *clear secrets*).
 
 The product is, in the end, an AI **writer** that produces a coherent multi-chapter story plus an
@@ -188,8 +187,9 @@ same character twice.
 
 ## 7. Roles (passes)
 
-- **Planner** (optional) — world + state + cast → chapter directions / beats. Keeps the arc
-  coherent. Tool-enabled.
+- **Planner** (optional) — world + knowledge + initial state → a whole-book **chapter plan** (titles
+  + directions forming a complete arc: setup, rising action, climax, resolution), and optionally a
+  single chapter's settings. Tool-enabled. The plan replaces the chapter list.
 - **Writer** — chapter brief + tools → the chapter text, streamed to the UI.
 - **Editor** — finished draft + tools → a revised text and structured **change notes**
   (continuity, style, pacing, repetition, clarity). Tool-enabled like the writer.
@@ -244,7 +244,8 @@ assembler drops in priority order when over budget.
    field generation is tool-backed.
 4. **Agent pipeline** — *done*: writer, editor and summarizer combined per chapter by
    `IChapterWorkflow`; `IChapterRunner` persists text/logline/state, marks later chapters stale and
-   recomputes from a chapter. Next: planner, editor change notes, per-chapter knowledge diff.
+   recomputes from a chapter. A whole-book **chapter planner** produces the chapter list up front
+   (phase 15).
 5. **Setup rework** — *done* (phase 9): the typed form keeps only immutable facts (`World`);
    characters and mutable facts live in the knowledge base; the review is knowledge-only.
 
