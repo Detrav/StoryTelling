@@ -42,8 +42,9 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         await repository.SaveAsync(SampleProject(), path);
         var json = await File.ReadAllTextAsync(path);
 
-        Assert.Contains("\"schemaVersion\": 1", json);
-        Assert.Contains("\"worldState\"", json);
+        Assert.Contains("\"schemaVersion\": 4", json);
+        Assert.Contains("\"world\"", json);
+        Assert.Contains("\"initialWorldState\"", json);
         Assert.Contains("\"timeAndPlace\"", json);
         Assert.Contains("\"description\"", json);
         Assert.Contains("\"knowledge\"", json);
@@ -97,7 +98,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         var path = Path.Combine(_directory, "corrupt.story.json");
         await File.WriteAllTextAsync(path, "{ not valid json");
 
-        await Assert.ThrowsAsync<JsonException>(() => repository.LoadAsync(path));
+        await Assert.ThrowsAnyAsync<JsonException>(() => repository.LoadAsync(path));
     }
 
     [Fact]
@@ -107,6 +108,63 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         var path = Path.Combine(_directory, "does-not-exist.story.json");
 
         await Assert.ThrowsAsync<FileNotFoundException>(() => repository.LoadAsync(path));
+    }
+
+    [Fact]
+    public async Task Load_MigratesVersion1Project()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "legacy.story.json");
+        await File.WriteAllTextAsync(path, """
+        {
+          "schemaVersion": 1,
+          "name": "Legacy",
+          "worldState": { "timeAndPlace": "Dawn", "description": "Old state." },
+          "lore": { "title": "Ashen Reach", "body": "A dying empire.", "tags": ["fantasy"] },
+          "frame": { "genre": "fantasy", "tone": "grim", "premise": "A rebellion.", "direction": "Rise." },
+          "characters": [
+            { "name": "Aria", "role": "protagonist", "description": "A scout.", "traits": ["brave"] }
+          ],
+          "knowledge": []
+        }
+        """);
+
+        var project = await repository.LoadAsync(path);
+
+        Assert.Equal(ProjectSchema.Version, project.SchemaVersion);
+        Assert.Equal("Ashen Reach", project.World.Title);
+        Assert.Equal("A dying empire.", project.World.Body);
+        Assert.Equal("fantasy", project.World.Genre);
+        Assert.Equal("grim", project.World.Tone);
+        Assert.Equal("Dawn", project.InitialWorldState.TimeAndPlace);
+        var character = Assert.Single(project.Knowledge);
+        Assert.Equal(KnowledgeKind.Character, character.Kind);
+        Assert.Equal("Aria", character.Title);
+        Assert.Contains("brave", character.Tags);
+        Assert.Contains("A scout.", character.Content);
+    }
+
+    [Fact]
+    public async Task Load_MigratesVersion2AndDropsChapterSummary()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "v2.story.json");
+        await File.WriteAllTextAsync(path, """
+        {
+          "schemaVersion": 2,
+          "name": "Legacy v2",
+          "chapters": [
+            { "number": 1, "title": "One", "contentOriginal": "Text.", "summary": "Old recap.", "logline": "A logline." }
+          ]
+        }
+        """);
+
+        var project = await repository.LoadAsync(path);
+
+        Assert.Equal(ProjectSchema.Version, project.SchemaVersion);
+        var chapter = Assert.Single(project.Chapters);
+        Assert.Equal("Text.", chapter.ContentOriginal);
+        Assert.Equal("A logline.", chapter.Logline);
     }
 
     public void Dispose()
@@ -123,28 +181,13 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         CreatedUtc = DateTimeOffset.UnixEpoch,
         UpdatedUtc = DateTimeOffset.UnixEpoch.AddHours(2),
         Settings = new StorySettings { TargetLanguages = ["ru", "de"] },
-        Lore = new WorldLore
+        World = new World
         {
             Title = "Ashen Reach",
             Body = "A dying empire under a pale sun.",
             Tags = ["fantasy"],
-        },
-        Characters =
-        [
-            new Character
-            {
-                Name = "Aria",
-                Description = "A frontier scout.",
-                Traits = ["brave", "wry"],
-                Goals = "Find her missing brother.",
-            },
-        ],
-        Frame = new StoryFrame
-        {
             Genre = "fantasy",
             Tone = "grim",
-            Premise = "A rebellion against the ember throne.",
-            Direction = "Rise, fracture, resolve.",
         },
         Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Note, Title = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] }],
         Chapters =
@@ -157,13 +200,12 @@ public sealed class JsonProjectRepositoryTests : IDisposable
                 Notes = "Keep it tense.",
                 ContentOriginal = "The smoke rose.",
                 Translations = new SortedDictionary<string, string> { ["ru"] = "Дым поднимался." },
-                Summary = "Aria escapes the burning keep.",
                 Logline = "A scout flees a burning keep.",
                 Status = ChapterStatus.Generated,
                 CreatedUtc = DateTimeOffset.UnixEpoch,
             },
         ],
-        WorldState = new WorldState
+        InitialWorldState = new WorldState
         {
             TimeAndPlace = "Dusk, the cliffs above the keep",
             Description = "Aria crouches in the ruins of the keep with the relic.",

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using StoryTelling.Application.Generation;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
@@ -11,18 +12,27 @@ public partial class ChapterSettingsView : UserControl
 
     private async void OnGenerateClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string field } || DataContext is not ChapterSettingsViewModel viewModel)
+        if (DataContext is not ChapterSettingsViewModel viewModel || viewModel.GenerateOptions is not { } generate)
         {
             return;
         }
 
-        var result = await Wizard.RunAsync(this, viewModel.LabelFor(field));
-        if (!string.IsNullOrWhiteSpace(result))
+        var wizard = new AiWizardWindow
         {
-            viewModel.ApplyGenerated(field, result);
-            viewModel.Commit();
+            DataContext = new AiWizardViewModel(
+                GenerationTargets.Label(GenerationTarget.ChapterSettings),
+                GenerationTarget.ChapterSettings,
+                (brief, options, session, progress, cancellationToken) => generate(brief, options, session, progress, cancellationToken)),
+        };
+
+        var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(GetWindow());
+        if (result is { Count: > 0 })
+        {
+            viewModel.ApplyGenerated(result);
         }
     }
 
     private void OnCommit(object? sender, FocusChangedEventArgs e) => (DataContext as ChapterSettingsViewModel)?.Commit();
+
+    private Window GetWindow() => (Window)TopLevel.GetTopLevel(this)!;
 }

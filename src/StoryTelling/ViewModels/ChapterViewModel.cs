@@ -25,15 +25,22 @@ public partial class ChapterViewModel : ObservableObject
     private string _notes = string.Empty;
 
     [ObservableProperty]
-    private string _summary = string.Empty;
-
-    [ObservableProperty]
     private string _logline = string.Empty;
 
     [ObservableProperty]
     private DateTimeOffset _createdUtc;
 
-    public WorldState? WorldState { get; set; }
+    [ObservableProperty]
+    private WorldState? _worldState;
+
+    [ObservableProperty]
+    private List<KnowledgeChange> _knowledgeChanges = [];
+
+    [ObservableProperty]
+    private List<EditorNote> _editorNotes = [];
+
+    [ObservableProperty]
+    private List<string> _staleTranslations = [];
 
     public ChapterTextViewModel? PrimaryTextEditor { get; set; }
 

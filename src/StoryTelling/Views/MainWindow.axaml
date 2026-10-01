@@ -48,9 +48,10 @@
             </MenuItem>
 
             <MenuItem Header="_Chapter" IsEnabled="{Binding HasProject}">
-                <MenuItem Header="_Generate chapter" Command="{Binding Workspace.GenerateCommand}" />
-                <MenuItem Header="_Regenerate" Command="{Binding Workspace.RegenerateCommand}" />
-                <MenuItem Header="_Stop" Command="{Binding Workspace.StopCommand}" />
+                        <MenuItem Header="_Generate chapter" Command="{Binding Workspace.GenerateCommand}" />
+                        <MenuItem Header="_Write next chapter" Command="{Binding Workspace.WriteNextChapterCommand}" />
+                        <MenuItem Header="_Regenerate" Command="{Binding Workspace.RegenerateCommand}" />
+                        <MenuItem Header="_Stop" Command="{Binding Workspace.StopCommand}" />
                 <Separator />
                 <MenuItem Header="_Add chapter" Command="{Binding Workspace.AddChapterCommand}" />
                 <MenuItem Header="_Delete chapter" Command="{Binding Workspace.DeleteChapterCommand}" />

@@ -7,6 +7,8 @@ public static class ReviewSchema
 {
     public static JsonObject Build()
     {
+        var knowledgeFields = GenerationTargets.Fields(GenerationTarget.Knowledge).Select(spec => spec.Field).ToList();
+
         var edit = new JsonObject
         {
             ["type"] = "object",
@@ -15,13 +17,13 @@ public static class ReviewSchema
                 ["target"] = new JsonObject
                 {
                     ["type"] = "string",
-                    ["enum"] = new JsonArray([.. GenerationTargets.AllTargets.Select(target => (JsonNode)target.ToString())]),
+                    ["enum"] = new JsonArray { GenerationTarget.Knowledge.ToString() },
                 },
                 ["reference"] = new JsonObject { ["type"] = "string" },
                 ["field"] = new JsonObject
                 {
                     ["type"] = "string",
-                    ["enum"] = new JsonArray([.. GenerationTargets.AllFieldNames.Select(field => (JsonNode)field)]),
+                    ["enum"] = new JsonArray([.. knowledgeFields.Select(field => (JsonNode)field)]),
                 },
                 ["value"] = new JsonObject { ["type"] = "string" },
             },

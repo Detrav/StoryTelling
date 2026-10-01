@@ -30,7 +30,7 @@ public partial class ProjectReviewViewModel : ViewModelBase
     private bool _isBusy;
 
     [ObservableProperty]
-    private string _status = "Press \"Run review\" to check the project for inconsistencies.";
+    private string _status = "Press \"Run review\" to check the knowledge base for inconsistencies.";
 
     public IReadOnlyList<ReviewChange> PreviewFix(ReviewFix fix) => _host.PreviewFix(fix);
 

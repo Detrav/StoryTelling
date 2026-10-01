@@ -20,7 +20,7 @@ public sealed class ChapterAgentTests
         var agent = new ChapterAgent(client, new FakeSettingsService { Settings = new AppSettings { Model = "m", MaxToolCalls = 5 } }, new ChapterContextAssembler());
         var project = Project();
 
-        var draft = await agent.WriteAsync(new WriterContext(project, project.Chapters[0], project.WorldState, ChapterContextAssembler.DefaultTokenBudget));
+        var draft = await agent.WriteAsync(new WriterContext(project, project.Chapters[0], project.InitialWorldState, ChapterContextAssembler.DefaultTokenBudget));
 
         Assert.Equal("The embers rose over the ridge.", draft.Text);
         Assert.Equal(1, draft.ToolCalls);
@@ -34,19 +34,34 @@ public sealed class ChapterAgentTests
         var agent = new ChapterAgent(client, new FakeSettingsService { Settings = new AppSettings { Model = "m", MaxToolCalls = 0 } }, new ChapterContextAssembler());
         var project = Project();
 
-        var draft = await agent.WriteAsync(new WriterContext(project, project.Chapters[0], project.WorldState, ChapterContextAssembler.DefaultTokenBudget));
+        var draft = await agent.WriteAsync(new WriterContext(project, project.Chapters[0], project.InitialWorldState, ChapterContextAssembler.DefaultTokenBudget));
 
         Assert.Equal("Plain chapter.", draft.Text);
         Assert.Equal(0, draft.ToolCalls);
         Assert.Empty(client.ToolRequests);
     }
 
+    [Fact]
+    public async Task WriteAsync_RetriesWhenOutputLooksTruncated()
+    {
+        var client = new FakeLlmClient("ignored");
+        client.StreamQueue.Enqueue("The tide came in and the");
+        client.StreamQueue.Enqueue("The tide came in and the lantern went dark.");
+        var agent = new ChapterAgent(client, new FakeSettingsService { Settings = new AppSettings { Model = "m", MaxToolCalls = 0 } }, new ChapterContextAssembler());
+        var project = Project();
+
+        var draft = await agent.WriteAsync(new WriterContext(project, project.Chapters[0], project.InitialWorldState, ChapterContextAssembler.DefaultTokenBudget));
+
+        Assert.Equal("The tide came in and the lantern went dark.", draft.Text);
+        Assert.Equal(2, client.StreamCallCount);
+    }
+
     private static Project Project() => new()
     {
         Name = "The Ember Crown",
-        Frame = new StoryFrame { Tone = "grim" },
-        Characters = [new Character { Name = "Aria", Role = "scout" }],
-        WorldState = new WorldState { TimeAndPlace = "Dusk above the keep" },
+        World = new World { Tone = "grim" },
+        Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["scout"] }],
+        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep" },
         Chapters = [new Chapter { Number = 1, Title = "Embers" }],
     };
 }

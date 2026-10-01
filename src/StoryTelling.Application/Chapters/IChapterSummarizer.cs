@@ -1,0 +1,14 @@
+using StoryTelling.Application.Generation;
+using StoryTelling.Domain;
+
+namespace StoryTelling.Application.Chapters;
+
+public interface IChapterSummarizer
+{
+    Task<ChapterSummary> SummarizeAsync(
+        Chapter chapter,
+        WorldState stateBefore,
+        IReadOnlyList<KnowledgeEntry> knowledge,
+        IProgress<GenerationProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+}

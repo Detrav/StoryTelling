@@ -4,9 +4,7 @@ public enum GenerationTarget
 {
     World,
     ProjectName,
-    Frame,
-    Premise,
-    Character,
     Knowledge,
-    WorldState,
+    InitialWorldState,
+    ChapterSettings,
 }

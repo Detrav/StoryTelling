@@ -11,7 +11,7 @@ public sealed class ProjectReviewAssistantTests
     [Fact]
     public async Task ReviewAsync_ParsesFindingsAndUsesTools()
     {
-        const string json = """{"findings":[{"severity":"Warning","area":"Frame","title":"Tone vs rating","detail":"Grim tone with a G rating.","suggestion":"Raise the rating."}]}""";
+        const string json = """{"findings":[{"severity":"Warning","area":"Knowledge","title":"Tone vs rating","detail":"Grim tone with a G rating.","suggestion":"Raise the rating."}]}""";
         var client = new ScriptedLlmClient(json,
         [
             new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "story", "{}")]),
@@ -26,7 +26,7 @@ public sealed class ProjectReviewAssistantTests
 
         var finding = Assert.Single(findings);
         Assert.Equal(ReviewSeverity.Warning, finding.Severity);
-        Assert.Equal(ReviewArea.Frame, finding.Area);
+        Assert.Equal(ReviewArea.Knowledge, finding.Area);
         Assert.Equal("Tone vs rating", finding.Title);
         Assert.Equal("Raise the rating.", finding.Suggestion);
         Assert.NotNull(client.LastJsonRequest);
@@ -46,7 +46,7 @@ public sealed class ProjectReviewAssistantTests
     [Fact]
     public async Task ReviewAsync_ParsesReferenceAndFixDroppingInvalidEdits()
     {
-        const string json = """{"findings":[{"severity":"Warning","area":"Characters","title":"Age gap","detail":"Aria is 200 but looks 20.","suggestion":"Align the age.","reference":"Aria","fix":{"edits":[{"target":"Character","reference":"Aria","field":"Age","value":"20"},{"target":"Character","reference":"Aria","field":"Bogus","value":"x"}]}}]}""";
+        const string json = """{"findings":[{"severity":"Warning","area":"Knowledge","title":"Age gap","detail":"Aria is 200 but looks 20.","suggestion":"Align the age.","reference":"Aria","fix":{"edits":[{"target":"Knowledge","reference":"Aria","field":"Content","value":"Aria is 200 but looks 20."},{"target":"Knowledge","reference":"Aria","field":"Bogus","value":"x"}]}}]}""";
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient(json, []), new FakeSettingsService());
 
         var findings = await assistant.ReviewAsync(new Project(), string.Empty);
@@ -55,10 +55,10 @@ public sealed class ProjectReviewAssistantTests
         Assert.Equal("Aria", finding.Reference);
         Assert.NotNull(finding.Fix);
         var edit = Assert.Single(finding.Fix!.Edits);
-        Assert.Equal(GenerationTarget.Character, edit.Target);
+        Assert.Equal(GenerationTarget.Knowledge, edit.Target);
         Assert.Equal("Aria", edit.Reference);
-        Assert.Equal("Age", edit.Field);
-        Assert.Equal("20", edit.Value);
+        Assert.Equal("Content", edit.Field);
+        Assert.Equal("Aria is 200 but looks 20.", edit.Value);
     }
 
     [Fact]

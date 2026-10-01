@@ -5,4 +5,5 @@ public enum ChapterStatus
     Draft,
     Generated,
     Edited,
+    Stale,
 }

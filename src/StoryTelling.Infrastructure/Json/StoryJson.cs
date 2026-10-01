@@ -19,6 +19,6 @@ public static class StoryJson
     public static string Serialize(Project project) => JsonSerializer.Serialize(project, Options);
 
     public static Project Deserialize(string json) =>
-        JsonSerializer.Deserialize<Project>(json, Options)
+        JsonSerializer.Deserialize<Project>(ProjectMigrations.Migrate(json), Options)
         ?? throw new InvalidDataException("The project file is empty.");
 }

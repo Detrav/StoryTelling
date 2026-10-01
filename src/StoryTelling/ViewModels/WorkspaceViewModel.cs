@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,6 +11,7 @@ using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
+using StoryTelling.Application.Translation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
@@ -18,14 +20,18 @@ public partial class WorkspaceViewModel : ViewModelBase
 {
     private readonly Project _project;
     private readonly IClock _clock;
-    private readonly IChapterAgent _chapterAgent;
+    private readonly IChapterRunner _chapterRunner;
+    private readonly IGenerationAssistant _assistant;
+    private readonly ITranslationService _translationService;
     private CancellationTokenSource? _chapterCts;
 
-    public WorkspaceViewModel(Project project, IClock clock, IChapterAgent chapterAgent)
+    public WorkspaceViewModel(Project project, IClock clock, IChapterRunner chapterRunner, IGenerationAssistant assistant, ITranslationService translationService)
     {
         _project = project;
         _clock = clock;
-        _chapterAgent = chapterAgent;
+        _chapterRunner = chapterRunner;
+        _assistant = assistant;
+        _translationService = translationService;
         _projectName = project.Name;
 
         foreach (var code in project.Settings.TargetLanguages)
@@ -148,6 +154,13 @@ public partial class WorkspaceViewModel : ViewModelBase
     private Task Regenerate() => WriteChapterAsync();
 
     [RelayCommand]
+    private Task WriteNextChapter()
+    {
+        AddChapter();
+        return WriteChapterAsync();
+    }
+
+    [RelayCommand]
     private void Stop() => _chapterCts?.Cancel();
 
     private async Task WriteChapterAsync()
@@ -164,9 +177,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         IsBusy = true;
         Status = "Writing…";
 
-        var index = Chapters.IndexOf(chapter);
-        var stateBefore = index > 0 ? Chapters[index - 1].WorldState ?? _project.WorldState : _project.WorldState;
-        var context = new WriterContext(ToProject(), ToChapter(chapter), stateBefore, ChapterContextAssembler.DefaultTokenBudget);
         var editor = chapter.PrimaryTextEditor;
         editor?.BeginStream();
 
@@ -175,16 +185,24 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         try
         {
-            var draft = await _chapterAgent.WriteAsync(context, progress, delta =>
+            var project = ToProject();
+            var target = project.Chapters.First(candidate => candidate.Number == chapter.Number);
+            var result = await _chapterRunner.GenerateAsync(project, target, progress, delta =>
             {
                 Dispatcher.UIThread.Post(() => editor?.AppendStreaming(delta));
                 return Task.CompletedTask;
             }, token);
 
-            editor?.EndStream(draft.Text);
-            chapter.ContentOriginal = draft.Text;
+            editor?.EndStream(result.Text);
+            chapter.ContentOriginal = result.Text;
+            chapter.Logline = result.Logline;
+            chapter.WorldState = result.WorldState;
+            chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
+            chapter.EditorNotes = [.. result.EditorNotes];
+            MarkTranslationsStale(chapter);
             chapter.Status = ChapterStatus.Generated;
-            Status = $"Chapter {chapter.Number} generated ({draft.ToolCalls} tool calls).";
+            MarkLaterStale(chapter.Number);
+            Status = $"Chapter {chapter.Number} generated ({result.ToolCalls} tool calls).";
             Mutated?.Invoke($"Generate chapter {chapter.Number}");
         }
         catch (OperationCanceledException)
@@ -208,38 +226,135 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
 
+    private void MarkLaterStale(int number)
+    {
+        foreach (var other in Chapters)
+        {
+            if (other.Number > number && other.Status != ChapterStatus.Draft)
+            {
+                other.Status = ChapterStatus.Stale;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task TranslateChapter()
+    {
+        if (IsBusy || SelectedChapter is not { } chapter || chapter.Translations.Count == 0)
+        {
+            return;
+        }
+
+        _chapterCts?.Dispose();
+        _chapterCts = new CancellationTokenSource();
+        var token = _chapterCts.Token;
+
+        IsBusy = true;
+        Status = "Translating…";
+
+        try
+        {
+            foreach (var translation in chapter.Translations)
+            {
+                token.ThrowIfCancellationRequested();
+                Status = $"Translating {translation.LanguageCode.ToUpperInvariant()}…";
+                var text = await _translationService.TranslateAsync(chapter.ContentOriginal, translation.LanguageCode, null, token);
+                ApplyTranslation(chapter, translation, text);
+            }
+
+            IsDirty = true;
+            Status = "Translations updated.";
+            Mutated?.Invoke($"Translate chapter {chapter.Number}");
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Stopped.";
+        }
+        catch (Exception exception)
+        {
+            Status = $"Failed: {exception.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task RegenerateSummaryAsync(ChapterViewModel chapter, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
+    {
+        var project = ToProject();
+        var target = project.Chapters.First(candidate => candidate.Number == chapter.Number);
+        await _chapterRunner.RegenerateSummaryAsync(project, target, progress, cancellationToken);
+
+        chapter.Logline = target.Logline;
+        chapter.WorldState = target.WorldState;
+        chapter.KnowledgeChanges = [.. target.KnowledgeChanges];
+        MarkLaterStale(chapter.Number);
+        IsDirty = true;
+        Mutated?.Invoke($"Regenerate summary of chapter {chapter.Number}");
+    }
+
+    private async Task<string> TranslateLanguageAsync(ChapterViewModel chapter, string languageCode, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
+    {
+        var text = await _translationService.TranslateAsync(chapter.ContentOriginal, languageCode, progress, cancellationToken);
+        var translation = chapter.Translations.FirstOrDefault(candidate => candidate.LanguageCode == languageCode);
+        if (translation is not null)
+        {
+            ApplyTranslation(chapter, translation, text);
+        }
+
+        IsDirty = true;
+        Mutated?.Invoke($"Translate chapter {chapter.Number} ({languageCode.ToUpperInvariant()})");
+        return text;
+    }
+
+    private static void ApplyTranslation(ChapterViewModel chapter, TranslationViewModel translation, string text)
+    {
+        var tab = chapter.Tabs
+            .Select(candidate => candidate.Content)
+            .OfType<ChapterTextViewModel>()
+            .FirstOrDefault(candidate => candidate.Header == translation.Header);
+
+        if (tab is not null && !tab.IsBusy)
+        {
+            tab.Text = text;
+            tab.IsStale = false;
+        }
+        else
+        {
+            translation.Text = text;
+        }
+
+        chapter.StaleTranslations.Remove(translation.LanguageCode);
+    }
+
+    private static void MarkTranslationsStale(ChapterViewModel chapter)
+    {
+        foreach (var translation in chapter.Translations)
+        {
+            if (!chapter.StaleTranslations.Contains(translation.LanguageCode))
+            {
+                chapter.StaleTranslations.Add(translation.LanguageCode);
+            }
+        }
+    }
+
     public SetupViewModel CreateSetup(IReadOnlyList<LanguageData> catalog, ITextDiff textDiff, IGenerationAssistant assistant, IKnowledgeImporter importer, IProjectReviewAssistant review)
     {
         var setup = new SetupViewModel(textDiff, catalog, Languages, assistant, importer, review)
         {
             ProjectName = ProjectName,
-            WorldTitle = _project.Lore.Title,
-            WorldBody = _project.Lore.Body,
-            Genre = _project.Frame.Genre,
-            Tone = _project.Frame.Tone,
-            Style = _project.Frame.Style,
-            PointOfView = _project.Frame.PointOfView,
-            Tense = _project.Frame.Tense,
-            Rating = _project.Frame.Rating,
-            Premise = _project.Frame.Premise,
-            Direction = _project.Frame.Direction,
-            WorldStateTimeAndPlace = _project.WorldState.TimeAndPlace,
-            WorldStateDescription = _project.WorldState.Description,
+            WorldTitle = _project.World.Title,
+            WorldBody = _project.World.Body,
+            Genre = _project.World.Genre,
+            Tone = _project.World.Tone,
+            Style = _project.World.Style,
+            PointOfView = _project.World.PointOfView,
+            Tense = _project.World.Tense,
+            Rating = _project.World.Rating,
+            InitialStateTimeAndPlace = _project.InitialWorldState.TimeAndPlace,
+            InitialStateDescription = _project.InitialWorldState.Description,
         };
-
-        foreach (var character in _project.Characters)
-        {
-            setup.Characters.Add(new CharacterEditorViewModel(
-                character.Id,
-                character.Name,
-                character.Role,
-                character.Age,
-                character.Description,
-                character.Personality,
-                character.Background,
-                character.Goals,
-                character.Traits));
-        }
 
         foreach (var entry in _project.Knowledge)
         {
@@ -253,25 +368,58 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         ProjectName = setup.ProjectName;
 
+        var before = SetupSignature(_project);
+
         _project.Name = setup.ProjectName;
         _project.Settings.TargetLanguages = setup.SelectedLanguageCodes.ToList();
-        _project.Lore.Title = setup.WorldTitle;
-        _project.Lore.Body = setup.WorldBody;
-        _project.Characters = MergeCharacters(_project.Characters, setup.Characters);
-        _project.Frame.Genre = setup.Genre;
-        _project.Frame.Tone = setup.Tone;
-        _project.Frame.Style = setup.Style;
-        _project.Frame.PointOfView = setup.PointOfView;
-        _project.Frame.Tense = setup.Tense;
-        _project.Frame.Rating = setup.Rating;
-        _project.Frame.Premise = setup.Premise;
-        _project.Frame.Direction = setup.Direction;
+        _project.World.Title = setup.WorldTitle;
+        _project.World.Body = setup.WorldBody;
+        _project.World.Genre = setup.Genre;
+        _project.World.Tone = setup.Tone;
+        _project.World.Style = setup.Style;
+        _project.World.PointOfView = setup.PointOfView;
+        _project.World.Tense = setup.Tense;
+        _project.World.Rating = setup.Rating;
         _project.Knowledge = [.. setup.Knowledge.Select(entry => entry.ToEntry())];
-        _project.WorldState.TimeAndPlace = setup.WorldStateTimeAndPlace;
-        _project.WorldState.Description = setup.WorldStateDescription;
+        _project.InitialWorldState.TimeAndPlace = setup.InitialStateTimeAndPlace;
+        _project.InitialWorldState.Description = setup.InitialStateDescription;
 
         UpdateLanguages(setup.SelectedLanguageCodes);
+
+        if (!string.Equals(before, SetupSignature(_project), StringComparison.Ordinal))
+        {
+            MarkAllStale();
+        }
+
         IsDirty = true;
+    }
+
+    private void MarkAllStale()
+    {
+        foreach (var chapter in Chapters)
+        {
+            if (chapter.Status != ChapterStatus.Draft)
+            {
+                chapter.Status = ChapterStatus.Stale;
+            }
+        }
+    }
+
+    private static string SetupSignature(Project project)
+    {
+        var builder = new StringBuilder();
+        var world = project.World;
+        builder.Append(world.Title).Append('|').Append(world.Body).Append('|').Append(world.Genre).Append('|')
+            .Append(world.Tone).Append('|').Append(world.Style).Append('|').Append(world.PointOfView).Append('|')
+            .Append(world.Tense).Append('|').Append(world.Rating).Append('|');
+        builder.Append(project.InitialWorldState.TimeAndPlace).Append('|').Append(project.InitialWorldState.Description).Append('|');
+        foreach (var entry in project.Knowledge.OrderBy(entry => entry.Title, StringComparer.OrdinalIgnoreCase))
+        {
+            builder.Append(entry.Kind).Append(':').Append(entry.Title).Append(':').Append(entry.Content).Append(':')
+                .Append(string.Join(',', entry.Tags)).Append('|');
+        }
+
+        return builder.ToString();
     }
 
     public Project ToProject()
@@ -357,7 +505,12 @@ public partial class WorkspaceViewModel : ViewModelBase
             chapter.ContentOriginal,
             isTranslation: false,
             value => chapter.ContentOriginal = value,
-            () => Mutated?.Invoke($"Edit chapter {chapter.Number}"));
+            () =>
+            {
+                MarkTranslationsStale(chapter);
+                MarkLaterStale(chapter.Number);
+                Mutated?.Invoke($"Edit chapter {chapter.Number}");
+            });
         chapter.PrimaryTextEditor = text;
         chapter.Tabs.Add(new ChapterTabViewModel("Chapter (EN)", text));
 
@@ -365,23 +518,88 @@ public partial class WorkspaceViewModel : ViewModelBase
         {
             var captured = translation;
             var name = $"Edit chapter {chapter.Number} ({captured.LanguageCode.ToUpperInvariant()})";
-            chapter.Tabs.Add(new ChapterTabViewModel(
+            var translationTab = new ChapterTextViewModel(
                 captured.Header,
-                new ChapterTextViewModel(
-                    captured.Header,
-                    captured.Text,
-                    isTranslation: true,
-                    value => captured.Text = value,
-                    () => Mutated?.Invoke(name))));
+                captured.Text,
+                isTranslation: true,
+                value => captured.Text = value,
+                () => Mutated?.Invoke(name))
+            {
+                IsStale = chapter.StaleTranslations.Contains(captured.LanguageCode),
+                Translate = (progress, cancellationToken) => TranslateLanguageAsync(chapter, captured.LanguageCode, progress, cancellationToken),
+            };
+            chapter.Tabs.Add(new ChapterTabViewModel(captured.Header, translationTab));
         }
 
-        chapter.Tabs.Add(new ChapterTabViewModel(
-            "Summary",
-            new ChapterSummaryViewModel(chapter, () => Mutated?.Invoke($"Edit summary of chapter {chapter.Number}"))));
-        chapter.Tabs.Add(new ChapterTabViewModel(
-            "Settings",
-            new ChapterSettingsViewModel(chapter, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"))));
+        var summary = new ChapterSummaryViewModel(chapter, () =>
+        {
+            MarkLaterStale(chapter.Number);
+            Mutated?.Invoke($"Edit summary of chapter {chapter.Number}");
+        });
+        summary.Regenerate = (progress, cancellationToken) => RegenerateSummaryAsync(chapter, progress, cancellationToken);
+        chapter.Tabs.Add(new ChapterTabViewModel("Summary", summary));
+        var settings = new ChapterSettingsViewModel(chapter, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"));
+        settings.GenerateOptions = (brief, options, session, progress, cancellationToken) =>
+            GenerateChapterAsync(chapter, brief, options, session, progress, cancellationToken);
+        chapter.Tabs.Add(new ChapterTabViewModel("Settings", settings));
     }
+
+    private Task<IReadOnlyList<GenerationOption>> GenerateChapterAsync(
+        ChapterViewModel chapter,
+        string brief,
+        int options,
+        GenerationSession session,
+        IProgress<GenerationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var project = ToProject();
+        var priorChapters = project.Chapters.Where(candidate => candidate.Number < chapter.Number).ToList();
+        var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number), priorChapters);
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.ChapterSettings,
+            Brief = brief,
+            Variants = options,
+            Context = new GenerationContext { Fields = ProjectFields() },
+            Snapshot = effective,
+            Avoid =
+            [
+                .. project.Chapters
+                    .Where(candidate => candidate.Number != chapter.Number)
+                    .Select(candidate => candidate.Title.Trim())
+                    .Where(title => title.Length > 0),
+            ],
+        };
+
+        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
+    }
+
+    private IReadOnlyDictionary<string, string> ProjectFields() => new Dictionary<string, string>
+    {
+        ["ProjectName"] = _project.Name,
+        ["WorldTitle"] = _project.World.Title,
+        ["WorldBody"] = _project.World.Body,
+        ["Genre"] = _project.World.Genre,
+        ["Tone"] = _project.World.Tone,
+        ["Style"] = _project.World.Style,
+        ["PointOfView"] = _project.World.PointOfView,
+        ["Tense"] = _project.World.Tense,
+        ["Rating"] = _project.World.Rating,
+    };
+
+    private static Project WithKnowledge(Project project, IReadOnlyList<KnowledgeEntry> knowledge, IReadOnlyList<Chapter>? chapters = null) => new()
+    {
+        SchemaVersion = project.SchemaVersion,
+        Id = project.Id,
+        Name = project.Name,
+        CreatedUtc = project.CreatedUtc,
+        UpdatedUtc = project.UpdatedUtc,
+        Settings = project.Settings,
+        World = project.World,
+        Knowledge = [.. knowledge],
+        Chapters = [.. chapters ?? project.Chapters],
+        InitialWorldState = project.InitialWorldState,
+    };
 
     private static ChapterViewModel FromChapter(Chapter chapter)
     {
@@ -393,10 +611,12 @@ public partial class WorkspaceViewModel : ViewModelBase
             ContentOriginal = chapter.ContentOriginal,
             Direction = chapter.Direction,
             Notes = chapter.Notes,
-            Summary = chapter.Summary,
             Logline = chapter.Logline,
             CreatedUtc = chapter.CreatedUtc,
             WorldState = chapter.WorldState,
+            KnowledgeChanges = [.. chapter.KnowledgeChanges],
+            EditorNotes = [.. chapter.EditorNotes],
+            StaleTranslations = [.. chapter.StaleTranslations],
         };
 
         foreach (var translation in chapter.Translations)
@@ -415,34 +635,13 @@ public partial class WorkspaceViewModel : ViewModelBase
         ContentOriginal = viewModel.ContentOriginal,
         Direction = viewModel.Direction,
         Notes = viewModel.Notes,
-        Summary = viewModel.Summary,
         Logline = viewModel.Logline,
         CreatedUtc = viewModel.CreatedUtc,
         WorldState = viewModel.WorldState,
+        KnowledgeChanges = [.. viewModel.KnowledgeChanges],
+        EditorNotes = [.. viewModel.EditorNotes],
+        StaleTranslations = [.. viewModel.StaleTranslations],
         Translations = new SortedDictionary<string, string>(
             viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
     };
-
-    private static List<Character> MergeCharacters(IReadOnlyList<Character> existing, IEnumerable<CharacterEditorViewModel> editors)
-    {
-        var result = new List<Character>();
-        foreach (var editor in editors)
-        {
-            var match = existing.FirstOrDefault(character => character.Id == editor.Id)
-                ?? existing.FirstOrDefault(character => string.Equals(character.Name, editor.Name, StringComparison.Ordinal));
-
-            var character = match ?? new Character { Id = editor.Id };
-            character.Name = editor.Name;
-            character.Role = editor.Role;
-            character.Age = editor.Age;
-            character.Description = editor.Description;
-            character.Personality = editor.Personality;
-            character.Background = editor.Background;
-            character.Goals = editor.Goals;
-            character.Traits = [.. editor.TraitList];
-            result.Add(character);
-        }
-
-        return result;
-    }
 }

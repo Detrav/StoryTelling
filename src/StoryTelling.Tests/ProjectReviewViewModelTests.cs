@@ -9,7 +9,7 @@ public sealed class ProjectReviewViewModelTests
     [Fact]
     public void Run_PopulatesFindings()
     {
-        var finding = new ReviewFinding(ReviewSeverity.Error, ReviewArea.World, "Gap", "No world description.", null);
+        var finding = new ReviewFinding(ReviewSeverity.Error, ReviewArea.Knowledge, "Gap", "No world description.", null);
         var viewModel = new ProjectReviewViewModel((_, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), new FakeReviewFixHost());
 
         Assert.Empty(viewModel.Findings);
@@ -23,8 +23,8 @@ public sealed class ProjectReviewViewModelTests
     [Fact]
     public void ApplyFix_MarksFindingFixedAndSignalsHost()
     {
-        var fix = new ReviewFix([new ReviewEdit(GenerationTarget.Frame, string.Empty, "Tone", "hopeful")]);
-        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Frame, "Tone vs rating", "detail", null, fix, null);
+        var fix = new ReviewFix([new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new")]);
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Tone vs rating", "detail", null, fix, "Ashen Reach");
         var host = new FakeReviewFixHost();
         var viewModel = new ProjectReviewViewModel((_, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
 
@@ -44,12 +44,12 @@ public sealed class ProjectReviewViewModelTests
     [Fact]
     public void AiTarget_DependsOnAreaAndReference()
     {
-        var characters = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Characters, "T", "d", null, null, "Aria");
-        var charactersWithout = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Characters, "T", "d", null, null, null);
-        var languages = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Languages, "T", "d", null, null, null);
+        var knowledge = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Knowledge, "T", "d", null, null, "Ashen Reach");
+        var knowledgeWithout = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Knowledge, "T", "d", null, null, null);
+        var general = new ReviewFinding(ReviewSeverity.Info, ReviewArea.General, "T", "d", null, null, null);
 
-        Assert.Equal(GenerationTarget.Character, new ReviewFindingViewModel(characters).AiTarget);
-        Assert.Null(new ReviewFindingViewModel(charactersWithout).AiTarget);
-        Assert.Null(new ReviewFindingViewModel(languages).AiTarget);
+        Assert.Equal(GenerationTarget.Knowledge, new ReviewFindingViewModel(knowledge).AiTarget);
+        Assert.Null(new ReviewFindingViewModel(knowledgeWithout).AiTarget);
+        Assert.Null(new ReviewFindingViewModel(general).AiTarget);
     }
 }

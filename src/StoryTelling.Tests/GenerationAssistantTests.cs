@@ -87,24 +87,6 @@ public sealed class GenerationAssistantTests
     }
 
     [Fact]
-    public async Task GenerateAsync_IncludesCastAsContext()
-    {
-        var llm = new FakeLlmClient("[]");
-        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
-        var request = Request() with
-        {
-            Context = new GenerationContext { Cast = ["Aria — protagonist", "Bran — smith"] },
-        };
-
-        await assistant.GenerateAsync(request);
-
-        var userMessage = llm.LastRequest!.Messages[1].Content;
-        Assert.Contains("Characters in the story:", userMessage);
-        Assert.Contains("Aria — protagonist", userMessage);
-        Assert.Contains("Bran — smith", userMessage);
-    }
-
-    [Fact]
     public async Task GenerateAsync_WithSnapshot_GathersViaToolsThenReturnsOptions()
     {
         var client = new ScriptedLlmClient(
@@ -121,7 +103,7 @@ public sealed class GenerationAssistantTests
         var request = Request(GenerationTarget.World) with
         {
             Variants = 1,
-            Snapshot = new Project { Characters = [new Character { Name = "Aria", Role = "protagonist" }] },
+            Snapshot = new Project { Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["protagonist"] }] },
         };
 
         var options = await assistant.GenerateAsync(request);
@@ -133,68 +115,38 @@ public sealed class GenerationAssistantTests
     }
 
     [Fact]
-    public async Task GenerateAsync_Character_UsesToolsOverSnapshot()
+    public async Task GenerateAsync_Knowledge_JoinsArrayTags()
     {
-        const string json = """[{"name":"Vesper","role":"rival","age":"","description":"","personality":"","background":"","goals":"","traits":""}]""";
-        var client = new ScriptedLlmClient(json,
-        [
-            new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "characters", "{}")]),
-            new LlmToolResponse(string.Empty, "stop", []),
-        ]);
-        var assistant = new GenerationAssistant(client, new FakeSettingsService
-        {
-            Settings = new AppSettings { Model = "m", MaxToolCalls = 5 },
-        });
-        var request = new GenerationRequest
-        {
-            Target = GenerationTarget.Character,
-            Variants = 1,
-            Context = new GenerationContext
-            {
-                Fields = new Dictionary<string, string> { ["ProjectName"] = "Book" },
-                Cast = ["Aria — protagonist"],
-            },
-            Snapshot = new Project { Characters = [new Character { Name = "Aria", Role = "protagonist" }] },
-        };
-
-        var options = await assistant.GenerateAsync(request);
-
-        Assert.Equal("Vesper", Assert.Single(options).Fields["Name"]);
-    }
-
-    [Fact]
-    public async Task GenerateAsync_Character_JoinsArrayTraits()
-    {
-        const string json = """[{"name":"Vesper","role":"rival","age":"31","description":"","personality":"","background":"","goals":"","traits":["brave","sarcastic","loyal"]}]""";
+        const string json = """[{"kind":"Place","title":"Ashen Reach","tags":["region","cold"],"content":"A frozen frontier."}]""";
         var assistant = new GenerationAssistant(new FakeLlmClient(json), new FakeSettingsService());
 
-        var options = await assistant.GenerateAsync(Request(GenerationTarget.Character));
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Knowledge));
 
-        Assert.Equal("brave, sarcastic, loyal", Assert.Single(options).Fields["Traits"]);
+        Assert.Equal("region, cold", Assert.Single(options).Fields["Tags"]);
     }
 
     [Fact]
     public async Task GenerateAsync_RejectsStructuralJunkAndRetries()
     {
-        const string junk = """[{"name":"Vesper","age":"},{"}]""";
-        const string good = """[{"name":"Vesper","role":"rival","age":"31","description":"","personality":"","background":"","goals":"","traits":[]}]""";
+        const string junk = """[{"kind":"Place","title":"Ashen","tags":["},{"}]""";
+        const string good = """[{"kind":"Place","title":"Ashen Reach","tags":["region"],"content":"A frozen frontier."}]""";
         var llm = new FakeLlmClient(good);
         llm.JsonQueue.Enqueue(junk);
         var assistant = new GenerationAssistant(llm, new FakeSettingsService());
 
-        var options = await assistant.GenerateAsync(Request(GenerationTarget.Character));
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Knowledge));
 
-        Assert.Equal("Vesper", Assert.Single(options).Fields["Name"]);
+        Assert.Equal("Ashen Reach", Assert.Single(options).Fields["Title"]);
         Assert.Equal(2, llm.JsonCallCount);
     }
 
     [Fact]
     public async Task GenerateAsync_AllAttemptsInvalid_ReturnsEmpty()
     {
-        var llm = new FakeLlmClient("""[{"name":"Vesper","age":"},{"}]""");
+        var llm = new FakeLlmClient("""[{"kind":"Place","title":"Ashen","tags":["},{"}]""");
         var assistant = new GenerationAssistant(llm, new FakeSettingsService());
 
-        var options = await assistant.GenerateAsync(Request(GenerationTarget.Character));
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Knowledge));
 
         Assert.Empty(options);
         Assert.Equal(GenerationAssistant.MaxStructuredAttempts, llm.JsonCallCount);
@@ -228,6 +180,68 @@ public sealed class GenerationAssistantTests
         Assert.Equal("Ashen Reach", fields["Title"]);
         Assert.Equal("region, cold", fields["Tags"]);
         Assert.Equal("A frozen frontier.", fields["Content"]);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_FiltersTitlesFromAvoidList()
+    {
+        const string json = """[{"kind":"Character","title":"Aria","tags":[],"content":"a"},{"kind":"Character","title":"Bran","tags":[],"content":"b"}]""";
+        var assistant = new GenerationAssistant(new FakeLlmClient(json), new FakeSettingsService());
+
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Knowledge) with { Variants = 2, Avoid = ["Aria"] });
+
+        Assert.Equal("Bran", Assert.Single(options).Fields["Title"]);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_DeduplicatesOptions()
+    {
+        const string json = """[{"kind":"Character","title":"Bran","tags":[],"content":"b"},{"kind":"Character","title":"bran","tags":[],"content":"b2"}]""";
+        var assistant = new GenerationAssistant(new FakeLlmClient(json), new FakeSettingsService());
+
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Knowledge) with { Variants = 2 });
+
+        Assert.Single(options);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AllOptionsAvoided_RetriesThenReturnsEmpty()
+    {
+        var llm = new FakeLlmClient("""[{"kind":"Character","title":"Aria","tags":[],"content":"a"}]""");
+        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
+
+        var options = await assistant.GenerateAsync(Request(GenerationTarget.Knowledge) with { Variants = 1, Avoid = ["Aria"] });
+
+        Assert.Empty(options);
+        Assert.Equal(GenerationAssistant.MaxStructuredAttempts, llm.JsonCallCount);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ChapterSettings_IncludesPreviousChapters()
+    {
+        var llm = new FakeLlmClient("[]");
+        var assistant = new GenerationAssistant(llm, new FakeSettingsService());
+        var project = new Project
+        {
+            Chapters =
+            [
+                new Chapter { Number = 1, Title = "Embers", Logline = "A scout flees the keep.", ContentOriginal = "text", WorldState = new WorldState { TimeAndPlace = "Dusk above the keep" } },
+            ],
+        };
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.ChapterSettings,
+            Variants = 1,
+            Context = new GenerationContext(),
+            Snapshot = project,
+        };
+
+        await assistant.GenerateAsync(request);
+
+        var user = llm.LastRequest!.Messages[1].Content;
+        Assert.Contains("Previous chapters", user);
+        Assert.Contains("A scout flees the keep.", user);
+        Assert.Contains("Dusk above the keep", user);
     }
 
     [Fact]

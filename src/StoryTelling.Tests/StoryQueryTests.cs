@@ -6,14 +6,14 @@ namespace StoryTelling.Tests;
 public sealed class StoryQueryTests
 {
     [Fact]
-    public void Story_ReturnsFrameAndLore()
+    public void Story_ReturnsWorldAndFrame()
     {
         var story = new StoryQuery(Project()).Story();
 
         Assert.Equal("The Ember Crown", story.Name);
         Assert.Equal("dark fantasy", story.Genre);
-        Assert.Equal("Ashen Reach", story.LoreTitle);
-        Assert.Equal("A frozen frontier.", story.LoreBody);
+        Assert.Equal("Ashen Reach", story.WorldTitle);
+        Assert.Equal("A frozen frontier.", story.WorldBody);
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public sealed class StoryQueryTests
         var characters = new StoryQuery(Project()).Characters();
 
         Assert.Equal(2, characters.Count);
-        Assert.Contains(characters, character => character.Name == "Aria" && character.Role == "protagonist");
+        Assert.Contains(characters, character => character.Title == "Aria" && character.Tags.Contains("protagonist"));
     }
 
     [Fact]
@@ -31,13 +31,13 @@ public sealed class StoryQueryTests
         var character = new StoryQuery(Project()).Character("aria");
 
         Assert.NotNull(character);
-        Assert.Equal("Aria", character!.Name);
+        Assert.Equal("Aria", character!.Title);
     }
 
     [Fact]
-    public void WorldState_ReturnsCurrentState()
+    public void InitialWorldState_ReturnsSeed()
     {
-        var state = new StoryQuery(Project()).WorldState();
+        var state = new StoryQuery(Project()).InitialWorldState();
 
         Assert.Equal("Dusk above the keep", state.TimeAndPlace);
     }
@@ -84,18 +84,14 @@ public sealed class StoryQueryTests
     private static Project Project() => new()
     {
         Name = "The Ember Crown",
-        Frame = new StoryFrame { Genre = "dark fantasy", Tone = "grim" },
-        Lore = new WorldLore { Title = "Ashen Reach", Body = "A frozen frontier." },
-        Characters =
-        [
-            new Character { Name = "Aria", Role = "protagonist" },
-            new Character { Name = "Bran", Role = "smith" },
-        ],
-        WorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Description = "Aria crouches in the ruins." },
+        World = new World { Genre = "dark fantasy", Tone = "grim", Title = "Ashen Reach", Body = "A frozen frontier." },
         Knowledge =
         [
+            new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["protagonist"], Content = "A frontier scout." },
+            new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Bran", Tags = ["smith"] },
             new KnowledgeEntry { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "A frozen frontier of ash.", Tags = ["region"] },
         ],
+        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Description = "Aria crouches in the ruins." },
         Chapters =
         [
             new Chapter { Number = 1, Title = "Embers", Logline = "A scout flees." },

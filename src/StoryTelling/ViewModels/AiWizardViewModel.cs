@@ -17,13 +17,13 @@ public partial class AiWizardViewModel : ViewModelBase
     private CancellationTokenSource? _cts;
     private GenerationSession _session = new();
 
-    public AiWizardViewModel(string label, GenerationTarget target, GenerateOptions generate, string initialBrief = "")
+    public AiWizardViewModel(string label, GenerationTarget target, GenerateOptions generate, string initialBrief = "", string? editableField = null)
     {
         Header = $"Generate with AI — {label}";
         _generate = generate;
 
         _specs = GenerationTargets.Fields(target);
-        _editableField = _specs.Count == 1 ? _specs[0].Field : null;
+        _editableField = editableField ?? (_specs.Count == 1 ? _specs[0].Field : null);
         _optionCount = Math.Clamp(LastOptionCount, 1, 10);
         _brief = initialBrief;
 

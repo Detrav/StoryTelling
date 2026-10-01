@@ -1,4 +1,5 @@
 using System.Linq;
+using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 using StoryTelling.Infrastructure.Diff;
@@ -13,7 +14,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void ToProject_PreservesChapterFields()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterAgent());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
 
         var chapter = Assert.Single(workspace.ToProject().Chapters);
 
@@ -23,7 +24,6 @@ public sealed class WorkspaceViewModelTests
         Assert.Equal("Introduction text.", chapter.ContentOriginal);
         Assert.Equal("Дым поднимался.", chapter.Translations["ru"]);
         Assert.Equal(ChapterStatus.Generated, chapter.Status);
-        Assert.Equal("Recap.", chapter.Summary);
         Assert.Equal("Logline.", chapter.Logline);
         Assert.Equal("Dusk", chapter.WorldState!.TimeAndPlace);
     }
@@ -32,22 +32,124 @@ public sealed class WorkspaceViewModelTests
     public void ApplySetup_DoesNotDestroyDomainData()
     {
         var project = SampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterAgent());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
         var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
         workspace.ApplySetup(setup);
 
         Assert.Equal("Wyverns nest in cliffs.", project.Knowledge.Single().Content);
         Assert.Contains("lore", project.Knowledge.Single().Tags);
-        Assert.Contains("brave", project.Characters.Single().Traits);
-        Assert.Equal("Dusk above the keep", project.WorldState.TimeAndPlace);
-        Assert.Equal("Aria crouches in the ruins.", project.WorldState.Description);
+        Assert.Equal("Dusk above the keep", project.InitialWorldState.TimeAndPlace);
+        Assert.Equal("Aria crouches in the ruins.", project.InitialWorldState.Description);
+    }
+
+    [Fact]
+    public async Task TranslateChapter_UpdatesTranslationAndClearsStale()
+    {
+        var project = SampleProject();
+        project.Chapters[0].StaleTranslations = ["ru"];
+        var translation = new FakeTranslationService { Result = "Дым обновлён." };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), translation);
+
+        await workspace.TranslateChapterCommand.ExecuteAsync(null);
+
+        Assert.Equal("Дым обновлён.", workspace.SelectedChapter.Translations.Single().Text);
+        Assert.Empty(workspace.SelectedChapter.StaleTranslations);
+        Assert.Equal("ru", translation.LastLanguageCode);
+    }
+
+    [Fact]
+    public async Task Generate_PopulatesSummaryKnowledgeAndEditorNotes()
+    {
+        var runner = new FakeChapterRunner
+        {
+            KnowledgeChanges = [new KnowledgeChange { Operation = KnowledgeChangeOperation.Update, Kind = KnowledgeKind.Character, Title = "Mira Vale", Content = "dead" }],
+            EditorNotes = [new EditorNote { Kind = EditorNoteKind.Continuity, Text = "Fixed the timeline." }],
+        };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var summary = (ChapterSummaryViewModel)workspace.SelectedChapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
+
+        Assert.Empty(summary.Changes);
+
+        await workspace.GenerateCommand.ExecuteAsync(null);
+
+        var change = Assert.Single(summary.Changes);
+        Assert.Equal("Mira Vale", change.Title);
+        Assert.Equal(KnowledgeChangeOperation.Update, change.Operation);
+        Assert.Equal("Fixed the timeline.", Assert.Single(summary.EditorNotes).Text);
+
+        var saved = workspace.ToProject().Chapters.Single();
+        Assert.Single(saved.KnowledgeChanges);
+        Assert.Single(saved.EditorNotes);
+    }
+
+    [Fact]
+    public async Task RegenerateSummary_UpdatesChapterFromRunner()
+    {
+        var runner = new FakeChapterRunner
+        {
+            Summary = new ChapterSummary("New logline.", new WorldState { TimeAndPlace = "New place" },
+            [
+                new KnowledgeChange { Operation = KnowledgeChangeOperation.Create, Kind = KnowledgeKind.Item, Title = "Relic", Content = "x" },
+            ]),
+        };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var chapter = workspace.SelectedChapter;
+        var summary = (ChapterSummaryViewModel)chapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
+
+        await summary.RegenerateSummaryCommand.ExecuteAsync(null);
+
+        Assert.Equal("New logline.", chapter.Logline);
+        Assert.Equal("New place", chapter.WorldState!.TimeAndPlace);
+        Assert.Equal("Relic", Assert.Single(summary.Changes).Title);
+    }
+
+    [Fact]
+    public void ApplySetup_WorldChange_MarksChaptersStale()
+    {
+        var project = SampleProject();
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+
+        setup.WorldBody = "A changed world.";
+
+        workspace.ApplySetup(setup);
+
+        Assert.Equal(ChapterStatus.Stale, workspace.SelectedChapter.Status);
+    }
+
+    [Fact]
+    public void ApplySetup_NoChange_KeepsChaptersGenerated()
+    {
+        var project = SampleProject();
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+
+        workspace.ApplySetup(setup);
+
+        Assert.Equal(ChapterStatus.Generated, workspace.SelectedChapter.Status);
+    }
+
+    [Fact]
+    public void EditSummaryKnowledge_MarksLaterChaptersStale()
+    {
+        var project = SampleProject();
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        workspace.AddChapterCommand.Execute(null);
+        workspace.Chapters[1].Status = ChapterStatus.Generated;
+        workspace.SelectedChapter = workspace.Chapters[0];
+        var summary = (ChapterSummaryViewModel)workspace.Chapters[0].Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
+
+        summary.AddChange(new KnowledgeChangeEditorViewModel { Operation = KnowledgeChangeOperation.Create, Title = "Relic" });
+        summary.Commit();
+
+        Assert.Equal(ChapterStatus.Stale, workspace.Chapters[1].Status);
     }
 
     [Fact]
     public void AddChapter_RenumbersAndMarksDirty()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterAgent());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
         workspace.IsDirty = false;
 
         workspace.AddChapterCommand.Execute(null);
@@ -60,7 +162,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void DeleteChapter_BlocksWhenOnlyOneRemains()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterAgent());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
 
         workspace.DeleteChapterCommand.Execute(workspace.SelectedChapter);
 
@@ -70,8 +172,8 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public async Task Generate_WritesDraftIntoChapterAndMarksGenerated()
     {
-        var agent = new FakeChapterAgent { Text = "Aria stepped into the dark." };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), agent);
+        var agent = new FakeChapterRunner { Text = "Aria stepped into the dark." };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), agent, new FakeGenerationAssistant(), new FakeTranslationService());
         var chapter = workspace.SelectedChapter;
         chapter.Status = ChapterStatus.Draft;
         chapter.ContentOriginal = string.Empty;
@@ -80,8 +182,8 @@ public sealed class WorkspaceViewModelTests
 
         Assert.Equal("Aria stepped into the dark.", chapter.ContentOriginal);
         Assert.Equal(ChapterStatus.Generated, chapter.Status);
-        Assert.NotNull(agent.LastContext);
-        Assert.Contains("Dusk above the keep", agent.LastContext!.StateBefore.TimeAndPlace);
+        Assert.NotNull(agent.LastStateBefore);
+        Assert.Contains("Dusk above the keep", agent.LastStateBefore!.TimeAndPlace);
     }
 
     private static IReadOnlyList<LanguageData> Catalog() => [new LanguageData("ru", "Russian")];
@@ -92,17 +194,12 @@ public sealed class WorkspaceViewModelTests
         CreatedUtc = _timestamp,
         UpdatedUtc = _timestamp,
         Settings = new StorySettings { TargetLanguages = ["ru"] },
-        Lore = new WorldLore { Title = "Ashen Reach", Body = "A dying empire." },
-        Characters =
-        [
-            new Character { Name = "Aria", Description = "scout", Traits = ["brave"], Goals = "find her brother" },
-        ],
-        Frame = new StoryFrame(),
+        World = new World { Title = "Ashen Reach", Body = "A dying empire." },
         Knowledge =
         [
             new KnowledgeEntry { Kind = KnowledgeKind.Note, Title = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] },
         ],
-        WorldState = new WorldState
+        InitialWorldState = new WorldState
         {
             TimeAndPlace = "Dusk above the keep",
             Description = "Aria crouches in the ruins.",
@@ -115,7 +212,6 @@ public sealed class WorkspaceViewModelTests
                 Title = "Embers",
                 ContentOriginal = "Introduction text.",
                 Translations = new SortedDictionary<string, string> { ["ru"] = "Дым поднимался." },
-                Summary = "Recap.",
                 Logline = "Logline.",
                 WorldState = new WorldState { TimeAndPlace = "Dusk" },
                 Status = ChapterStatus.Generated,

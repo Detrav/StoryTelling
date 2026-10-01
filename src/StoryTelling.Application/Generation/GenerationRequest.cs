@@ -13,4 +13,6 @@ public sealed record GenerationRequest
     public int Variants { get; init; } = 3;
 
     public Project? Snapshot { get; init; }
+
+    public IReadOnlyList<string> Avoid { get; init; } = [];
 }

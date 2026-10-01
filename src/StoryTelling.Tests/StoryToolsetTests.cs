@@ -15,7 +15,7 @@ public sealed class StoryToolsetTests
         Assert.Equal(
             new HashSet<string>
             {
-                "story", "characters", "character", "world_state",
+                "story", "characters", "character", "initial_world_state",
                 "recent_loglines", "list_entries", "get_entry", "search_knowledge",
             },
             names);
@@ -35,8 +35,9 @@ public sealed class StoryToolsetTests
     {
         var result = new StoryToolset(new StoryQuery(Project())).Invoke("character", """{"name":"Aria"}""");
 
-        Assert.Contains("Name: Aria", result);
-        Assert.Contains("Role: protagonist", result);
+        Assert.Contains("Title: Aria", result);
+        Assert.Contains("Kind: Character", result);
+        Assert.Contains("A frontier scout.", result);
     }
 
     [Fact]
@@ -79,14 +80,11 @@ public sealed class StoryToolsetTests
     private static Project Project() => new()
     {
         Name = "The Ember Crown",
-        Frame = new StoryFrame { Genre = "dark fantasy" },
-        Characters =
-        [
-            new Character { Name = "Aria", Role = "protagonist" },
-            new Character { Name = "Bran", Role = "smith" },
-        ],
+        World = new World { Genre = "dark fantasy" },
         Knowledge =
         [
+            new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["protagonist"], Content = "A frontier scout." },
+            new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Bran", Tags = ["smith"] },
             new KnowledgeEntry { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "A frozen frontier of ash." },
         ],
     };

@@ -14,11 +14,15 @@ public sealed class Chapter
 
     public SortedDictionary<string, string> Translations { get; set; } = [];
 
-    public string Summary { get; set; } = string.Empty;
+    public List<string> StaleTranslations { get; set; } = [];
 
     public string Logline { get; set; } = string.Empty;
 
     public WorldState? WorldState { get; set; }
+
+    public List<KnowledgeChange> KnowledgeChanges { get; set; } = [];
+
+    public List<EditorNote> EditorNotes { get; set; } = [];
 
     public ChapterStatus Status { get; set; } = ChapterStatus.Draft;
 

@@ -64,7 +64,9 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                         <Button Content="▶" Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate this chapter" />
-                        <Button Content="↻" Command="{Binding RegenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Regenerate" />
+                        <Button Content="↻" Command="{Binding RegenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Regenerate this chapter" />
+                        <Button Content="+▶" Command="{Binding WriteNextChapterCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Write the next chapter" />
+                        <Button Content="⇄" Command="{Binding TranslateChapterCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate this chapter" />
                         <Button Content="■" Command="{Binding StopCommand}" IsEnabled="{Binding IsBusy}" ToolTip.Tip="Stop" />
                     </StackPanel>
                 </Grid>

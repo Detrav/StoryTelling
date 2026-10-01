@@ -57,17 +57,12 @@ public partial class ReviewFindingViewModel : ObservableObject
 
     private static GenerationTarget? ExplicitTarget(ReviewArea area, string? reference) => area switch
     {
-        ReviewArea.Frame => GenerationTarget.Frame,
-        ReviewArea.World => GenerationTarget.World,
-        ReviewArea.WorldState => GenerationTarget.WorldState,
-        ReviewArea.Characters => string.IsNullOrWhiteSpace(reference) ? null : GenerationTarget.Character,
         ReviewArea.Knowledge => string.IsNullOrWhiteSpace(reference) ? null : GenerationTarget.Knowledge,
         _ => null,
     };
 
     private static GenerationTarget? FallbackTarget(ReviewArea area) => area switch
     {
-        ReviewArea.Characters => GenerationTarget.Character,
         ReviewArea.Knowledge => GenerationTarget.Knowledge,
         _ => null,
     };

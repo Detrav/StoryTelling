@@ -4,8 +4,6 @@ using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
 using StoryTelling.Application.Settings;
-using StoryTelling.Application.Story;
-using StoryTelling.Application.Tools;
 
 namespace StoryTelling.Application.Chapters;
 
@@ -32,31 +30,12 @@ public sealed class ChapterAgent : IChapterAgent
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
         var assembled = _assembler.AssembleWriter(context);
 
-        var messages = assembled.Messages;
-        var toolCalls = 0;
+        var gathered = await ChapterToolLoop
+            .GatherAsync(_llmClient, connection, settings, assembled.Messages, PromptTemplates.WriterGather(), context.Snapshot, progress, cancellationToken)
+            .ConfigureAwait(false);
 
-        if (settings.MaxToolCalls > 0)
-        {
-            var toolset = new StoryToolset(new StoryQuery(context.Snapshot));
-            var tools = toolset.Definitions
-                .Select(definition => new LlmTool(definition.Name, definition.Description, definition.Parameters))
-                .ToList();
-
-            var gather = new LlmRequest
-            {
-                Model = settings.Model,
-                Messages = [.. messages, LlmMessage.User(PromptTemplates.WriterGather())],
-                Temperature = settings.Temperature,
-                MaxTokens = settings.MaxTokens,
-            };
-
-            var outcome = await new ToolAgent(_llmClient)
-                .GatherAsync(connection, gather, tools, toolset.Invoke, settings.MaxToolCalls, progress: progress, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-
-            messages = outcome.Messages;
-            toolCalls = outcome.ToolCalls;
-        }
+        var messages = gathered.Messages;
+        var toolCalls = gathered.ToolCalls;
 
         progress?.Report(new GenerationProgress("Writing", toolCalls));
 
@@ -68,8 +47,33 @@ public sealed class ChapterAgent : IChapterAgent
             MaxTokens = settings.MaxTokens,
         };
 
+        var text = await StreamTextAsync(connection, write, onDelta, cancellationToken).ConfigureAwait(false);
+        if (GeneratedText.LooksTruncated(text))
+        {
+            progress?.Report(new GenerationProgress("Completing", toolCalls));
+            var retry = write with
+            {
+                Messages =
+                [
+                    .. write.Messages,
+                    LlmMessage.User("Your previous reply was cut off. Write the full chapter again (roughly 1500-2500 words) and end with a complete sentence."),
+                ],
+            };
+
+            var completed = await StreamTextAsync(connection, retry, null, cancellationToken).ConfigureAwait(false);
+            if (completed.Length >= text.Length)
+            {
+                text = completed;
+            }
+        }
+
+        return new ChapterDraft(text, toolCalls);
+    }
+
+    private async Task<string> StreamTextAsync(LlmConnection connection, LlmRequest request, Func<string, Task>? onDelta, CancellationToken cancellationToken)
+    {
         var builder = new StringBuilder();
-        await foreach (var delta in _llmClient.StreamAsync(connection, write, cancellationToken).ConfigureAwait(false))
+        await foreach (var delta in _llmClient.StreamAsync(connection, request, cancellationToken).ConfigureAwait(false))
         {
             builder.Append(delta);
             if (onDelta is not null)
@@ -78,6 +82,6 @@ public sealed class ChapterAgent : IChapterAgent
             }
         }
 
-        return new ChapterDraft(builder.ToString().Trim(), toolCalls);
+        return builder.ToString().Trim();
     }
 }

@@ -46,51 +46,59 @@ Every chapter action is available both from the toolbar and from the **Chapter**
   tooltips.
 - **Editor tabs** — built per chapter:
   - *Chapter (EN)* — the original text.
-  - *Chapter (XX)* — one tab per project target language, each with a *Translate with AI*
-    button.
-  - *Summary* — the state after the chapter: a logline plus the new world state (time and place
-    + a free-form description). This is the only story memory carried forward.
+  - *Chapter (XX)* — one tab per project target language, each with a *Translate with AI* button
+    (real translation) and a *Stop* button; a tab shows **Out of date** in amber when the original
+    changed since it was translated. The toolbar's translate button translates the whole chapter
+    into every target language.
+  - *Summary* — what the chapter produced, in three parts: the **logline**, the **world state**
+    (time and place + a free-form description) and the **knowledge** (the chapter's changes to the
+    story database). A *Regenerate summary* button rebuilds the logline, world state and knowledge
+    diff from the existing chapter text without rewriting the chapter; *Stop* cancels it. The
+    knowledge list is editable — add / edit / delete a change — and each row is colour-coded:
+    light-green created, light-yellow modified, light-red deleted. Below it, the **editor notes**
+    list what the editor changed (continuity / style / pacing / …). There is no free-form recap:
+    the chapter carries structured, RAG-like information forward, and the project knowledge base
+    itself is never edited by a chapter.
   - *Settings* — the chapter's own settings: title, direction (what should happen), notes and the
-    generation status. The title and direction have a *Generate with AI* button (fully wired once
-    the chapter pipeline exists). Which characters appear is decided by the writer (via tools),
-    not by hand.
+    generation status. A *Generate with AI* button proposes the title and direction from the world,
+    the previous chapters and the knowledge base (tool-backed). Which characters appear is decided
+    by the writer (via tools), not by hand.
 
 ## Project setup (dialog)
 
 A modal dialog, opened from *File → Project setup…*, sized so its content fits without
 scrolling. A fixed header holds the **book name** with its own *Generate with AI* button; the
-rest is split into tabs. The intended order is dependency-driven (see `design.md` §3); the tabs
-are being moved into it, so the order below is the target, not necessarily the current tab order:
+rest is split into tabs, in dependency order (see `design.md` §3):
 
-1. **Frame** — book name, genre, tone, style / POV, premise, direction.
-2. **World** — lore title and body.
-3. **Characters** — list with add / edit / delete. The shared character dialog edits name, role,
-   age, description, personality, background, goals and traits (tags), and has its own *Generate
-   with AI* that uses the current field values as a draft (all fields are optional).
-4. **Knowledge** — notes and entities (places, items, events, factions, rules) stored as
-   knowledge entries. The list shows each entry's title, kind and tags; entries can be added,
-   edited or deleted. The entry editor has its own *Generate with AI* that fills kind, title, tags
-   and content from a description (using the project as context), just like the other editors.
+1. **World** — title and body (the setting) plus the narrative frame: genre, tone, style, point of
+   view, tense and rating. One *Generate with AI* fills the whole group. These are the immutable
+   facts and never change.
+2. **Knowledge** — characters and entities (places, items, events, factions, rules) stored as
+   knowledge entries; a character is an entry with `Kind = Character` (its name is the title and
+   its description is the free-form content). The list shows each entry's title, kind and tags;
+   entries can be added, edited or deleted. The entry editor has its own *Generate with AI* that
+   fills kind, title, tags and content from a description (using the project as context).
    Entries can also be **imported**: importing a `.md` (Markdown) file runs the AI over its content
    (any material — campaign notes, game or world descriptions), which proposes typed entries in a
    review dialog (checkboxes) before they are added. While it runs, the dialog shows progress
    ("Importing chunk X of N"). The text is chunked at Markdown headings, but
    small sections are merged so each request stays substantial; a file that would need too many
-   chunks is rejected with an explanatory error (split it and import in parts).
-5. **World state** — the situation before chapter 1: time and place plus a free-form description,
-   with a group *Generate with AI*.
-6. **Languages** — checkboxes picking the project's target languages from the global catalog.
+   chunks is rejected with an explanatory error (split it and import in parts). The **From prompt…**
+   button opens the same review dialog with a large text box: the author describes the world/story
+   and the AI *designs* the initial knowledge base (characters, places, factions, items, events,
+   rules, background) for review.
+3. **Initial world state** — the situation before chapter 1: time and place plus a free-form
+   description, with a group *Generate with AI*.
+4. **Languages** — checkboxes picking the project's target languages from the global catalog.
 
-The dialog's bottom bar has **Cancel / Settings review / Apply**. *Settings review* opens a
+The dialog's bottom bar has **Cancel / Knowledge review / Apply**. *Knowledge review* opens a
 **non-blocking** window (so the setup can still be edited next to it) that runs an AI check over
-the *current* setup values: it lists findings (severity, area, title, detail, optional suggestion)
-about inconsistencies and gaps in the lore, characters, frame or knowledge. It is a helper, not a
-validator — *Apply* is never blocked. Each finding can be fixed: **Fix** applies the AI's
-structured edits after showing a **diff preview** (the change lands in the setup fields and is a
-single undo step), while **Fix with AI…** is available on every finding — it opens the *Generate
-with AI* wizard seeded with the finding (for a named character or entry it targets that object
-directly; for a cross-cutting finding it first asks what to fix). Fixed findings are marked as
-such; re-running the review checks the project again.
+the *current* knowledge entries: it lists findings (severity, area, title, detail, optional
+suggestion) about inconsistencies, contradictions and gaps. It is a helper, not a validator —
+*Apply* is never blocked. Each finding can be fixed: **Fix** applies the AI's structured edits
+after showing a **diff preview** (the change lands in the setup fields and is a single undo step),
+while **Fix with AI…** opens the *Generate with AI* wizard seeded with the finding, targeting the
+named entry. Fixed findings are marked as such; re-running the review checks the knowledge again.
 
 Each field group has a *Generate with AI* button.
 

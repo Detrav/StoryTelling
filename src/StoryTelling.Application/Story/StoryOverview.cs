@@ -8,7 +8,5 @@ public sealed record StoryOverview(
     string PointOfView,
     string Tense,
     string Rating,
-    string Premise,
-    string Direction,
-    string LoreTitle,
-    string LoreBody);
+    string WorldTitle,
+    string WorldBody);

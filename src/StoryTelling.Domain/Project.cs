@@ -14,15 +14,11 @@ public sealed class Project
 
     public StorySettings Settings { get; set; } = new();
 
-    public WorldLore Lore { get; set; } = new();
-
-    public List<Character> Characters { get; set; } = [];
-
-    public StoryFrame Frame { get; set; } = new();
+    public World World { get; set; } = new();
 
     public List<KnowledgeEntry> Knowledge { get; set; } = [];
 
     public List<Chapter> Chapters { get; set; } = [];
 
-    public WorldState WorldState { get; set; } = new();
+    public WorldState InitialWorldState { get; set; } = new();
 }

@@ -20,7 +20,7 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
 
     public Dictionary<GenerationTarget, string> SingleReferences { get; } = [];
 
-    public List<ReviewFixTarget> Targets { get; } = [new(GenerationTarget.Frame, string.Empty, "Frame")];
+    public List<ReviewFixTarget> Targets { get; } = [new(GenerationTarget.Knowledge, string.Empty, "Knowledge")];
 
     public IReadOnlyList<ReviewFixTarget> FixTargets() => Targets;
 

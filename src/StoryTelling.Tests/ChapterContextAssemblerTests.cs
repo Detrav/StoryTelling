@@ -11,7 +11,7 @@ public sealed class ChapterContextAssemblerTests
         var project = Project();
         var assembler = new ChapterContextAssembler();
 
-        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.WorldState, ChapterContextAssembler.DefaultTokenBudget));
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.InitialWorldState, ChapterContextAssembler.DefaultTokenBudget));
 
         var user = context.Messages[1].Content;
         Assert.Contains("Chapter 1", user);
@@ -27,10 +27,10 @@ public sealed class ChapterContextAssemblerTests
     public void AssembleWriter_TruncatesOptionalSectionsToBudget()
     {
         var project = Project();
-        project.Lore = new WorldLore { Title = "Ashen Reach", Body = new string('x', 5000) };
+        project.World = new World { Title = "Ashen Reach", Body = new string('x', 5000) };
         var assembler = new ChapterContextAssembler();
 
-        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.WorldState, 200));
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.InitialWorldState, 200));
 
         Assert.Contains("[truncated]", context.Messages[1].Content);
     }
@@ -38,10 +38,9 @@ public sealed class ChapterContextAssemblerTests
     private static Project Project() => new()
     {
         Name = "The Ember Crown",
-        Frame = new StoryFrame { Tone = "grim", Premise = "A dying empire." },
-        Lore = new WorldLore { Title = "Ashen Reach", Body = "A dying empire." },
-        Characters = [new Character { Name = "Aria", Role = "scout" }],
-        WorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Description = "Aria crouches in the ruins." },
+        World = new World { Tone = "grim", Title = "Ashen Reach", Body = "A dying empire." },
+        Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["scout"] }],
+        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Description = "Aria crouches in the ruins." },
         Chapters = [new Chapter { Number = 1, Title = "Embers", Direction = "Open quietly.", ContentOriginal = "Secret previous prose" }],
     };
 }

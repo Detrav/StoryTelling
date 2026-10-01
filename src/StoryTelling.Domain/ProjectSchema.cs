@@ -2,5 +2,5 @@ namespace StoryTelling.Domain;
 
 public static class ProjectSchema
 {
-    public const int Version = 1;
+    public const int Version = 4;
 }

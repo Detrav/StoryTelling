@@ -1,22 +1,66 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:StoryTelling.ViewModels"
+             xmlns:domain="using:StoryTelling.Domain"
              x:Class="StoryTelling.Views.ChapterSummaryView"
              x:DataType="vm:ChapterSummaryViewModel">
 
     <ScrollViewer>
         <StackPanel Margin="14" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Regenerate summary" Command="{Binding RegenerateSummaryCommand}" IsEnabled="{Binding !IsBusy}" />
+                <Button Content="Stop" Command="{Binding StopRegenerateCommand}" IsVisible="{Binding IsBusy}" />
+                <TextBlock Text="{Binding Status}" Opacity="0.7" VerticalAlignment="Center" />
+            </StackPanel>
+
             <TextBlock Text="Logline" Opacity="0.7" />
             <TextBox Text="{Binding Logline}" LostFocus="OnCommit" />
 
-            <TextBlock Text="Recap — events, character changes, how the chapter ended" Opacity="0.7" />
-            <TextBox Text="{Binding Recap}"
+            <TextBlock Text="World state — time and place" Opacity="0.7" />
+            <TextBox Text="{Binding TimeAndPlace}" LostFocus="OnCommit" />
+
+            <TextBlock Text="World state — situation after the chapter" Opacity="0.7" />
+            <TextBox Text="{Binding StateDescription}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
-                     Height="200"
+                     Height="120"
                      LostFocus="OnCommit" />
 
-            <Button Content="Generate with AI" Click="OnGenerateClick" HorizontalAlignment="Left" />
+            <TextBlock Text="Knowledge — the chapter's changes to the story database" Opacity="0.7" />
+            <ListBox ItemsSource="{Binding Changes}"
+                     SelectedItem="{Binding SelectedChange}"
+                     Height="220">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:KnowledgeChangeEditorViewModel">
+                        <Border Padding="6" Margin="0,2" CornerRadius="3" Background="{Binding Background}" HorizontalAlignment="Stretch">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Operation}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Title}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" Opacity="0.8" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Add" Click="OnAddChangeClick" />
+                <Button Content="Edit" Click="OnEditChangeClick" />
+                <Button Content="Delete" Click="OnDeleteChangeClick" />
+            </StackPanel>
+
+            <TextBlock Text="Editor notes — what the editor changed" Opacity="0.7" />
+            <ItemsControl ItemsSource="{Binding EditorNotes}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="domain:EditorNote">
+                        <StackPanel Margin="0,2">
+                            <TextBlock Text="{Binding Kind}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Opacity="0.85" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
     </ScrollViewer>
 

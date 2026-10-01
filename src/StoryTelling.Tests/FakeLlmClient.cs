@@ -27,6 +27,12 @@ internal sealed class FakeLlmClient : ILlmClient
 
     public int JsonCallCount { get; private set; }
 
+    public Queue<LlmCompletion> CompleteQueue { get; } = new();
+
+    public Queue<string> StreamQueue { get; } = new();
+
+    public int StreamCallCount { get; private set; }
+
     public LlmToolResponse ToolResponse { get; set; } = new(string.Empty, "stop", []);
 
     public Task<LlmCompletion> CompleteAsync(
@@ -36,7 +42,7 @@ internal sealed class FakeLlmClient : ILlmClient
     {
         LastConnection = connection;
         LastRequest = request;
-        return Task.FromResult(new LlmCompletion(_response, "stop", 1, 1));
+        return Task.FromResult(CompleteQueue.Count > 0 ? CompleteQueue.Dequeue() : new LlmCompletion(_response, "stop", 1, 1));
     }
 
     public async IAsyncEnumerable<string> StreamAsync(
@@ -44,8 +50,9 @@ internal sealed class FakeLlmClient : ILlmClient
         LlmRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        StreamCallCount++;
         await Task.Yield();
-        yield return _response;
+        yield return StreamQueue.Count > 0 ? StreamQueue.Dequeue() : _response;
     }
 
     public Task<string> CompleteJsonAsync(

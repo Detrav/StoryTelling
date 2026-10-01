@@ -3,7 +3,7 @@
         xmlns:vm="using:StoryTelling.ViewModels"
         x:Class="StoryTelling.Views.ProjectReviewWindow"
         x:DataType="vm:ProjectReviewViewModel"
-        Title="Settings review"
+        Title="Knowledge review"
         Width="720"
         Height="700"
         MinWidth="520"
@@ -19,14 +19,14 @@
         </Border>
 
         <Grid Margin="18" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="10">
-            <TextBlock Grid.Row="0" Text="Settings review" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="0" Text="Knowledge review" FontSize="18" FontWeight="SemiBold" />
 
             <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
                 <TextBox Text="{Binding Brief}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          Height="56"
-                         PlaceholderText="Optional focus, e.g. 'check the timeline and names'" />
+                         PlaceholderText="Optional focus, e.g. 'check names and the timeline'" />
                 <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0">
                     <Button Content="Run review" Command="{Binding RunCommand}" IsEnabled="{Binding !IsBusy}" />
                     <Button Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsBusy}" />

@@ -69,6 +69,29 @@ public sealed class KnowledgeImporterTests
     }
 
     [Fact]
+    public async Task ExtractAsync_DesignMode_ParsesEntries()
+    {
+        const string json = """{"entries":[{"kind":"Character","title":"Elias Thorne","tags":["rival"],"content":"..."}]}""";
+        var importer = new KnowledgeImporter(new FakeLlmClient(json), new FakeSettingsService());
+
+        var entries = await importer.ExtractAsync(new KnowledgeImportRequest("A city under the sea.", "dark fantasy", Mode: KnowledgeImportMode.Design));
+
+        Assert.Equal("Elias Thorne", Assert.Single(entries).Title);
+    }
+
+    [Fact]
+    public async Task ExtractAsync_DesignMode_UsesOneRequest()
+    {
+        var llm = new FakeLlmClient("""{"entries":[]}""");
+        var importer = new KnowledgeImporter(llm, new FakeSettingsService());
+        var content = string.Join("\n\n", Enumerable.Range(0, 3).Select(_ => new string('a', 5000)));
+
+        await importer.ExtractAsync(new KnowledgeImportRequest(content, string.Empty, Mode: KnowledgeImportMode.Design));
+
+        Assert.Equal(1, llm.JsonCallCount);
+    }
+
+    [Fact]
     public async Task ExtractAsync_EmptyContent_ReturnsEmpty()
     {
         var importer = new KnowledgeImporter(new FakeLlmClient("{}"), new FakeSettingsService());

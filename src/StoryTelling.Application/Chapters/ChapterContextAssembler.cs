@@ -9,6 +9,8 @@ public sealed class ChapterContextAssembler : IContextAssembler
 
     private const int CharsPerToken = 4;
 
+    private const int MaxRequiredSectionChars = 4000;
+
     public ChapterContext AssembleWriter(WriterContext context)
     {
         var budget = Math.Max(200, context.TokenBudget) * CharsPerToken;
@@ -49,10 +51,9 @@ public sealed class ChapterContextAssembler : IContextAssembler
         }
 
         AddRequired(PromptTemplates.WriterBrief(context.Chapter));
-        AddRequired(PromptTemplates.WriterFrame(context.Snapshot.Frame));
-        AddRequired(PromptTemplates.WriterState(context.StateBefore));
-        AddRequired(PromptTemplates.WriterPremise(context.Snapshot));
-        AddOptional(PromptTemplates.WriterLore(context.Snapshot.Lore));
+        AddRequired(PromptTemplates.WriterWorldStyle(context.Snapshot.World));
+        AddRequired(Truncate(PromptTemplates.WriterState(context.StateBefore), MaxRequiredSectionChars));
+        AddOptional(PromptTemplates.WriterWorldLore(context.Snapshot.World));
         AddOptional(PromptTemplates.WriterManifest(context.Snapshot, context.Chapter));
 
         var system = PromptTemplates.WriterSystem();
@@ -61,4 +62,7 @@ public sealed class ChapterContextAssembler : IContextAssembler
         var estimatedTokens = (system.Length + user.Length) / CharsPerToken;
         return new ChapterContext(messages, estimatedTokens);
     }
+
+    private static string Truncate(string text, int max) =>
+        text.Length <= max ? text : text[..max] + "…[truncated]";
 }

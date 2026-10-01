@@ -12,6 +12,8 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
 {
     private const int _chunkChars = KnowledgeChunker.ImportMaxChars;
 
+    private const double DeterministicTemperature = 0.3;
+
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -32,8 +34,15 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
         IProgress<KnowledgeImportProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var chunks = KnowledgeChunker.Split(request.Content, _chunkChars);
-        if (chunks.Count == 0)
+        if (string.IsNullOrWhiteSpace(request.Content))
+        {
+            return [];
+        }
+
+        IReadOnlyList<string> work = request.Mode == KnowledgeImportMode.Design
+            ? [request.Content]
+            : KnowledgeChunker.Split(request.Content, _chunkChars);
+        if (work.Count == 0)
         {
             return [];
         }
@@ -41,7 +50,7 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
 
-        var total = Math.Min(chunks.Count, Math.Max(1, request.MaxChunks));
+        var total = Math.Min(work.Count, Math.Max(1, request.MaxChunks));
         var entries = new List<KnowledgeEntry>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -50,8 +59,8 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
             var llmRequest = new LlmRequest
             {
                 Model = settings.Model,
-                Messages = PromptTemplates.ExtractKnowledge(chunks[index], request.Brief),
-                Temperature = settings.Temperature,
+                Messages = BuildMessages(request.Mode, work[index], request.Brief),
+                Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
                 MaxTokens = settings.MaxTokens,
             };
 
@@ -72,6 +81,11 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
 
         return entries;
     }
+
+    private static IReadOnlyList<LlmMessage> BuildMessages(KnowledgeImportMode mode, string chunk, string brief) =>
+        mode == KnowledgeImportMode.Design
+            ? PromptTemplates.DesignKnowledge(chunk, brief)
+            : PromptTemplates.ExtractKnowledge(chunk, brief);
 
     private static List<KnowledgeEntry> Parse(string content)
     {

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using StoryTelling.Application.Generation;
 
 namespace StoryTelling.ViewModels;
 
@@ -13,6 +14,8 @@ public partial class ChapterSettingsViewModel : ViewModelBase
         _debouncer = new CommitDebouncer(commit, TimeSpan.FromMilliseconds(700));
         chapter.PropertyChanged += OnChapterChanged;
     }
+
+    public Func<string, int, GenerationSession, IProgress<GenerationProgress>?, CancellationToken, Task<IReadOnlyList<GenerationOption>>>? GenerateOptions { get; set; }
 
     public string Title
     {
@@ -81,6 +84,16 @@ public partial class ChapterSettingsViewModel : ViewModelBase
                 Direction = text;
                 break;
         }
+    }
+
+    public void ApplyGenerated(IReadOnlyDictionary<string, string> fields)
+    {
+        foreach (var (field, text) in fields)
+        {
+            ApplyGenerated(field, text);
+        }
+
+        _debouncer.Trigger();
     }
 
     private void OnChapterChanged(object? sender, PropertyChangedEventArgs e)

@@ -28,8 +28,8 @@ public sealed class StoryToolset
         {
             "story" => DescribeStory(_query.Story()),
             "characters" => DescribeCharacters(_query.Characters()),
-            "character" => DescribeCharacter(_query.Character(Required(arguments, "name"))),
-            "world_state" => DescribeWorldState(_query.WorldState()),
+            "character" => DescribeEntry(_query.Character(Required(arguments, "name"))),
+            "initial_world_state" => DescribeWorldState(_query.InitialWorldState()),
             "recent_loglines" => DescribeLoglines(_query.RecentLoglines(OptionalInt(arguments, "count", 3))),
             "list_entries" => DescribeEntries(_query.ListEntries(OptionalKind(arguments, "kind"))),
             "get_entry" => DescribeEntry(_query.GetEntry(Required(arguments, "key"))),
@@ -43,12 +43,12 @@ public sealed class StoryToolset
 
     private static IReadOnlyList<StoryToolDefinition> BuildDefinitions() =>
     [
-        new("story", "The story frame (name, genre, tone, style, point of view, tense, rating, premise, direction) and the world lore.", EmptySchema()),
-        new("characters", "The cast: every character's name and role.", EmptySchema()),
-        new("character", "A single character's full profile by name.", ObjectSchema(
+        new("story", "The story base: book name, the world (title, description) and the narrative frame (genre, tone, style, point of view, tense, rating).", EmptySchema()),
+        new("characters", "The cast: every character entry's name and tags.", EmptySchema()),
+        new("character", "A single character entry by name.", ObjectSchema(
             [("name", StringProperty("The character's name."))],
             ["name"])),
-        new("world_state", "The current situation: time and place plus a free-form description.", EmptySchema()),
+        new("initial_world_state", "The initial situation before chapter 1: time and place plus a free-form description.", EmptySchema()),
         new("recent_loglines", "The loglines of the most recent chapters, oldest first.", ObjectSchema(
             [("count", IntegerProperty("How many recent loglines to return (default 3)."))],
             [])),
@@ -149,14 +149,12 @@ public sealed class StoryToolset
         Append(builder, "Point of view", story.PointOfView);
         Append(builder, "Tense", story.Tense);
         Append(builder, "Rating", story.Rating);
-        Append(builder, "Premise", story.Premise);
-        Append(builder, "Direction", story.Direction);
-        Append(builder, "World", story.LoreTitle);
-        Append(builder, "World details", story.LoreBody);
+        Append(builder, "World", story.WorldTitle);
+        Append(builder, "World details", story.WorldBody);
         return builder.ToString().TrimEnd();
     }
 
-    private static string DescribeCharacters(IReadOnlyList<CharacterSummary> characters)
+    private static string DescribeCharacters(IReadOnlyList<KnowledgeSummary> characters)
     {
         if (characters.Count == 0)
         {
@@ -164,30 +162,10 @@ public sealed class StoryToolset
         }
 
         return string.Join('\n', characters.Select(character =>
-            string.IsNullOrWhiteSpace(character.Role) ? $"- {character.Name}" : $"- {character.Name} ({character.Role})"));
-    }
-
-    private static string DescribeCharacter(Character? character)
-    {
-        if (character is null)
         {
-            return "Character not found.";
-        }
-
-        var builder = new StringBuilder();
-        Append(builder, "Name", character.Name);
-        Append(builder, "Role", character.Role);
-        Append(builder, "Age", character.Age);
-        Append(builder, "Description", character.Description);
-        Append(builder, "Personality", character.Personality);
-        Append(builder, "Background", character.Background);
-        Append(builder, "Goals", character.Goals);
-        if (character.Traits.Count > 0)
-        {
-            Append(builder, "Traits", string.Join(", ", character.Traits));
-        }
-
-        return builder.ToString().TrimEnd();
+            var tags = character.Tags.Count > 0 ? $" ({string.Join(", ", character.Tags)})" : string.Empty;
+            return $"- {character.Title}{tags}";
+        }));
     }
 
     private static string DescribeWorldState(WorldState state)
@@ -195,7 +173,7 @@ public sealed class StoryToolset
         var builder = new StringBuilder();
         Append(builder, "Time and place", state.TimeAndPlace);
         Append(builder, "Description", state.Description);
-        return builder.Length == 0 ? "No world state." : builder.ToString().TrimEnd();
+        return builder.Length == 0 ? "No initial world state." : builder.ToString().TrimEnd();
     }
 
     private static string DescribeLoglines(IReadOnlyList<ChapterLogline> loglines)

@@ -13,13 +13,6 @@ namespace StoryTelling.ViewModels;
 
 public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
 {
-    private static readonly HashSet<string> _singletonFields =
-    [
-        "ProjectName", "WorldTitle", "WorldBody", "Premise",
-        "Genre", "Tone", "Style", "PointOfView", "Tense", "Rating", "Direction",
-        "TimeAndPlace", "Description",
-    ];
-
     private readonly IGenerationAssistant _assistant;
     private readonly IKnowledgeImporter _importer;
     private readonly IProjectReviewAssistant _review;
@@ -65,12 +58,6 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
     private string _tone = string.Empty;
 
     [ObservableProperty]
-    private string _premise = string.Empty;
-
-    [ObservableProperty]
-    private string _direction = string.Empty;
-
-    [ObservableProperty]
     private string _style = string.Empty;
 
     [ObservableProperty]
@@ -83,15 +70,10 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
     private string _rating = string.Empty;
 
     [ObservableProperty]
-    private string _worldStateTimeAndPlace = string.Empty;
+    private string _initialStateTimeAndPlace = string.Empty;
 
     [ObservableProperty]
-    private string _worldStateDescription = string.Empty;
-
-    public ObservableCollection<CharacterEditorViewModel> Characters { get; } = [];
-
-    [ObservableProperty]
-    private CharacterEditorViewModel? _selectedCharacter;
+    private string _initialStateDescription = string.Empty;
 
     public ObservableCollection<KnowledgeEntryEditorViewModel> Knowledge { get; } = [];
 
@@ -103,9 +85,8 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         "ProjectName" => "Book name",
         "WorldTitle" => "World title",
         "WorldBody" => "World description",
-        "Characters" => "Characters",
-        "Premise" => "Premise",
-        "WorldState" => "Initial world state",
+        "World" => "World",
+        "InitialWorldState" => "Initial world state",
         _ => field,
     };
 
@@ -116,27 +97,7 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             Target = target,
             Brief = brief,
             Variants = options,
-            Context = new GenerationContext { Fields = ProjectFields(), Cast = BuildCast() },
-            Snapshot = BuildSnapshot(),
-        };
-
-        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
-    }
-
-    public Task<IReadOnlyList<GenerationOption>> GenerateCharacterAsync(CharacterEditorViewModel character, string brief, int options, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
-    {
-        var fields = ProjectFields();
-        foreach (var (key, value) in character.ToFields())
-        {
-            fields[key] = value;
-        }
-
-        var request = new GenerationRequest
-        {
-            Target = GenerationTarget.Character,
-            Brief = brief,
-            Variants = options,
-            Context = new GenerationContext { Fields = fields, Cast = BuildCast(character) },
+            Context = new GenerationContext { Fields = ProjectFields() },
             Snapshot = BuildSnapshot(),
         };
 
@@ -156,8 +117,14 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             Target = GenerationTarget.Knowledge,
             Brief = brief,
             Variants = options,
-            Context = new GenerationContext { Fields = fields, Cast = BuildCast() },
+            Context = new GenerationContext { Fields = fields },
             Snapshot = BuildSnapshot(),
+            Avoid =
+            [
+                .. Knowledge
+                    .Select(existing => existing.Title.Trim())
+                    .Where(title => title.Length > 0 && !string.Equals(title, entry.Title.Trim(), StringComparison.OrdinalIgnoreCase)),
+            ],
         };
 
         return _assistant.GenerateAsync(request, session, progress, cancellationToken);
@@ -166,53 +133,20 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
     private Project BuildSnapshot() => new()
     {
         Name = ProjectName,
-        Frame = new StoryFrame
+        World = new World
         {
+            Title = WorldTitle,
+            Body = WorldBody,
             Genre = Genre,
             Tone = Tone,
             Style = Style,
             PointOfView = PointOfView,
             Tense = Tense,
             Rating = Rating,
-            Premise = Premise,
-            Direction = Direction,
         },
-        Lore = new WorldLore { Title = WorldTitle, Body = WorldBody },
-        Characters =
-        [
-            .. Characters.Where(character => !string.IsNullOrWhiteSpace(character.Name)).Select(character => new Character
-            {
-                Id = character.Id,
-                Name = character.Name,
-                Role = character.Role,
-                Age = character.Age,
-                Description = character.Description,
-                Personality = character.Personality,
-                Background = character.Background,
-                Goals = character.Goals,
-                Traits = [.. character.TraitList],
-            }),
-        ],
         Knowledge = [.. Knowledge.Select(entry => entry.ToEntry())],
-        WorldState = new WorldState { TimeAndPlace = WorldStateTimeAndPlace, Description = WorldStateDescription },
+        InitialWorldState = new WorldState { TimeAndPlace = InitialStateTimeAndPlace, Description = InitialStateDescription },
     };
-
-    private List<string> BuildCast(CharacterEditorViewModel? exclude = null)
-    {
-        var cast = new List<string>();
-        foreach (var character in Characters)
-        {
-            if (string.IsNullOrWhiteSpace(character.Name) || ReferenceEquals(character, exclude))
-            {
-                continue;
-            }
-
-            var detail = !string.IsNullOrWhiteSpace(character.Role) ? character.Role : character.Description;
-            cast.Add(string.IsNullOrWhiteSpace(detail) ? character.Name.Trim() : $"{character.Name.Trim()} — {detail.Trim()}");
-        }
-
-        return cast;
-    }
 
     private Dictionary<string, string> ProjectFields() => new()
     {
@@ -225,8 +159,6 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         ["PointOfView"] = PointOfView,
         ["Tense"] = Tense,
         ["Rating"] = Rating,
-        ["Premise"] = Premise,
-        ["Direction"] = Direction,
     };
 
     public void ApplyGenerated(IReadOnlyDictionary<string, string> fields)
@@ -252,17 +184,11 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             case "WorldBody":
                 WorldBody = text;
                 break;
-            case "Premise":
-                Premise = text;
-                break;
             case "Genre":
                 Genre = FirstLine(text);
                 break;
             case "Tone":
                 Tone = FirstLine(text);
-                break;
-            case "Direction":
-                Direction = FirstLine(text);
                 break;
             case "Style":
                 Style = text;
@@ -277,10 +203,10 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
                 Rating = FirstLine(text);
                 break;
             case "TimeAndPlace":
-                WorldStateTimeAndPlace = FirstLine(text);
+                InitialStateTimeAndPlace = FirstLine(text);
                 break;
             case "Description":
-                WorldStateDescription = text;
+                InitialStateDescription = text;
                 break;
         }
     }
@@ -297,20 +223,8 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             PointOfView,
             Tense,
             Rating,
-            Premise,
-            Direction,
-            WorldStateTimeAndPlace,
-            WorldStateDescription,
-            [.. Characters.Select(character => new CharacterSnapshot(
-                character.Id,
-                character.Name,
-                character.Role,
-                character.Age,
-                character.Description,
-                character.Personality,
-                character.Background,
-                character.Goals,
-                character.Traits))],
+            InitialStateTimeAndPlace,
+            InitialStateDescription,
             [.. Knowledge.Select(entry => new KnowledgeSnapshot(entry.Id, entry.Kind, entry.Title, entry.Tags, entry.Content))],
             [.. SelectedLanguageCodes]);
 
@@ -334,12 +248,9 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         PointOfView = snapshot.PointOfView;
         Tense = snapshot.Tense;
         Rating = snapshot.Rating;
-        Premise = snapshot.Premise;
-        Direction = snapshot.Direction;
-        WorldStateTimeAndPlace = snapshot.WorldStateTimeAndPlace;
-        WorldStateDescription = snapshot.WorldStateDescription;
+        InitialStateTimeAndPlace = snapshot.InitialStateTimeAndPlace;
+        InitialStateDescription = snapshot.InitialStateDescription;
 
-        ReplaceCharacters(snapshot.Characters);
         ReplaceKnowledge(snapshot.Knowledge);
 
         foreach (var selection in LanguageSelections)
@@ -365,25 +276,6 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         }
     }
 
-    private void ReplaceCharacters(IReadOnlyList<CharacterSnapshot> values)
-    {
-        Characters.Clear();
-        SelectedCharacter = null;
-        foreach (var value in values)
-        {
-            Characters.Add(new CharacterEditorViewModel(
-                value.Id,
-                value.Name,
-                value.Role,
-                value.Age,
-                value.Description,
-                value.Personality,
-                value.Background,
-                value.Goals,
-                value.Traits));
-        }
-    }
-
     public void AddKnowledge(KnowledgeEntryEditorViewModel entry)
     {
         Knowledge.Add(entry);
@@ -391,11 +283,20 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         Commit();
     }
 
+    public IReadOnlyList<string> KnowledgeTitles =>
+        [.. Knowledge.Select(entry => entry.Title.Trim()).Where(title => title.Length > 0)];
+
     public void AddKnowledgeRange(IEnumerable<KnowledgeEntryEditorViewModel> entries)
     {
+        var existing = new HashSet<string>(KnowledgeTitles, StringComparer.OrdinalIgnoreCase);
         var added = false;
         foreach (var entry in entries)
         {
+            if (!string.IsNullOrWhiteSpace(entry.Title) && !existing.Add(entry.Title.Trim()))
+            {
+                continue;
+            }
+
             Knowledge.Add(entry);
             added = true;
         }
@@ -410,6 +311,9 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
     public Task<IReadOnlyList<KnowledgeEntry>> ExtractKnowledgeAsync(string content, string brief, IProgress<KnowledgeImportProgress>? progress, CancellationToken cancellationToken) =>
         _importer.ExtractAsync(new KnowledgeImportRequest(content, brief), progress, cancellationToken);
 
+    public Task<IReadOnlyList<KnowledgeEntry>> DesignKnowledgeAsync(string description, string brief, IProgress<KnowledgeImportProgress>? progress, CancellationToken cancellationToken) =>
+        _importer.ExtractAsync(new KnowledgeImportRequest(description, brief, Mode: KnowledgeImportMode.Design), progress, cancellationToken);
+
     public KnowledgeImportPlan PlanKnowledgeImport(string content) => _importer.Plan(content);
 
     public Task<IReadOnlyList<ReviewFinding>> RunReviewAsync(string brief, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken) =>
@@ -419,7 +323,6 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
 
     public string? SingleReference(GenerationTarget target) => target switch
     {
-        GenerationTarget.Character => Single(Characters.Select(character => character.Name.Trim()).Where(name => name.Length > 0)),
         GenerationTarget.Knowledge => Single(Knowledge.Select(entry => entry.Title.Trim()).Where(title => title.Length > 0)),
         _ => null,
     };
@@ -430,27 +333,10 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         return found.Count == 1 ? found[0] : null;
     }
 
-    public IReadOnlyList<ReviewFixTarget> FixTargets()
-    {
-        var targets = new List<ReviewFixTarget>
-        {
-            new(GenerationTarget.ProjectName, string.Empty, "Book name"),
-            new(GenerationTarget.World, string.Empty, "World"),
-            new(GenerationTarget.Frame, string.Empty, "Frame"),
-            new(GenerationTarget.WorldState, string.Empty, "World state"),
-        };
-
-        targets.AddRange(Characters
-            .Where(character => !string.IsNullOrWhiteSpace(character.Name))
-            .Select(character => new ReviewFixTarget(GenerationTarget.Character, character.Name.Trim(), $"Character: {character.Name.Trim()}")));
-
-        targets.AddRange(Knowledge
+    public IReadOnlyList<ReviewFixTarget> FixTargets() =>
+        [.. Knowledge
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Title))
-            .Select(entry => new ReviewFixTarget(GenerationTarget.Knowledge, entry.Title.Trim(), $"Knowledge: {entry.Title.Trim()}")));
-
-        return targets;
-    }
-
+            .Select(entry => new ReviewFixTarget(GenerationTarget.Knowledge, entry.Title.Trim(), $"Knowledge: {entry.Title.Trim()}"))];
 
     public void ApplyFix(ReviewFix fix, string label)
     {
@@ -492,79 +378,22 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             return false;
         }
 
-        var field = spec.Field;
-        switch (edit.Target)
+        if (edit.Target != GenerationTarget.Knowledge)
         {
-            case GenerationTarget.Character:
-                {
-                    var character = FindCharacter(edit.Reference);
-                    if (character is null || !character.ToFields().TryGetValue(field, out var characterValue))
-                    {
-                        return false;
-                    }
-
-                    current = characterValue!;
-                    label = $"{character.Name} · {spec.Label}";
-                    set = value => character.ApplyFields(new Dictionary<string, string> { [field] = value });
-                    return true;
-                }
-
-            case GenerationTarget.Knowledge:
-                {
-                    var entry = FindKnowledge(edit.Reference);
-                    if (entry is null || !entry.ToFields().TryGetValue(field, out var entryValue))
-                    {
-                        return false;
-                    }
-
-                    current = entryValue!;
-                    label = $"{entry.Title} · {spec.Label}";
-                    set = value => entry.ApplyFields(new Dictionary<string, string> { [field] = value });
-                    return true;
-                }
-
-            default:
-                {
-                    if (!TryGetSingletonField(field, out var singletonValue))
-                    {
-                        return false;
-                    }
-
-                    current = singletonValue;
-                    label = spec.Label;
-                    set = value => ApplyField(field, value);
-                    return true;
-                }
+            return false;
         }
-    }
 
-    private bool TryGetSingletonField(string field, out string value)
-    {
-        value = field switch
+        var entry = FindKnowledge(edit.Reference);
+        if (entry is null || !entry.ToFields().TryGetValue(edit.Field, out var entryValue))
         {
-            "ProjectName" => ProjectName,
-            "WorldTitle" => WorldTitle,
-            "WorldBody" => WorldBody,
-            "Premise" => Premise,
-            "Genre" => Genre,
-            "Tone" => Tone,
-            "Style" => Style,
-            "PointOfView" => PointOfView,
-            "Tense" => Tense,
-            "Rating" => Rating,
-            "Direction" => Direction,
-            "TimeAndPlace" => WorldStateTimeAndPlace,
-            "Description" => WorldStateDescription,
-            _ => string.Empty,
-        };
+            return false;
+        }
 
-        return _singletonFields.Contains(field);
+        current = entryValue!;
+        label = $"{entry.Title} · {spec.Label}";
+        set = value => entry.ApplyFields(new Dictionary<string, string> { [edit.Field] = value });
+        return true;
     }
-
-    private CharacterEditorViewModel? FindCharacter(string reference) =>
-        string.IsNullOrWhiteSpace(reference)
-            ? null
-            : Characters.FirstOrDefault(character => string.Equals(character.Name.Trim(), reference.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private KnowledgeEntryEditorViewModel? FindKnowledge(string reference) =>
         string.IsNullOrWhiteSpace(reference)
@@ -588,37 +417,12 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         Commit();
     }
 
-    public void AddCharacter(CharacterEditorViewModel character)
-    {
-        Characters.Add(character);
-        SelectedCharacter = character;
-        Commit();
-    }
-
-    public void ApplyCharacterEdit(CharacterEditorViewModel target, CharacterEditorViewModel draft)
-    {
-        target.CopyFrom(draft);
-        Commit();
-    }
-
-    public void RemoveCharacter(CharacterEditorViewModel character)
-    {
-        Characters.Remove(character);
-        if (ReferenceEquals(SelectedCharacter, character))
-        {
-            SelectedCharacter = null;
-        }
-
-        Commit();
-    }
-
     public static GenerationTarget MapTarget(string tag) => tag switch
     {
         "ProjectName" => GenerationTarget.ProjectName,
         "World" => GenerationTarget.World,
-        "Frame" => GenerationTarget.Frame,
-        "Premise" => GenerationTarget.Premise,
-        "WorldState" => GenerationTarget.WorldState,
+        "InitialWorldState" => GenerationTarget.InitialWorldState,
+        "Knowledge" => GenerationTarget.Knowledge,
         _ => GenerationTarget.World,
     };
 
@@ -638,24 +442,10 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         string PointOfView,
         string Tense,
         string Rating,
-        string Premise,
-        string Direction,
-        string WorldStateTimeAndPlace,
-        string WorldStateDescription,
-        List<CharacterSnapshot> Characters,
+        string InitialStateTimeAndPlace,
+        string InitialStateDescription,
         List<KnowledgeSnapshot> Knowledge,
         List<string> Languages);
 
     private sealed record KnowledgeSnapshot(Guid Id, KnowledgeKind Kind, string Title, string Tags, string Content);
-
-    private sealed record CharacterSnapshot(
-        Guid Id,
-        string Name,
-        string Role,
-        string Age,
-        string Description,
-        string Personality,
-        string Background,
-        string Goals,
-        string Traits);
 }

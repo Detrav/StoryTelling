@@ -6,30 +6,19 @@
 
     <ScrollViewer>
         <StackPanel Margin="14" Spacing="8">
+            <Button Content="Generate with AI"
+                    Click="OnGenerateClick"
+                    HorizontalAlignment="Left" />
+
             <TextBlock Text="Title" Opacity="0.7" />
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding Title}" LostFocus="OnCommit" />
-                <Button Grid.Column="1"
-                        Content="Generate with AI"
-                        Tag="Title"
-                        Click="OnGenerateClick"
-                        Margin="8,0,0,0" />
-            </Grid>
+            <TextBox Text="{Binding Title}" LostFocus="OnCommit" />
 
             <TextBlock Text="Direction — what should happen in this chapter" Opacity="0.7" />
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding Direction}"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         Height="100"
-                         LostFocus="OnCommit" />
-                <Button Grid.Column="1"
-                        Content="Generate with AI"
-                        Tag="Direction"
-                        Click="OnGenerateClick"
-                        Margin="8,0,0,0"
-                        VerticalAlignment="Top" />
-            </Grid>
+            <TextBox Text="{Binding Direction}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Height="100"
+                     LostFocus="OnCommit" />
 
             <TextBlock Text="Notes / instructions" Opacity="0.7" />
             <TextBox Text="{Binding Notes}"

@@ -29,8 +29,7 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 
 ## Layers
 
-- **Domain** — pure data: `Project`, `StoryFrame`, `WorldLore`, `Character`, `KnowledgeEntry`,
-  `WorldState`, `Chapter`.
+- **Domain** — pure data: `Project`, `World`, `KnowledgeEntry`, `WorldState`, `Chapter`.
 - **Application** — behaviour: prompt building, pipeline orchestration, retrieval, validation.
   Declares the interfaces implemented by `Infrastructure`.
 - **Infrastructure** — external concerns: JSON project persistence, the HTTP LLM client,
@@ -44,12 +43,13 @@ Implemented:
 - `ILlmClient` — `CompleteAsync`, `StreamAsync`, `CompleteStructuredAsync<T>` (JSON schema),
   `CompleteWithToolsAsync` (tool calling), `CheckStructuredOutputAsync` (capability probe).
 - `IGenerationAssistant` — field options for the *Generate with AI* wizard (small seed + tool loop).
-- `IProjectReviewAssistant` — reviews the project for lore/consistency problems (tool-backed),
-  returning findings (severity, area, title, detail, suggestion). A finding may carry an optional
-  structured `fix` (validated `ReviewEdit`s: target, reference, field, value) so it can be applied
-  against the in-progress setup after a diff preview; otherwise the UI falls back to *Fix with AI…*.
+- `IProjectReviewAssistant` — reviews the **knowledge base** for inconsistencies and gaps
+  (tool-backed), returning findings (severity, area, title, detail, suggestion). A finding may
+  carry an optional structured `fix` (validated `ReviewEdit`s: target, reference, field, value) so
+  it can be applied against the in-progress setup after a diff preview; otherwise the UI falls back
+  to *Fix with AI…*.
 - `IKnowledgeImporter` — turns imported Markdown into typed `KnowledgeEntry` records via the LLM.
-- `StoryQuery` — read facade over a `Project` (frame, cast, state, loglines, knowledge).
+- `StoryQuery` — read facade over a `Project` (world, cast, initial state, loglines, knowledge).
 - `IKnowledgeRetriever` / `Bm25KnowledgeRetriever` — BM25 over chunked `KnowledgeEntry` content.
 - `StoryToolset` / `ToolAgent` — declarative read-only tools for the model + the bounded gather loop.
 - `IProjectRepository` — load/save `*.story.json`.
@@ -91,21 +91,22 @@ Planned (not yet implemented):
   connection* runs both a chat ping and this probe and warns when structured output is missing.
   Typed operations (e.g. world-state updates) will require the probe to succeed.
 - **Generate with AI** — generation is group-based and **tool-backed**. A `GenerationTarget`
-  defines the fields and their JSON-schema names (e.g. `World` = title + body,
-  `Character` = name/role/age/…). `GenerationAssistant` seeds the model with a small context —
-  the target's own values as a "current draft", the other filled fields as fixed constraints, the
-  cast (name + role), a knowledge-base manifest and the world state — and instructs the model to
-  consult the project with the tools first. It then runs a `ToolAgent` loop: the model pulls what
-  it needs through the read-only `StoryToolset` (`characters`, `character`, `world_state`,
-  `list_entries`, `get_entry`, `search_knowledge`, `recent_loglines`), bounded by
-  `AppSettings.MaxToolCalls`; identical calls are served from a cache, and accumulated tool output
-  is bounded (excess is truncated, then reported as exhausted). A final `CompleteJsonAsync` with a
-  `json_schema` fixes the item shape and `minItems`/`maxItems` to the requested variant count.
-  The tools read a `Project` snapshot built from the dialog's current values, so the knowledge
-  base and every other setting participate. `AiWizardViewModel` shows the stage and the tool-call
-  count (kept after success, e.g. "1 options · 6 tool calls"), caches the gathered context between
-  *More options* (per `GenerationSession`), and supports *Stop* / cancel-on-close. Reused in the
-  setup dialog and the character dialog; single-field targets allow a free-text override.
+  defines the fields and their JSON-schema names (e.g. `World` = title + body + genre/tone/style/
+  POV/tense/rating, `Knowledge` = kind/title/tags/content). `GenerationAssistant` seeds the model
+  with a small context — the target's own values as a "current draft", the other filled fields as
+  fixed constraints, a knowledge-base manifest (including the character entries) and the initial
+  world state — and instructs the model to consult the project with the tools first. It then runs a
+  `ToolAgent` loop: the model pulls what it needs through the read-only `StoryToolset`
+  (`characters`, `character`, `initial_world_state`, `list_entries`, `get_entry`,
+  `search_knowledge`, `recent_loglines`), bounded by `AppSettings.MaxToolCalls`; identical calls
+  are served from a cache, and accumulated tool output is bounded (excess is truncated, then
+  reported as exhausted). A final `CompleteJsonAsync` with a `json_schema` fixes the item shape and
+  `minItems`/`maxItems` to the requested variant count. The tools read a `Project` snapshot built
+  from the dialog's current values, so the knowledge base and every other setting participate.
+  `AiWizardViewModel` shows the stage and the tool-call count (kept after success, e.g.
+  "1 options · 6 tool calls"), caches the gathered context between *More options* (per
+  `GenerationSession`), and supports *Stop* / cancel-on-close. Reused in the setup dialog and the
+  knowledge-entry dialog; single-field targets allow a free-text override.
 - **Undo / redo** — `IUndoRedoService` keeps the current state (the project as JSON) plus a
   list of line diffs (like git) computed with DiffPlex. `Push(name)` is called after an
   explicit action; if nothing changed no entry is added. Before an undo/redo a safety snapshot

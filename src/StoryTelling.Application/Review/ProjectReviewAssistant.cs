@@ -12,6 +12,8 @@ namespace StoryTelling.Application.Review;
 
 public sealed class ProjectReviewAssistant : IProjectReviewAssistant
 {
+    private const double DeterministicTemperature = 0.2;
+
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -35,7 +37,7 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
         {
             Model = settings.Model,
             Messages = seed,
-            Temperature = settings.Temperature,
+            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
             MaxTokens = settings.MaxTokens,
         };
 

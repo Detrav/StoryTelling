@@ -9,20 +9,32 @@ namespace StoryTelling.ViewModels;
 
 public partial class KnowledgeImportViewModel : ViewModelBase
 {
-    public delegate Task<IReadOnlyList<KnowledgeEntry>> Extract(string brief, IProgress<KnowledgeImportProgress>? progress, CancellationToken cancellationToken);
+    public delegate Task<IReadOnlyList<KnowledgeEntry>> Extract(string source, string brief, IProgress<KnowledgeImportProgress>? progress, CancellationToken cancellationToken);
 
     private readonly Extract _extract;
+    private readonly HashSet<string> _existingTitles;
     private CancellationTokenSource? _cts;
 
-    public KnowledgeImportViewModel(Extract extract)
+    public KnowledgeImportViewModel(Extract extract, string initialSource = "", bool autoRun = true, bool showSource = false, string header = "Import knowledge", IReadOnlyList<string>? existingTitles = null)
     {
         _extract = extract;
-        Initialization = RunAsync();
+        _source = initialSource;
+        Header = header;
+        ShowSource = showSource;
+        _existingTitles = new HashSet<string>(existingTitles ?? [], StringComparer.OrdinalIgnoreCase);
+        Initialization = autoRun ? RunAsync() : Task.CompletedTask;
     }
 
     public Task Initialization { get; }
 
+    public string Header { get; }
+
+    public bool ShowSource { get; }
+
     public ObservableCollection<KnowledgeImportItemViewModel> Entries { get; } = [];
+
+    [ObservableProperty]
+    private string _source = string.Empty;
 
     [ObservableProperty]
     private string _brief = string.Empty;
@@ -51,6 +63,12 @@ public partial class KnowledgeImportViewModel : ViewModelBase
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(Source))
+        {
+            Status = "Describe what the knowledge base should contain first.";
+            return;
+        }
+
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
@@ -64,14 +82,20 @@ public partial class KnowledgeImportViewModel : ViewModelBase
 
         try
         {
-            var entries = await _extract(Brief, progress, token);
+            var entries = await _extract(Source, Brief, progress, token);
             foreach (var entry in entries)
             {
-                Entries.Add(new KnowledgeImportItemViewModel(entry));
+                var item = new KnowledgeImportItemViewModel(entry);
+                if (_existingTitles.Contains(entry.Title.Trim()))
+                {
+                    item.IsSelected = false;
+                }
+
+                Entries.Add(item);
             }
 
             Status = entries.Count == 0
-                ? "Nothing was extracted."
+                ? "Nothing was produced."
                 : $"{entries.Count} entries found — uncheck what you do not want, then Apply.";
         }
         catch (OperationCanceledException)

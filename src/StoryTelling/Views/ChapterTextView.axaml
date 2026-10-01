@@ -5,12 +5,20 @@
              x:DataType="vm:ChapterTextViewModel">
 
     <Grid RowDefinitions="Auto,*" Margin="10">
-        <Button Grid.Row="0"
-                Content="Translate with AI"
-                IsVisible="{Binding IsTranslation}"
-                Command="{Binding TranslateCommand}"
-                HorizontalAlignment="Left"
-                Margin="0,0,0,8" />
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    IsVisible="{Binding IsTranslation}"
+                    Margin="0,0,0,8">
+            <Button Content="Translate with AI" Command="{Binding TranslateCommand}" IsEnabled="{Binding !IsBusy}" />
+            <Button Content="Stop" Command="{Binding StopTranslateCommand}" IsVisible="{Binding IsBusy}" />
+            <TextBlock Text="Out of date"
+                       Foreground="#B8860B"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding IsStale}" />
+            <TextBlock Text="{Binding Status}" Opacity="0.7" VerticalAlignment="Center" />
+        </StackPanel>
         <TextBox Grid.Row="1"
                  Text="{Binding Text}"
                  AcceptsReturn="True"

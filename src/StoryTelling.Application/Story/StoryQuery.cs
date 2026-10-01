@@ -16,28 +16,28 @@ public sealed class StoryQuery
 
     public StoryOverview Story()
     {
-        var frame = _project.Frame;
+        var world = _project.World;
         return new StoryOverview(
             _project.Name,
-            frame.Genre,
-            frame.Tone,
-            frame.Style,
-            frame.PointOfView,
-            frame.Tense,
-            frame.Rating,
-            frame.Premise,
-            frame.Direction,
-            _project.Lore.Title,
-            _project.Lore.Body);
+            world.Genre,
+            world.Tone,
+            world.Style,
+            world.PointOfView,
+            world.Tense,
+            world.Rating,
+            world.Title,
+            world.Body);
     }
 
-    public IReadOnlyList<CharacterSummary> Characters() =>
-        _project.Characters.Select(character => new CharacterSummary(character.Name, character.Role)).ToList();
+    public IReadOnlyList<KnowledgeSummary> Characters() =>
+        ListEntries(KnowledgeKind.Character);
 
-    public Character? Character(string name) =>
-        _project.Characters.FirstOrDefault(character => string.Equals(character.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase));
+    public KnowledgeEntry? Character(string name) =>
+        _project.Knowledge.FirstOrDefault(entry =>
+            entry.Kind == KnowledgeKind.Character
+            && string.Equals(entry.Title, name?.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    public WorldState WorldState() => _project.WorldState;
+    public WorldState InitialWorldState() => _project.InitialWorldState;
 
     public IReadOnlyList<ChapterLogline> RecentLoglines(int count)
     {

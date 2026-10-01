@@ -9,23 +9,6 @@ namespace StoryTelling.Tests;
 public sealed class SetupViewModelTests
 {
     [Fact]
-    public void AddCharacter_And_RemoveCharacter_UpdateCollection()
-    {
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
-        var character = new CharacterEditorViewModel { Name = "Aria", Traits = "brave, quick" };
-
-        setup.AddCharacter(character);
-
-        Assert.Same(character, setup.SelectedCharacter);
-        Assert.Equal(new[] { "brave", "quick" }, character.TraitList);
-
-        setup.RemoveCharacter(character);
-
-        Assert.Empty(setup.Characters);
-        Assert.Null(setup.SelectedCharacter);
-    }
-
-    [Fact]
     public void ApplyGenerated_SetsGroupedFields()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
@@ -41,7 +24,7 @@ public sealed class SetupViewModelTests
     }
 
     [Fact]
-    public void ApplyGenerated_SetsPlotFields()
+    public void ApplyGenerated_SetsStyleFields()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
@@ -49,18 +32,14 @@ public sealed class SetupViewModelTests
         {
             ["Genre"] = "dark fantasy",
             ["Tone"] = "grim",
-            ["Premise"] = "A scout hunts the truth.",
-            ["Direction"] = "She uncovers a conspiracy.",
         });
 
         Assert.Equal("dark fantasy", setup.Genre);
         Assert.Equal("grim", setup.Tone);
-        Assert.Equal("A scout hunts the truth.", setup.Premise);
-        Assert.Equal("She uncovers a conspiracy.", setup.Direction);
     }
 
     [Fact]
-    public void ApplyGenerated_SetsWorldStateFields()
+    public void ApplyGenerated_SetsInitialWorldStateFields()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
@@ -70,8 +49,8 @@ public sealed class SetupViewModelTests
             ["Description"] = "Aria crouches in the ruins.",
         });
 
-        Assert.Equal("Dusk above the keep", setup.WorldStateTimeAndPlace);
-        Assert.Equal("Aria crouches in the ruins.", setup.WorldStateDescription);
+        Assert.Equal("Dusk above the keep", setup.InitialStateTimeAndPlace);
+        Assert.Equal("Aria crouches in the ruins.", setup.InitialStateDescription);
     }
 
     [Fact]
@@ -100,26 +79,27 @@ public sealed class SetupViewModelTests
     }
 
     [Fact]
-    public void MapTarget_MapsFrame()
+    public void AddKnowledgeRange_SkipsExistingTitles()
     {
-        Assert.Equal(GenerationTarget.Frame, SetupViewModel.MapTarget("Frame"));
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Title = "Ashen Reach" });
+
+        setup.AddKnowledgeRange(
+        [
+            new KnowledgeEntryEditorViewModel { Title = "Ashen Reach" },
+            new KnowledgeEntryEditorViewModel { Title = "Frost Keep" },
+        ]);
+
+        Assert.Equal(2, setup.Knowledge.Count);
+        Assert.Single(setup.Knowledge, entry => entry.Title == "Ashen Reach");
+        Assert.Single(setup.Knowledge, entry => entry.Title == "Frost Keep");
     }
 
     [Fact]
-    public async Task GenerateCharacterAsync_UsesCharacterTargetAndDraft()
+    public void MapTarget_MapsWorldAndInitialState()
     {
-        var assistant = new FakeGenerationAssistant();
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant, new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
-        var character = new CharacterEditorViewModel { Name = "Aria", Role = "protagonist" };
-
-        await setup.GenerateCharacterAsync(character, "brisk", 1, new GenerationSession(), null, CancellationToken.None);
-
-        Assert.NotNull(assistant.LastRequest);
-        Assert.Equal(GenerationTarget.Character, assistant.LastRequest!.Target);
-        Assert.Equal("Aria", assistant.LastRequest.Context.Fields["Name"]);
-        Assert.Equal("brisk", assistant.LastRequest.Brief);
-        Assert.Equal(1, assistant.LastRequest.Variants);
-        Assert.NotNull(assistant.LastRequest.Snapshot);
+        Assert.Equal(GenerationTarget.World, SetupViewModel.MapTarget("World"));
+        Assert.Equal(GenerationTarget.InitialWorldState, SetupViewModel.MapTarget("InitialWorldState"));
     }
 
     [Fact]
@@ -134,6 +114,7 @@ public sealed class SetupViewModelTests
             Tags = "region",
             Content = "A frozen frontier.",
         };
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Title = "Frost Keep" });
 
         await setup.GenerateKnowledgeAsync(entry, "brisk", 1, new GenerationSession(), null, CancellationToken.None);
 
@@ -142,6 +123,8 @@ public sealed class SetupViewModelTests
         Assert.Equal("Place", assistant.LastRequest.Context.Fields["Kind"]);
         Assert.Equal("Ashen Reach", assistant.LastRequest.Context.Fields["Title"]);
         Assert.Equal("brisk", assistant.LastRequest.Brief);
+        Assert.Contains("Frost Keep", assistant.LastRequest.Avoid);
+        Assert.DoesNotContain("Ashen Reach", assistant.LastRequest.Avoid);
         Assert.NotNull(assistant.LastRequest.Snapshot);
     }
 
@@ -158,75 +141,49 @@ public sealed class SetupViewModelTests
     }
 
     [Fact]
-    public async Task GenerateCharacterAsync_ExcludesCurrentAndIncludesOthers()
-    {
-        var assistant = new FakeGenerationAssistant();
-        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant, new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
-        var aria = new CharacterEditorViewModel { Name = "Aria", Role = "protagonist" };
-        var bran = new CharacterEditorViewModel { Name = "Bran", Role = "smith" };
-        setup.AddCharacter(aria);
-        setup.AddCharacter(bran);
-
-        await setup.GenerateCharacterAsync(aria, "brief", 2, new GenerationSession(), null, CancellationToken.None);
-
-        var cast = assistant.LastRequest!.Context.Cast;
-        Assert.Contains(cast, entry => entry.Contains("Bran"));
-        Assert.DoesNotContain(cast, entry => entry.Contains("Aria"));
-    }
-
-    [Fact]
     public void PreviewFix_ResolvesKnownEditsAndSkipsUnknown()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
-        var aria = new CharacterEditorViewModel { Name = "Aria", Role = "protagonist" };
-        setup.AddCharacter(aria);
         var entry = new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "old" };
         setup.AddKnowledge(entry);
 
         var fix = new ReviewFix(
         [
-            new ReviewEdit(GenerationTarget.Frame, string.Empty, "Tone", "hopeful"),
-            new ReviewEdit(GenerationTarget.Character, "Aria", "Age", "20"),
+            new ReviewEdit(GenerationTarget.World, string.Empty, "Tone", "hopeful"),
             new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new"),
-            new ReviewEdit(GenerationTarget.Character, "Missing", "Age", "99"),
+            new ReviewEdit(GenerationTarget.Knowledge, "Missing", "Content", "99"),
         ]);
 
         var changes = setup.PreviewFix(fix);
 
-        Assert.Equal(3, changes.Count);
-        Assert.Contains(changes, change => change.Label == "Tone");
-        Assert.Contains(changes, change => change.Label == "Aria · Age" && change.NewValue == "20");
-        Assert.Contains(changes, change => change.Label == "Ashen Reach · Content");
+        var change = Assert.Single(changes);
+        Assert.Equal("Ashen Reach · Content", change.Label);
+        Assert.Equal("new", change.NewValue);
     }
 
     [Fact]
-    public void ApplyFix_WritesValuesForSingletonAndCharacter()
+    public void ApplyFix_WritesKnowledgeValue()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
-        var aria = new CharacterEditorViewModel { Name = "Aria" };
-        setup.AddCharacter(aria);
+        var entry = new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "old" };
+        setup.AddKnowledge(entry);
 
         setup.ApplyFix(new ReviewFix(
         [
-            new ReviewEdit(GenerationTarget.Frame, string.Empty, "Tone", "hopeful"),
-            new ReviewEdit(GenerationTarget.Character, "Aria", "Age", "20"),
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new"),
         ]), "Fix: test");
 
-        Assert.Equal("hopeful", setup.Tone);
-        Assert.Equal("20", aria.Age);
+        Assert.Equal("new", entry.Content);
     }
 
     [Fact]
-    public void FixTargets_IncludesSingletonsAndNamedEntities()
+    public void FixTargets_IncludesKnowledgeEntries()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
-        setup.AddCharacter(new CharacterEditorViewModel { Name = "Aria" });
         setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach" });
 
         var targets = setup.FixTargets();
 
-        Assert.Contains(targets, target => target.Target == GenerationTarget.World);
-        Assert.Contains(targets, target => target.Target == GenerationTarget.Character && target.Reference == "Aria");
         Assert.Contains(targets, target => target.Target == GenerationTarget.Knowledge && target.Reference == "Ashen Reach");
     }
 
@@ -235,12 +192,12 @@ public sealed class SetupViewModelTests
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
-        Assert.Null(setup.SingleReference(GenerationTarget.Character));
+        Assert.Null(setup.SingleReference(GenerationTarget.Knowledge));
 
-        setup.AddCharacter(new CharacterEditorViewModel { Name = "Aria" });
-        Assert.Equal("Aria", setup.SingleReference(GenerationTarget.Character));
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Title = "Ashen Reach" });
+        Assert.Equal("Ashen Reach", setup.SingleReference(GenerationTarget.Knowledge));
 
-        setup.AddCharacter(new CharacterEditorViewModel { Name = "Bran" });
-        Assert.Null(setup.SingleReference(GenerationTarget.Character));
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Title = "Frost Keep" });
+        Assert.Null(setup.SingleReference(GenerationTarget.Knowledge));
     }
 }

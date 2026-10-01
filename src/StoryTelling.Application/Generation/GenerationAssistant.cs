@@ -50,23 +50,69 @@ public sealed class GenerationAssistant : IGenerationAssistant
                 .CompleteJsonAsync(connection, finalRequest, GenerationTargets.SchemaName(request.Target), schema, cancellationToken)
                 .ConfigureAwait(false);
 
-            var options = ParseOptions(content, request.Target);
+            var parsed = ParseOptions(content, request.Target);
+            var options = FilterDistinct(parsed, request.Avoid);
             if (options.Count > 0 || attempt >= MaxStructuredAttempts)
             {
                 return options;
             }
 
             progress?.Report(new GenerationProgress($"Retrying ({attempt})", session?.ToolCalls ?? 0));
+            var reminder = parsed.Count > 0
+                ? "Every option reused a name that is already taken or duplicated another option. Reply again with fresh options that use new, distinct names and none from the forbidden list."
+                : "That reply was not valid JSON matching the schema. Reply again with ONLY the JSON and nothing else.";
             finalRequest = finalRequest with
             {
                 Messages =
                 [
                     .. finalRequest.Messages,
                     LlmMessage.Assistant(content),
-                    LlmMessage.User("That reply was not valid JSON matching the schema. Reply again with ONLY the JSON and nothing else."),
+                    LlmMessage.User(reminder),
                 ],
             };
         }
+    }
+
+    private static IReadOnlyList<GenerationOption> FilterDistinct(IReadOnlyList<GenerationOption> options, IReadOnlyList<string> avoid)
+    {
+        if (options.Count == 0)
+        {
+            return options;
+        }
+
+        var forbidden = new HashSet<string>(
+            avoid.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<GenerationOption>();
+
+        foreach (var option in options)
+        {
+            if (OptionKey(option.Fields) is not { } key)
+            {
+                result.Add(option);
+                continue;
+            }
+
+            if (forbidden.Contains(key) || !seen.Add(key))
+            {
+                continue;
+            }
+
+            result.Add(option);
+        }
+
+        return result;
+    }
+
+    private static string? OptionKey(IReadOnlyDictionary<string, string> fields)
+    {
+        if (fields.TryGetValue("Title", out var title) && !string.IsNullOrWhiteSpace(title))
+        {
+            return title.Trim();
+        }
+
+        return fields.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name.Trim() : null;
     }
 
     private async Task<IReadOnlyList<LlmMessage>> GatherAsync(
@@ -123,7 +169,7 @@ public sealed class GenerationAssistant : IGenerationAssistant
     private static IReadOnlyList<GenerationOption> ParseOptions(string content, GenerationTarget target)
     {
         var specs = GenerationTargets.Fields(target);
-        var text = StripCodeFence(content.Trim());
+        var text = GeneratedText.StripCodeFence(content.Trim());
         var fromJson = TryParseJson(text, specs);
         if (fromJson.Count > 0)
         {
@@ -230,13 +276,13 @@ public sealed class GenerationAssistant : IGenerationAssistant
                     continue;
                 }
 
-                var text = Clean(item.GetString());
+                var text = GeneratedText.Clean(item.GetString());
                 if (text is null)
                 {
                     continue;
                 }
 
-                if (IsImplausible(text))
+                if (!GeneratedText.IsPlausible(text))
                 {
                     implausible = true;
                     return null;
@@ -253,40 +299,18 @@ public sealed class GenerationAssistant : IGenerationAssistant
             return null;
         }
 
-        var scalar = Clean(value.GetString());
+        var scalar = GeneratedText.Clean(value.GetString());
         if (scalar is null)
         {
             return null;
         }
 
-        if (IsImplausible(scalar))
+        if (!GeneratedText.IsPlausible(scalar))
         {
             implausible = true;
             return null;
         }
 
         return scalar;
-    }
-
-    private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-
-    private static bool IsImplausible(string text) => text.Any(character => character is '{' or '}' or '[' or ']');
-
-    private static string StripCodeFence(string text)
-    {
-        if (!text.StartsWith("```", StringComparison.Ordinal))
-        {
-            return text;
-        }
-
-        var firstBreak = text.IndexOf('\n');
-        if (firstBreak < 0)
-        {
-            return text;
-        }
-
-        var body = text[(firstBreak + 1)..];
-        var closing = body.LastIndexOf("```", StringComparison.Ordinal);
-        return (closing < 0 ? body : body[..closing]).Trim();
     }
 }
