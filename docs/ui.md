@@ -10,12 +10,12 @@ StoryTelling` (the leading `*` appears while there are unsaved changes).
 
 ## Menu
 
-- **File** — New project, Open project…, Save, Save as…, Project setup…, Settings…, Close
-  project, Exit.
+- **File** — New project, Open project…, Save, Save as…, Export FB2…, Project setup…, Settings…,
+  Close project, Exit.
 - **Edit** — Undo, Redo, Cut, Copy, Paste (placeholders).
 - **View** — Show chapter list (toggle the sidebar).
-- **Chapter** — Generate chapter, Regenerate, Stop, Add chapter, Delete chapter, Move up,
-  Move down.
+- **Chapter** — Generate chapter, Complete book…, Finish story, Regenerate, Stop, Add chapter,
+  Delete chapter, Move up, Move down.
 - **Help** — About.
 
 Every chapter action is available both from the toolbar and from the **Chapter** menu.
@@ -41,13 +41,22 @@ Every chapter action is available both from the toolbar and from the **Chapter**
 
 - **Sidebar** — the list of chapters is always visible (unless toggled off in *View*). The
   chapter list **is** the outline; there is no separate outline section.
-  - `+` adds a chapter; a right-click context menu offers Delete / Move up / Move down.
+  - `+` adds a chapter; right-clicking anywhere on a row opens a context menu with Delete /
+    Move up / Move down and a *Status* submenu. The three statuses the engine uses are offered with
+    their meaning spelled out: *Draft — not written*, *Generated — up to date* and
+    *Stale — needs regeneration*; the current one is checked. Setting a status by hand never
+    regenerates, never touches translations and never cascades — it is how the author clears a
+    *Stale* the AI set (for example on a later chapter after an earlier one was edited) once the
+    text has been checked. The status line in the list also carries a tooltip with the same
+    explanation.
 - **Toolbar** — icon buttons for Generate (`▶`), Regenerate (`↻`), Finish (`Finish`), Plan chapters
-  (`≡`), Translate (`⇄`) and Stop (`■`), with tooltips. *Plan chapters* opens a dialog where the
+  (`≡`), Translate (`⇄`), *Complete book* (`Complete book`) and Stop (`■`), with tooltips.
+  *Plan chapters* opens a dialog where the
   author sets the chapter count and an optional brief; the AI proposes that many chapter
   titles + directions forming a complete arc, and *Apply* replaces the chapter list (with a
   confirmation when chapters already contain written text). *Finish* appends a final chapter and
   plans its title + direction as the story's resolution (no cliffhanger); review it, then Generate.
+  *Complete book* runs every outstanding AI task across the book (see below).
 - **Editor tabs** — built per chapter:
   - *Chapter (EN)* — the original text.
   - *Chapter (XX)* — one tab per project target language, each with a *Translate with AI* button
@@ -118,6 +127,36 @@ Not a persistent chat. Invoked from a *Generate with AI* button; a modal wizard 
 - a *Your edits* box overrides the selection;
 - *Apply* fills the target field.
 
+## Export FB2 (dialog)
+
+*File → Export FB2…* opens a dialog listing the languages: **English (original)** plus every project
+target language, each with its coverage (`N/M translated`). Pick a language and *Export*; a save
+picker asks for the `.fb2` path. If some chapters are not translated to the chosen language, a
+warning says how many will fall back to the English text, and the export can continue. The book is
+written as FictionBook 2.0 (title, annotation from the world description, one section per chapter,
+paragraphs), using the original text, the translations, or the original as a fallback.
+
+## Complete book (dialog)
+
+The toolbar's **Complete book** button (also *Chapter → Complete book…*) opens a modal dialog that
+walks the whole book in reading order and performs every outstanding AI operation:
+
+- **writes** every chapter that is empty or out of date, including chapters that a previous
+  chapter's rewrite made stale;
+- **summarizes** any chapter that has text but no logline / world state yet;
+- **translates** every chapter into each target language whose translation is missing or out of
+  date.
+
+The dialog lists **every planned operation up front** and walks it in reading order, marking each
+row as it goes: `○` pending, `▶` running (with the current stage, e.g. tool calls), `✓` done,
+`⚠` skipped (with the reason) and `✗` failed. Above the list a determinate progress bar shows
+`completed / total` operations, and the status line names the operation in progress. The workspace
+behind the dialog updates live. Adding a target language therefore triggers a full set of
+translations, an empty plan is written out, and a setup change refreshes the stale chapters.
+**Cancel** stops the run and closes the dialog; running *Complete book* again resumes from whatever
+is still missing. A chapter whose required fields are not filled in is skipped and the row says
+what to fill in.
+
 ## Settings (dialog)
 
 A separate modal window, split into tabs:
@@ -130,6 +169,14 @@ A separate modal window, split into tabs:
 
 ## Status
 
-Project setup, per-field *Generate with AI* (options), settings, persistence and undo/redo are
-implemented. The chapter pipeline (writer / editor / summarizer), the knowledge base and the
-model-driven context tools are described in `design.md` and are the next stages.
+All core stages are implemented: project setup (World / Knowledge / Initial world state /
+Languages, each AI-assisted), the knowledge base (add / edit / import Markdown / design from a
+prompt / AI review with structured fixes), chapter planning (*Plan chapters*, *Finish*), the chapter
+pipeline (writer → editor with change notes → summarizer producing a logline, the new world state
+and a knowledge diff), the chapter *Summary* tab (editable knowledge diff + editor notes) and
+per-language translation with out-of-date flags and wrong-script repair. A *Complete book* action
+fills in every pending chapter, summary and translation in one pass, with progress, a log and a
+Cancel button. Export to FB2 is available for the English original and every target language.
+
+Remaining work is hardening and polish (environment-variable overrides / *clear secrets*, a
+structured-output capability gate, a translation glossary, embeddings for retrieval).

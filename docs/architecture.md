@@ -29,7 +29,8 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 
 ## Layers
 
-- **Domain** — pure data: `Project`, `World`, `KnowledgeEntry`, `WorldState`, `Chapter`.
+- **Domain** — pure data: `Project`, `World`, `KnowledgeEntry`, `KnowledgeChange`, `EditorNote`,
+  `WorldState`, `Chapter`.
 - **Application** — behaviour: prompt building, pipeline orchestration, retrieval, validation.
   Declares the interfaces implemented by `Infrastructure`.
 - **Infrastructure** — external concerns: JSON project persistence, the HTTP LLM client,
@@ -38,31 +39,44 @@ interfaces). `Infrastructure` and the app project are wired together in the comp
 
 ## Key abstractions (Application)
 
-Implemented:
-
 - `ILlmClient` — `CompleteAsync`, `StreamAsync`, `CompleteStructuredAsync<T>` (JSON schema),
   `CompleteWithToolsAsync` (tool calling), `CheckStructuredOutputAsync` (capability probe).
-- `IGenerationAssistant` — field options for the *Generate with AI* wizard (small seed + tool loop).
+- `IGenerationAssistant` — options for the *Generate with AI* wizard (small seed + tool loop) for
+  the targets `World`, `ProjectName`, `Knowledge`, `InitialWorldState`, `ChapterSettings`,
+  `ChapterPlan` (whole-book arc) and `Finale` (concluding chapter). New named entries get an
+  **avoid list** of already-used titles.
 - `IProjectReviewAssistant` — reviews the **knowledge base** for inconsistencies and gaps
   (tool-backed), returning findings (severity, area, title, detail, suggestion). A finding may
   carry an optional structured `fix` (validated `ReviewEdit`s: target, reference, field, value) so
   it can be applied against the in-progress setup after a diff preview; otherwise the UI falls back
   to *Fix with AI…*.
-- `IKnowledgeImporter` — turns imported Markdown into typed `KnowledgeEntry` records via the LLM.
+- `IKnowledgeImporter` — turns imported Markdown **or a pasted prompt** into typed `KnowledgeEntry`
+  records via the LLM (`KnowledgeImportMode.Extract` / `Design`).
+- `IChapterAgent` — tool-backed writer; streams the chapter text.
+- `IChapterEditor` — tool-backed editor; returns the revised text plus structured `EditorNote`s
+  built from the local diff.
+- `IChapterSummarizer` — final text + state + knowledge → a logline, the new `WorldState` and a
+  `KnowledgeChange` diff.
+- `IChapterWorkflow` / `IChapterRunner` — orchestrate writer → editor → summarizer, persist the
+  result, mark later chapters stale and recompute from a chapter.
+- `IContextAssembler` — assembles the writer seed within a token budget (brief, frame, state →
+  optional world body, manifest).
+- `ITranslationService` — chapter translation per target language, cached in `Chapter.Translations`;
+  paragraphs that come back in the wrong script are re-translated.
+- `KnowledgeComposer` — composes the knowledge a chapter sees (project base + previous chapters'
+  diffs); the base is never mutated.
 - `StoryQuery` — read facade over a `Project` (world, cast, initial state, loglines, knowledge).
 - `IKnowledgeRetriever` / `Bm25KnowledgeRetriever` — BM25 over chunked `KnowledgeEntry` content.
 - `StoryToolset` / `ToolAgent` — declarative read-only tools for the model + the bounded gather loop.
+- `Fb2Exporter` — deterministic FictionBook 2.0 export (`System.Xml.Linq`).
 - `IProjectRepository` — load/save `*.story.json`.
 - `ISettingsService` — load/save `settings.json` (AppData).
 - `IUndoRedoService` — snapshot + text-diff history (undo/redo).
 - `ITextDiff` — produces a reversible line patch between two texts (DiffPlex).
 - `IClock` / `IGuidGenerator` — injectable time and identity for testability.
 
-Planned (not yet implemented):
-
-- `IContextAssembler` — assembles a chapter prompt within a token budget.
-- `IChapterWriter` / `IChapterEditor` / `IChapterSummarizer` / `ITranslationService` — chapter passes.
-- `IStoryGenerationService` — pipeline orchestration (single chapter + batch run).
+Not yet implemented: a structured-output capability gate on typed calls, env-var overrides / *clear
+secrets*, a translation glossary, and embeddings for retrieval.
 
 ## Application foundation
 
@@ -105,8 +119,22 @@ Planned (not yet implemented):
   from the dialog's current values, so the knowledge base and every other setting participate.
   `AiWizardViewModel` shows the stage and the tool-call count (kept after success, e.g.
   "1 options · 6 tool calls"), caches the gathered context between *More options* (per
-  `GenerationSession`), and supports *Stop* / cancel-on-close. Reused in the setup dialog and the
-  knowledge-entry dialog; single-field targets allow a free-text override.
+  `GenerationSession`), and supports *Stop* / cancel-on-close. Reused in the setup dialog, the
+  knowledge-entry dialog, the chapter Settings tab (*Generate with AI*), the chapter planner and the
+  *Finish* action; single-field targets allow a free-text override. New named entries are filtered
+  against the already-used titles (the `Cast` concept was retired — characters are knowledge
+  entries, delivered through the manifest and tools).
+- **Chapter pipeline** — `ChapterWorkflow` runs writer → editor → summarizer for one chapter;
+  `ChapterRunner` persists text, logline, world state, knowledge diff and editor notes, marks later
+  chapters stale, recomputes from a chapter, and regenerates a summary alone. The knowledge a
+  chapter sees is composed on demand (`KnowledgeComposer`). The writer and editor are both
+  tool-backed with a minimal seed; the editor also returns change notes derived from the local diff.
+  A chapter's stored summary is `Logline` + `WorldState` + `KnowledgeChanges` (no free-form recap).
+- **Translation** — `TranslationService` translates a chapter per target language (cached in
+  `Chapter.Translations`, per-language `StaleTranslations`), retries truncated output and
+  re-translates only paragraphs that come back in the wrong script.
+- **Export** — `Fb2Exporter` builds FictionBook 2.0 from the project (English or a target language,
+  falling back to English for untranslated chapters).
 - **Undo / redo** — `IUndoRedoService` keeps the current state (the project as JSON) plus a
   list of line diffs (like git) computed with DiffPlex. `Push(name)` is called after an
   explicit action; if nothing changed no entry is added. Before an undo/redo a safety snapshot

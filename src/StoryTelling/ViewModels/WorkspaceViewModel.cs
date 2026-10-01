@@ -24,6 +24,7 @@ public partial class WorkspaceViewModel : ViewModelBase
     private readonly IGenerationAssistant _assistant;
     private readonly ITranslationService _translationService;
     private CancellationTokenSource? _chapterCts;
+    private bool _suppressMutation;
 
     public WorkspaceViewModel(Project project, IClock clock, IChapterRunner chapterRunner, IGenerationAssistant assistant, ITranslationService translationService)
     {
@@ -149,6 +150,18 @@ public partial class WorkspaceViewModel : ViewModelBase
         Mutated?.Invoke("Move chapter down");
     }
 
+    public void SetChapterStatus(ChapterViewModel? chapter, ChapterStatus status)
+    {
+        if (chapter is null || chapter.Status == status)
+        {
+            return;
+        }
+
+        chapter.Status = status;
+        IsDirty = true;
+        Mutated?.Invoke($"Set status of chapter {chapter.Number}");
+    }
+
     [RelayCommand]
     private Task Generate() => WriteChapterAsync();
 
@@ -232,6 +245,155 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void Stop() => _chapterCts?.Cancel();
 
+    public IReadOnlyList<BookOperation> BuildCompletionPlan()
+    {
+        var operations = new List<BookOperation>();
+        var cascade = false;
+
+        foreach (var chapter in Chapters)
+        {
+            if (cascade || NeedsChapterWork(chapter))
+            {
+                var missing = MissingForGeneration(chapter);
+                if (missing.Count > 0)
+                {
+                    operations.Add(new BookOperation(
+                        BookOperationKind.Skip,
+                        chapter.Number,
+                        $"Chapter {chapter.Number} — skipped",
+                        SkipReason: string.Join("; ", missing)));
+                    continue;
+                }
+
+                operations.Add(new BookOperation(
+                    BookOperationKind.WriteChapter,
+                    chapter.Number,
+                    $"Write {DescribeChapter(chapter)}"));
+                cascade = true;
+
+                foreach (var translation in chapter.Translations)
+                {
+                    operations.Add(TranslateOperation(chapter, translation.LanguageCode));
+                }
+
+                continue;
+            }
+
+            if (NeedsSummary(chapter))
+            {
+                operations.Add(new BookOperation(
+                    BookOperationKind.SummarizeChapter,
+                    chapter.Number,
+                    $"Summarize {DescribeChapter(chapter)}"));
+                cascade = true;
+            }
+
+            foreach (var translation in chapter.Translations)
+            {
+                if (NeedsTranslation(chapter, translation))
+                {
+                    operations.Add(TranslateOperation(chapter, translation.LanguageCode));
+                }
+            }
+        }
+
+        return operations;
+    }
+
+    public async Task CompleteBookAsync(
+        IReadOnlyList<BookOperation> operations,
+        IProgress<BookCompletionProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        if (IsBusy)
+        {
+            progress.Report(new BookCompletionProgress(0, operations.Count, -1, string.Empty));
+            return;
+        }
+
+        IsBusy = true;
+        _suppressMutation = true;
+
+        var completed = 0;
+        void Report(int currentIndex, string stage) =>
+            progress.Report(new BookCompletionProgress(completed, operations.Count, currentIndex, stage));
+
+        try
+        {
+            for (var index = 0; index < operations.Count; index++)
+            {
+                var operation = operations[index];
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var chapter = Chapters.FirstOrDefault(candidate => candidate.Number == operation.ChapterNumber);
+                if (chapter is null || operation.Kind == BookOperationKind.Skip)
+                {
+                    completed++;
+                    Report(-1, string.Empty);
+                    continue;
+                }
+
+                if (operation.Kind == BookOperationKind.WriteChapter)
+                {
+                    var writeProgress = new Progress<GenerationProgress>(report =>
+                        Report(index, DescribeStage(report)));
+                    Report(index, "Writing…");
+                    await WriteChapterCoreAsync(chapter, writeProgress, stream: false, cancellationToken);
+                }
+                else if (operation.Kind == BookOperationKind.SummarizeChapter)
+                {
+                    var summaryProgress = new Progress<GenerationProgress>(report =>
+                        Report(index, DescribeStage(report)));
+                    Report(index, "Summarizing…");
+                    await RegenerateSummaryAsync(chapter, summaryProgress, cancellationToken);
+                }
+                else if (operation.Kind == BookOperationKind.TranslateChapter && operation.LanguageCode is { Length: > 0 } code)
+                {
+                    var translationProgress = new Progress<GenerationProgress>(report =>
+                        Report(index, DescribeStage(report)));
+                    Report(index, "Translating…");
+                    await TranslateLanguageAsync(chapter, code, translationProgress, cancellationToken);
+                }
+
+                completed++;
+                Report(-1, string.Empty);
+            }
+
+            Status = operations.Count == 0 ? "Everything is already up to date." : "Complete book finished.";
+            progress.Report(new BookCompletionProgress(completed, operations.Count, -1, string.Empty));
+        }
+        finally
+        {
+            _suppressMutation = false;
+            IsBusy = false;
+            IsDirty = true;
+            Mutated?.Invoke("Complete book");
+        }
+    }
+
+    private static string DescribeChapter(ChapterViewModel chapter) =>
+        string.IsNullOrWhiteSpace(chapter.Title)
+            ? $"chapter {chapter.Number}"
+            : $"chapter {chapter.Number} — {chapter.Title}";
+
+    private static BookOperation TranslateOperation(ChapterViewModel chapter, string languageCode) =>
+        new(
+            BookOperationKind.TranslateChapter,
+            chapter.Number,
+            $"Translate chapter {chapter.Number} ({languageCode.ToUpperInvariant()})",
+            languageCode);
+
+    private static bool NeedsChapterWork(ChapterViewModel chapter) =>
+        string.IsNullOrWhiteSpace(chapter.ContentOriginal) || chapter.Status == ChapterStatus.Stale;
+
+    private static bool NeedsSummary(ChapterViewModel chapter) =>
+        !string.IsNullOrWhiteSpace(chapter.ContentOriginal)
+        && (string.IsNullOrWhiteSpace(chapter.Logline) || chapter.WorldState is null);
+
+    private static bool NeedsTranslation(ChapterViewModel chapter, TranslationViewModel translation) =>
+        !string.IsNullOrWhiteSpace(chapter.ContentOriginal)
+        && (string.IsNullOrWhiteSpace(translation.Text) || chapter.StaleTranslations.Contains(translation.LanguageCode));
+
     private async Task WriteChapterAsync()
     {
         if (IsBusy || SelectedChapter is not { } chapter)
@@ -255,31 +417,12 @@ public partial class WorkspaceViewModel : ViewModelBase
         IsBusy = true;
         Status = "Writing…";
 
-        var editor = chapter.PrimaryTextEditor;
-        editor?.BeginStream();
-
         var progress = new Progress<GenerationProgress>(report =>
-            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…");
+            Status = ToolSuffix(report.Stage, report.ToolCalls));
 
         try
         {
-            var project = ToProject();
-            var target = project.Chapters.First(candidate => candidate.Number == chapter.Number);
-            var result = await _chapterRunner.GenerateAsync(project, target, progress, delta =>
-            {
-                Dispatcher.UIThread.Post(() => editor?.AppendStreaming(delta));
-                return Task.CompletedTask;
-            }, token);
-
-            editor?.EndStream(result.Text);
-            chapter.ContentOriginal = result.Text;
-            chapter.Logline = result.Logline;
-            chapter.WorldState = result.WorldState;
-            chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
-            chapter.EditorNotes = [.. result.EditorNotes];
-            MarkTranslationsStale(chapter);
-            chapter.Status = ChapterStatus.Generated;
-            MarkLaterStale(chapter.Number);
+            var result = await WriteChapterCoreAsync(chapter, progress, stream: true, token);
             Status = $"Chapter {chapter.Number} generated ({result.ToolCalls} tool calls).";
             Mutated?.Invoke($"Generate chapter {chapter.Number}");
         }
@@ -300,6 +443,56 @@ public partial class WorkspaceViewModel : ViewModelBase
             IsBusy = false;
         }
     }
+
+    private async Task<ChapterResult> WriteChapterCoreAsync(
+        ChapterViewModel chapter,
+        IProgress<GenerationProgress>? progress,
+        bool stream,
+        CancellationToken cancellationToken)
+    {
+        var project = ToProject();
+        var target = project.Chapters.First(candidate => candidate.Number == chapter.Number);
+        var editor = chapter.PrimaryTextEditor;
+
+        if (stream)
+        {
+            editor?.BeginStream();
+        }
+
+        var result = await _chapterRunner.GenerateAsync(
+            project,
+            target,
+            progress,
+            stream
+                ? delta =>
+                {
+                    Dispatcher.UIThread.Post(() => editor?.AppendStreaming(delta));
+                    return Task.CompletedTask;
+                }
+        : null,
+            cancellationToken);
+
+        if (stream)
+        {
+            editor?.EndStream(result.Text);
+        }
+
+        chapter.ContentOriginal = result.Text;
+        chapter.Logline = result.Logline;
+        chapter.WorldState = result.WorldState;
+        chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
+        chapter.EditorNotes = [.. result.EditorNotes];
+        MarkTranslationsStale(chapter);
+        chapter.Status = ChapterStatus.Generated;
+        MarkLaterStale(chapter.Number);
+        return result;
+    }
+
+    private static string ToolSuffix(string stage, int toolCalls) =>
+        toolCalls > 0 ? $"{stage}… ({toolCalls} tool calls)" : $"{stage}…";
+
+    private static string DescribeStage(GenerationProgress report) =>
+        report.ToolCalls > 0 ? $"{report.Stage} — {report.ToolCalls} tool calls" : report.Stage;
 
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
@@ -422,7 +615,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         chapter.KnowledgeChanges = [.. target.KnowledgeChanges];
         MarkLaterStale(chapter.Number);
         IsDirty = true;
-        Mutated?.Invoke($"Regenerate summary of chapter {chapter.Number}");
+        RaiseMutation($"Regenerate summary of chapter {chapter.Number}");
     }
 
     private async Task<string> TranslateLanguageAsync(ChapterViewModel chapter, string languageCode, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
@@ -441,8 +634,16 @@ public partial class WorkspaceViewModel : ViewModelBase
         }
 
         IsDirty = true;
-        Mutated?.Invoke($"Translate chapter {chapter.Number} ({languageCode.ToUpperInvariant()})");
+        RaiseMutation($"Translate chapter {chapter.Number} ({languageCode.ToUpperInvariant()})");
         return text;
+    }
+
+    private void RaiseMutation(string name)
+    {
+        if (!_suppressMutation)
+        {
+            Mutated?.Invoke(name);
+        }
     }
 
     private static void ApplyTranslation(ChapterViewModel chapter, TranslationViewModel translation, string text)
@@ -698,7 +899,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             {
                 MarkTranslationsStale(chapter);
                 MarkLaterStale(chapter.Number);
-                Mutated?.Invoke($"Edit chapter {chapter.Number}");
+                RaiseMutation($"Edit chapter {chapter.Number}");
             });
         chapter.PrimaryTextEditor = text;
         chapter.Tabs.Add(new ChapterTabViewModel("Chapter (EN)", text));
@@ -712,7 +913,7 @@ public partial class WorkspaceViewModel : ViewModelBase
                 captured.Text,
                 isTranslation: true,
                 value => captured.Text = value,
-                () => Mutated?.Invoke(name))
+                () => RaiseMutation(name))
             {
                 IsStale = chapter.StaleTranslations.Contains(captured.LanguageCode),
                 Translate = (progress, cancellationToken) => TranslateLanguageAsync(chapter, captured.LanguageCode, progress, cancellationToken),
@@ -723,11 +924,11 @@ public partial class WorkspaceViewModel : ViewModelBase
         var summary = new ChapterSummaryViewModel(chapter, () =>
         {
             MarkLaterStale(chapter.Number);
-            Mutated?.Invoke($"Edit summary of chapter {chapter.Number}");
+            RaiseMutation($"Edit summary of chapter {chapter.Number}");
         });
         summary.Regenerate = (progress, cancellationToken) => RegenerateSummaryAsync(chapter, progress, cancellationToken);
         chapter.Tabs.Add(new ChapterTabViewModel("Summary", summary));
-        var settings = new ChapterSettingsViewModel(chapter, () => Mutated?.Invoke($"Edit settings of chapter {chapter.Number}"));
+        var settings = new ChapterSettingsViewModel(chapter, () => RaiseMutation($"Edit settings of chapter {chapter.Number}"));
         settings.GenerateOptions = (brief, options, session, progress, cancellationToken) =>
             GenerateChapterAsync(chapter, brief, options, session, progress, cancellationToken);
         chapter.Tabs.Add(new ChapterTabViewModel("Settings", settings));

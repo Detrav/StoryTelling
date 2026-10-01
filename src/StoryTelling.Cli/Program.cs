@@ -1,4 +1,6 @@
+using System.Text;
 using StoryTelling.Application.Chapters;
+using StoryTelling.Application.Export;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Llm;
@@ -41,6 +43,7 @@ internal static class Program
                 "summarize" => await SummarizeAsync(rest, token),
                 "translate" => await TranslateAsync(rest, token),
                 "design" => await DesignAsync(rest, token),
+                "export" => await ExportAsync(rest, token),
                 "recompute" => await RecomputeAsync(rest, token),
                 "edit" => await EditAsync(rest, token),
                 "draft" => await DraftAsync(rest, token),
@@ -301,6 +304,26 @@ internal static class Program
         }
 
         await SaveAsync(project, output, cancellationToken);
+        return 0;
+    }
+
+    private static async Task<int> ExportAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    {
+        var file = ArgReader.Value(args, "--file");
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            Console.Error.WriteLine("usage: storydev export --file <path> [--language <code>] [--out <path.fb2>]");
+            return 2;
+        }
+
+        var language = ArgReader.String(args, "--language", "en");
+        var output = ArgReader.String(args, "--out", Path.ChangeExtension(file, ".fb2"));
+
+        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
+        var fb2 = Fb2Exporter.Build(project, language);
+        await File.WriteAllTextAsync(output, fb2, new UTF8Encoding(false), cancellationToken);
+
+        Console.WriteLine($"Exported ({language}) -> {Path.GetFullPath(output)}");
         return 0;
     }
 

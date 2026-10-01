@@ -25,15 +25,42 @@
                 <ListBox x:Name="ChapterList"
                          ItemsSource="{Binding Chapters}"
                          SelectedItem="{Binding SelectedChapter}">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ChapterViewModel">
-                            <Grid ColumnDefinitions="22,*">
+                            <Grid ColumnDefinitions="22,*" Background="Transparent" Margin="6,4">
                                 <Grid.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="Delete chapter" Click="OnDeleteChapterClick" />
                                         <Separator />
                                         <MenuItem Header="Move up" Click="OnMoveChapterUpClick" />
                                         <MenuItem Header="Move down" Click="OnMoveChapterDownClick" />
+                                        <Separator />
+                                        <MenuItem Header="Status">
+                                            <MenuItem Header="Draft — not written"
+                                                      ToggleType="Radio"
+                                                      GroupName="ChapterStatus"
+                                                      IsChecked="{Binding IsDraft, Mode=OneWay}"
+                                                      ToolTip.Tip="Planned but not written yet — the AI will write this chapter."
+                                                      Click="OnSetStatusDraftClick" />
+                                            <MenuItem Header="Generated — up to date"
+                                                      ToggleType="Radio"
+                                                      GroupName="ChapterStatus"
+                                                      IsChecked="{Binding IsGenerated, Mode=OneWay}"
+                                                      ToolTip.Tip="The text is current. Use this to clear Stale after an edit to an earlier chapter once you have checked that this chapter is still fine."
+                                                      Click="OnSetStatusGeneratedClick" />
+                                            <MenuItem Header="Stale — needs regeneration"
+                                                      ToggleType="Radio"
+                                                      GroupName="ChapterStatus"
+                                                      IsChecked="{Binding IsStale, Mode=OneWay}"
+                                                      ToolTip.Tip="The text is out of date because an earlier chapter or the setup changed. Regenerate it, or set it to Generated if it is still fine."
+                                                      Click="OnSetStatusStaleClick" />
+                                        </MenuItem>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
                                 <TextBlock Text="{Binding Number}" Opacity="0.6" />
@@ -41,7 +68,10 @@
                                     <TextBlock Text="{Binding Title}"
                                                FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.6" />
+                                    <TextBlock Text="{Binding StatusText}"
+                                               FontSize="11"
+                                               Opacity="0.6"
+                                               ToolTip.Tip="{Binding StatusHint}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -67,6 +97,7 @@
                         <Button Content="↻" Command="{Binding RegenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Regenerate this chapter" />
                         <Button Content="Finish" Command="{Binding FinishStoryCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan the concluding chapter" />
                         <Button Content="≡" Click="OnPlanChaptersClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan chapters with AI" />
+                        <Button Content="Complete book" Click="OnCompleteBookClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate all pending work: chapters, summaries and translations" />
                         <Button Content="⇄" Command="{Binding TranslateChapterCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate this chapter" />
                         <Button Content="■" Command="{Binding StopCommand}" IsEnabled="{Binding IsBusy}" ToolTip.Tip="Stop" />
                     </StackPanel>

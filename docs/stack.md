@@ -10,6 +10,8 @@
 | Storage | single JSON file per project, `System.Text.Json` (source-generated context) |
 | LLM | abstraction + OpenAI-compatible HTTP client (OpenAI, OpenRouter, Ollama, LM Studio, ...); streaming, JSON-schema output and tool calling |
 | Retrieval | BM25 over chunked knowledge entries (`Application`, no external service) |
+| Translation | per chapter and per target language, cached in `Chapter.Translations`; paragraphs in the wrong script are re-translated |
+| Export | FictionBook 2.0 built with `System.Xml.Linq` (`Application.Export.Fb2Exporter`) |
 | Tests | xUnit |
 | UI language | English only (story text translated separately by the AI) |
 

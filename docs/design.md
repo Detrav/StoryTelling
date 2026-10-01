@@ -1,27 +1,26 @@
-# Story engine — target design
+# Story engine — design
 
-**Status:** target design (describes the intended architecture; not all of it is built yet).
-The current implementation is described in `architecture.md`; this document is the north star for
-where the project is going.
+**Status:** the engine is implemented; this document is the reference for its direction and for
+what remains. The current implementation is also summarised in `architecture.md`.
 
-Already built (see `architecture.md`):
+Built:
 
-- `World` (static world + narrative frame) and `KnowledgeEntry` + the *Knowledge* editor and
-  Markdown AI import (phase 4).
-- `StoryQuery`, BM25 retrieval, `StoryToolset`, `ToolAgent`, LLM tool calling (phase 5).
-- The *Generate with AI* wizard is tool-backed: any setting is generated from the whole project
-  (knowledge base included) through tools.
-- *Knowledge review*: an AI consistency check of the knowledge base (non-blocking window).
-  Findings can carry a structured **fix** (field replacements) applied in one click after a diff
-  preview; **Fix with AI…** is offered on every finding — it re-generates the affected entry via
-  the tool-backed wizard.
-- Setup model simplification (phase 9): the typed form keeps only immutable facts (`World`);
-  characters and all mutable facts live in the knowledge base; `Project.WorldState` is now
-  `InitialWorldState`.
+- `World` (static setting + narrative frame) and the addressable `KnowledgeEntry` base (a character
+  is an entry with kind `Character`), the *Knowledge* editor, Markdown AI import and prompt design.
+- `StoryQuery`, BM25 retrieval, `StoryToolset`, `ToolAgent`, LLM tool calling.
+- The *Generate with AI* wizard is tool-backed (world, book name, knowledge entry, initial world
+  state, chapter settings, whole-book chapter plan, final chapter), with an avoid list for reused
+  names.
+- *Knowledge review*: an AI consistency check of the knowledge base with structured one-click fixes.
+- The chapter pipeline: writer, tool-backed editor with change notes, summarizer producing a logline,
+  the new world state and a knowledge diff; staleness and recompute; a summary can be regenerated
+  alone.
+- Chapter planning (a whole-book arc) and a *Finish* action for the concluding chapter.
+- Per-language translation (stale flags, wrong-script repair) and FB2 export.
+- Setup keeps only immutable facts (`World`); everything mutable lives in the knowledge base.
 
-Still to build:
-
-- Remaining settings hardening (env-var overrides, *clear secrets*).
+Still to build: remaining settings hardening (env-var overrides, *clear secrets*), a structured-output
+capability gate, a translation glossary, embeddings.
 
 The product is, in the end, an AI **writer** that produces a coherent multi-chapter story plus an
 AI **editor** that fixes it, backed by a **queryable knowledge base** and a set of read-only
@@ -243,11 +242,11 @@ assembler drops in priority order when over budget.
 3. **Tool calling** — *done*: LLM client `tools`/`tool_calls`, `StoryToolset` + `ToolAgent`;
    field generation is tool-backed.
 4. **Agent pipeline** — *done*: writer, editor and summarizer combined per chapter by
-   `IChapterWorkflow`; `IChapterRunner` persists text/logline/state, marks later chapters stale and
-   recomputes from a chapter. A whole-book **chapter planner** produces the chapter list up front
-   (phase 15).
-5. **Setup rework** — *done* (phase 9): the typed form keeps only immutable facts (`World`);
-   characters and mutable facts live in the knowledge base; the review is knowledge-only.
+   `IChapterWorkflow`; `IChapterRunner` persists text/logline/state/knowledge diff, marks later
+   chapters stale and recomputes from a chapter. A whole-book **chapter planner** produces the
+   chapter list up front.
+5. **Setup rework** — *done*: the typed form keeps only immutable facts (`World`); characters and
+   mutable facts live in the knowledge base; the review is knowledge-only.
 
 ## 11. Open questions
 
