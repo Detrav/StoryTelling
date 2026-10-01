@@ -30,19 +30,43 @@ Run `storydev` with no command (or `help`) for the usage summary.
 | `create` | Full run (setup + chapters): `--out <path> [--chapters N] [--brief ...] [--characters N]`. |
 | `export` | Writes an FB2 from a project: `--file <path> [--language <code>] [--out <path.fb2>]`. |
 
+## Defaults
+
+| Option | Default |
+|--------|---------|
+| `--variants` (`probe`, `gen`) | 1 |
+| `--out` (`setup`, `create`) | `examples/story.story.json` |
+| `--out` (`probe`) | `examples/probe-<Target>.json` |
+| `--out` (`edit`, `draft`) | `examples/dbg/ch<N>-edited.txt` / `ch<N>-draft.txt` |
+| `--chapters` | 1 for `write`, 2 for `create` |
+| `--characters` | 3 |
+| `--chapter` (`summarize`, without `--all`) | 1 |
+| `--from` (`recompute`) | 1 |
+| `--language` | `ru` for `translate`, `en` for `export` |
+
+`--out` defaults write into the repository's `examples/` folder; pass an explicit path to keep the
+working tree clean.
+
 ## Common options
 
-Every command accepts the provider overrides, which take precedence over `settings.json` (and over
-the `STORYTELLING_*` environment variables):
+Every command that talks to a provider accepts these overrides, which take precedence over
+`settings.json` (and over the `STORYTELLING_*` environment variables):
 
 ```
 --base-url --model --api-key --max-tokens --max-tool-calls --temperature --timeout
 ```
 
+`export` is the exception: it reads no settings at all and needs no provider.
+
 `Ctrl+C` cancels the running pass; partial progress is never written over the project file.
 
 ## Notes and limitations
 
+- **`gen --replace`** clears the knowledge base first, and only for `--target Knowledge`; with any
+  other target the flag is ignored.
+- **`gen` only applies** the targets `ProjectName`, `World`, `InitialWorldState` and `Knowledge`. For
+  `ChapterSettings`, `ChapterPlan` and `Finale` the options are printed but not written back, and the
+  command reports `Applied 0 option(s).` — use `probe` to inspect those, and the app to apply them.
 - The CLI covers the engine passes, not the app-level orchestration: there is no *Complete book*
   equivalent, no knowledge review and no setup/knowledge review dialog.
 - It does **not** translate the book's metadata (title, annotation, chapter titles) — that action lives
@@ -53,16 +77,19 @@ the `STORYTELLING_*` environment variables):
 
 ## Examples
 
+The repository ships two sample projects: `examples/embers-of-ashen-reach.story.json` and
+`examples/silent-beacon.story.json`.
+
 ```powershell
 # is the provider reachable and structured-output capable?
 dotnet run --project src/StoryTelling.Cli -- ping
 
 # look at the raw schema output for the chapter-plan target before trusting it
-dotnet run --project src/StoryTelling.Cli -- probe --target ChapterPlan --variants 5 --out examples/probe-plan.json
+dotnet run --project src/StoryTelling.Cli -- probe --target ChapterPlan --variants 5 --out ./probe-plan.json
 
 # translate a project into Russian
-dotnet run --project src/StoryTelling.Cli -- translate --file examples/story.story.json --language ru
+dotnet run --project src/StoryTelling.Cli -- translate --file examples/embers-of-ashen-reach.story.json --language ru
 
-# export the Russian FB2
-dotnet run --project src/StoryTelling.Cli -- export --file examples/story.story.json --language ru
+# export the Russian FB2 (no provider needed)
+dotnet run --project src/StoryTelling.Cli -- export --file examples/embers-of-ashen-reach.story.json --language ru --out ./book.fb2
 ```

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using StoryTelling.Application.Settings;
 using StoryTelling.Application.Translation;
 using StoryTelling.Domain;
@@ -96,14 +98,16 @@ public sealed class ExportViewModelTests
     }
 
     [Fact]
-    public void HasSelection_TracksSelection()
+    public void HasSelection_NotifiesWhenSelectionChanges()
     {
         var viewModel = new ExportViewModel(new Project(), []);
-
+        var notifications = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
         Assert.True(viewModel.HasSelection);
 
         viewModel.Selected = null;
 
         Assert.False(viewModel.HasSelection);
+        Assert.Contains(nameof(ExportViewModel.HasSelection), notifications);
     }
 }

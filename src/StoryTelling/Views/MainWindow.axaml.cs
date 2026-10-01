@@ -15,11 +15,36 @@ namespace StoryTelling.Views;
 public partial class MainWindow : Window
 {
     private MainWindowViewModel? _viewModel;
+    private bool _closeConfirmed;
 
     public MainWindow()
     {
         InitializeComponent();
         UndoRedoKeyboard.Attach(this);
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+
+        if (_closeConfirmed || _viewModel?.Workspace is not { IsDirty: true })
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        _ = GuardedAsync(CloseConfirmedAsync);
+    }
+
+    private async Task CloseConfirmedAsync()
+    {
+        if (_viewModel is null || !await _viewModel.ConfirmCloseAsync())
+        {
+            return;
+        }
+
+        _closeConfirmed = true;
+        Close();
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -85,7 +110,7 @@ public partial class MainWindow : Window
 
     private async Task TranslateMetadataAsync()
     {
-        if (_viewModel?.Workspace is not { } workspace || workspace.IsBusy)
+        if (_viewModel?.Workspace is not { } workspace)
         {
             return;
         }
@@ -255,10 +280,13 @@ public partial class MainWindow : Window
 
     private async Task ExitAsync()
     {
-        if (_viewModel is not null && await _viewModel.ConfirmCloseAsync())
+        if (_viewModel is null || !await _viewModel.ConfirmCloseAsync())
         {
-            Close();
+            return;
         }
+
+        _closeConfirmed = true;
+        Close();
     }
 
     private async Task<bool> SaveBeforeCloseAsync(string projectName)
@@ -269,7 +297,7 @@ public partial class MainWindow : Window
                 return true;
             case UnsavedChangesChoice.Save:
                 await SaveAsync();
-                return _viewModel?.Workspace?.IsDirty != true;
+                return _viewModel?.Workspace is { IsDirty: false };
             default:
                 return false;
         }

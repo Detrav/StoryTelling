@@ -89,6 +89,14 @@ public partial class BookCompletionViewModel : ViewModelBase
                 CancelRunning();
             });
         }
+        catch (InvalidOperationException exception)
+        {
+            Finish(() =>
+            {
+                Status = exception.Message;
+                FailRunning(exception.Message);
+            });
+        }
         catch (Exception exception)
         {
             Finish(() =>

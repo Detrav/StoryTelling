@@ -9,7 +9,7 @@ src/
   StoryTelling.Infrastructure  # JSON project repository, OpenAI-compatible LLM client,
                                # user settings, file logging, text diff
   StoryTelling                 # Avalonia app (Views + ViewModels, CommunityToolkit.Mvvm)
-  StoryTelling.Tests           # xUnit unit tests (Domain + Application, mocked I/O)
+  StoryTelling.Tests           # xUnit unit tests (Domain + Application + app ViewModels, mocked I/O)
   StoryTelling.Cli             # `storydev`, developer CLI for the engine (no UI)
 
 examples/                      # sample *.story.json projects
@@ -108,13 +108,17 @@ to the current version; the fields added in v5 (`MetadataTranslations`, `StaleMe
 - **Settings** — `settings.json` under the app data directory (`%APPDATA%/StoryTelling` on
   Windows, `~/.config/StoryTelling` elsewhere). Loaded once at startup; written when the user
   presses *Apply* in the Settings dialog. `STORYTELLING_BASE_URL`, `STORYTELLING_MODEL` and
-  `STORYTELLING_API_KEY` override the stored values on load, which keeps the key out of the file.
+  `STORYTELLING_API_KEY` override the stored values on load (whitespace-only values are ignored); when
+  a key comes from the environment it is **not** written back to the file, so applying unrelated
+  settings never persists the secret.
 - **Logging** — `Microsoft.Extensions.Logging` with a minimal file provider writing one file
-  per run to `<config>/logs/app-YYYYMMDD-HHMMSS.log`, keeping the 20 newest. *Help → Open logs
-  folder* opens it. If the log file cannot be created the app keeps running without logging.
+  per run to `<config>/logs/app-YYYYMMDD-HHMMSS.log`; on start-up the 20 newest existing files are
+  kept (a file another process still holds open is skipped rather than aborting logging).
+  *Help → Open logs folder* opens it. If the log file cannot be created the app keeps running without
+  logging.
 - **Persistence** — projects are single `*.story.json` files via `IProjectRepository`.
   Unknown/missing JSON fields are ignored, so the schema can evolve without breaking old files;
-  `schemaVersion` guards against a file written by a newer major version.
+  `schemaVersion` guards against a file written by a newer version of the app.
 - **Errors** — external failures (file not found, unreadable/corrupt JSON, write errors) are
   logged and surfaced to the user through an error dialog.
 - **LLM client** — `OpenAiCompatibleLlmClient` posts to `{baseUrl}/chat/completions` (SSE for
@@ -162,10 +166,11 @@ to the current version; the fields added in v5 (`MetadataTranslations`, `StaleMe
   the book title, the annotation and every chapter title (`MetadataTranslationSchema`), cached in
   `Project.MetadataTranslations` and `Chapter.TranslatedTitles`. A field the model omits is stored
   empty on purpose so `MetadataTranslationCoverage` keeps reporting it as missing; only the exporter
-  substitutes the English source. `Project.StaleMetadataTranslations` marks the languages whose
-  cached metadata is out of date (book name, annotation source, chapter set or a chapter title
-  changed) so the next run refreshes them. Languages without a cache entry are simply *missing*, not
-  *stale*.
+  substitutes the English source. A partial response (e.g. truncated output) merges into the cache
+  instead of overwriting it, and leaves the language flagged so the next run retries.
+  `Project.StaleMetadataTranslations` marks the languages whose cached metadata is out of date (book
+  name, annotation source, chapter set or a chapter title changed) so the next run refreshes them.
+  Languages without a cache entry are simply *missing*, not *stale*.
 - **Export** — `Fb2Exporter` builds FictionBook 2.0 from the project (English or a target language),
   using the cached chapter translations and book metadata and falling back to the English text for
   anything missing. It is a pure function and never calls the model.

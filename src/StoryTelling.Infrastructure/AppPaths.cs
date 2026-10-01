@@ -22,12 +22,21 @@ public static class AppPaths
 
         var files = new DirectoryInfo(LogsDirectory)
             .GetFiles("app-*.log")
-            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .OrderByDescending(file => file.Name, StringComparer.Ordinal)
             .Skip(MaxLogFiles);
 
         foreach (var file in files)
         {
-            file.Delete();
+            try
+            {
+                file.Delete();
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
     }
 

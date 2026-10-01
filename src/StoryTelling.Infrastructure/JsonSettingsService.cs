@@ -46,19 +46,41 @@ public sealed class JsonSettingsService : ISettingsService
     }
 
     private static string Override(string variable, string fallback) =>
-        Environment.GetEnvironmentVariable(variable) is { Length: > 0 } value ? value.Trim() : fallback;
+        Environment.GetEnvironmentVariable(variable)?.Trim() is { Length: > 0 } value ? value : fallback;
 
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
+        var persisted = HasEnvironmentApiKey()
+            ? CopyWithoutEnvironmentKey(settings)
+            : settings;
+
         var directory = Path.GetDirectoryName(_path);
         if (!string.IsNullOrEmpty(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(settings, _options);
+        var json = JsonSerializer.Serialize(persisted, _options);
         var tempPath = _path + ".tmp";
         await File.WriteAllTextAsync(tempPath, json, _utf8WithoutBom, cancellationToken).ConfigureAwait(false);
         File.Move(tempPath, _path, overwrite: true);
     }
+
+    private static bool HasEnvironmentApiKey() =>
+        Environment.GetEnvironmentVariable("STORYTELLING_API_KEY")?.Trim() is { Length: > 0 };
+
+    private static AppSettings CopyWithoutEnvironmentKey(AppSettings settings) => new()
+    {
+        SchemaVersion = settings.SchemaVersion,
+        Provider = settings.Provider,
+        BaseUrl = settings.BaseUrl,
+        Model = settings.Model,
+        TimeoutSeconds = settings.TimeoutSeconds,
+        MaxTokens = settings.MaxTokens,
+        MaxToolCalls = settings.MaxToolCalls,
+        Temperature = settings.Temperature,
+        DefaultLanguageCode = settings.DefaultLanguageCode,
+        Languages = [.. settings.Languages],
+        RecentProjects = [.. settings.RecentProjects],
+    };
 }

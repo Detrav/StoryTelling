@@ -72,9 +72,7 @@ public partial class WorkspaceView : UserControl
 
     private async Task RunTranslateMetadataAsync()
     {
-        if (DataContext is not WorkspaceViewModel workspace
-            || TopLevel.GetTopLevel(this) is not Window window
-            || workspace.IsBusy)
+        if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
         {
             return;
         }
@@ -95,20 +93,39 @@ public partial class WorkspaceView : UserControl
         {
             await action();
         }
+        catch (OperationCanceledException)
+        {
+        }
         catch (Exception exception)
         {
-            if (TopLevel.GetTopLevel(this) is Window owner)
-            {
-                ErrorDialog.Show(owner, "Something went wrong", exception.Message);
-            }
+            ShowError(exception);
         }
     }
 
     private void Execute(Action<WorkspaceViewModel> action)
     {
-        if (DataContext is WorkspaceViewModel workspace)
+        if (DataContext is not WorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        try
         {
             action(workspace);
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception);
+        }
+    }
+
+    private void ShowError(Exception exception)
+    {
+        AppDiagnostics.Write(exception);
+
+        if (TopLevel.GetTopLevel(this) is Window owner)
+        {
+            ErrorDialog.Show(owner, "Something went wrong", exception.Message);
         }
     }
 

@@ -76,6 +76,51 @@ public sealed class MetadataTranslationViewModelTests
     }
 
     [Fact]
+    public async Task StartAsync_LateProgressReportAfterFinish_DoesNotRewindTheResult()
+    {
+        IProgress<MetadataTranslationProgress>? captured = null;
+        var viewModel = new MetadataTranslationViewModel(
+            ["ru"],
+            _ => true,
+            (progress, _) =>
+            {
+                captured = progress;
+                progress.Report(new MetadataTranslationProgress(0, 1, 0, "Translating…"));
+                return Task.CompletedTask;
+            });
+
+        await viewModel.StartAsync();
+        Assert.Equal("Done.", viewModel.Status);
+
+        captured!.Report(new MetadataTranslationProgress(0, 1, 0, "Translating…"));
+
+        Assert.Equal("Done.", viewModel.Status);
+        Assert.Equal(100, viewModel.Progress);
+        Assert.Equal("1 / 1", viewModel.ProgressText);
+        Assert.True(Assert.Single(viewModel.Languages).IsDone);
+    }
+
+    [Fact]
+    public async Task StartAsync_RefusedWhileBusy_FailsTheRunningRow()
+    {
+        var viewModel = new MetadataTranslationViewModel(
+            ["ru"],
+            _ => true,
+            (progress, _) =>
+            {
+                progress.Report(new MetadataTranslationProgress(0, 1, 0, "Translating…"));
+                return Task.FromException(new InvalidOperationException("Another operation is in progress."));
+            });
+
+        await viewModel.StartAsync();
+
+        var item = Assert.Single(viewModel.Languages);
+        Assert.Equal("Another operation is in progress.", viewModel.Status);
+        Assert.Equal("✗", item.Marker);
+        Assert.False(item.IsRunning);
+    }
+
+    [Fact]
     public async Task StartAsync_RunnerReportsBusy_SurfacesTheMessage()
     {
         var viewModel = new MetadataTranslationViewModel(

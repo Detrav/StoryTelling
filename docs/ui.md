@@ -19,10 +19,13 @@ StoryTelling` (the leading `*` appears while there are unsaved changes).
 - **Help** — Open logs folder, About.
 
 Undo/Redo (`Ctrl+Z` / `Ctrl+Y`) cover project edits made in the current session; the same toolbar
-(`↶` `↷`) sits under the menu. Closing a dirty project or exiting the app asks what to do with the
-unsaved changes: **Save** (with a file picker when the project has never been saved), **Discard** or
-**Cancel**. *Plan chapters* lives only on the workspace toolbar; the rest of the chapter actions are
-available both from the toolbar and from the **Chapter** menu.
+(`↶` `↷`) sits under the menu. Closing a dirty project — through the window close button,
+*File → Close project* or *Exit* — asks what to do with the unsaved changes: **Save** (with a file
+picker when the project has never been saved), **Discard** or **Cancel** (also the default when the
+dialog is dismissed). Actions are not duplicated everywhere: *Add / Delete chapter* and *Move up /
+down* live in the **Chapter** menu and the chapter-list context menu, *Plan chapters* and *Translate
+chapter* live only on the workspace toolbar, and *Translate book metadata* exists in both the menu and
+the toolbar.
 
 ## Welcome
 
@@ -36,7 +39,7 @@ available both from the toolbar and from the **Chapter** menu.
 │ File  Edit  View  Chapter  Help                                           │
 │ ↶ ↷                                                                     │
 ├──────────────┬───────────────────────────────────────────────────────────┤
-│ Chapters  [+]│  Chapter 3 — The Long Night    ▶ ↻ Finish ≡ Book Aa ⇄ ■   │
+│ Chapters  [+]│  Chapter 3 — The Long Night  ▶ ↻ Finish ≡ Complete book Aa ⇄ ■│
 │ 1 Embers     ├───────────────────────────────────────────────────────────┤
 │ 2 Ashes      │ Ch (EN) | Ch (RU) | Ch (DE) | Summary | Settings         │
 │ 3 Long Night │                                                            │
@@ -191,8 +194,9 @@ A separate modal window, split into tabs:
   default language for new projects.
 
 Provider settings are stored per user, never in the project file. `STORYTELLING_BASE_URL`,
-`STORYTELLING_MODEL` and `STORYTELLING_API_KEY` override the stored values on start-up, which keeps
-keys out of the settings file in shared environments.
+`STORYTELLING_MODEL` and `STORYTELLING_API_KEY` override the stored values on start-up (whitespace-only
+values are ignored). A key supplied through the environment is never written back to the file, so
+applying unrelated settings cannot persist the secret.
 
 ## Status
 

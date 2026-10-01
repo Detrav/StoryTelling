@@ -549,6 +549,7 @@ internal static class Program
         Console.WriteLine("  edit      Run the editor on one chapter (debug): --file <path> --number N [--in <draft.txt>] [--out <edited.txt>]");
         Console.WriteLine("  draft     Run the writer on one chapter (debug): --file <path> --number N [--out <draft.txt>]");
         Console.WriteLine("  create    Full run (setup + chapters): --out <path> [--chapters N] [--brief ...] [--characters N]");
+        Console.WriteLine("  export    Write an FB2: --file <path> [--language <code>] [--out <path.fb2>] (no provider needed)");
         Console.WriteLine();
         Console.WriteLine("Common options:");
         Console.WriteLine("  --base-url --model --api-key --max-tokens --max-tool-calls --temperature --timeout");

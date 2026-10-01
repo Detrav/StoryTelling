@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq;
 using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
@@ -350,12 +351,13 @@ public sealed class WorkspaceViewModelTests
         };
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), metadata);
 
-        var reports = new List<MetadataTranslationProgress>();
-        await workspace.TranslateMetadataAsync(new SynchronousProgress<MetadataTranslationProgress>(reports.Add), CancellationToken.None);
+        var reports = new ConcurrentQueue<MetadataTranslationProgress>();
+        await workspace.TranslateMetadataAsync(new SynchronousProgress<MetadataTranslationProgress>(reports.Enqueue), CancellationToken.None);
 
         Assert.Equal(["ru", "de"], metadata.Calls);
-        Assert.Equal(2, reports[^1].Total);
-        Assert.Equal(2, reports[^1].Completed);
+        var observed = reports.ToArray();
+        Assert.Equal(2, observed.Max(report => report.Completed));
+        Assert.All(observed.Where(report => report.Stage == "Translating…"), report => Assert.Equal(2, report.Total));
         Assert.Equal("Name de", workspace.ToProject().MetadataTranslations["de"].Name);
     }
 
@@ -391,17 +393,44 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
-    public async Task TranslateMetadata_ResultWithoutChapter_RemovesStaleTranslatedTitle()
+    public async Task TranslateMetadata_ResultWithoutChapter_KeepsCacheAndStaysIncomplete()
     {
         var project = TranslatedSampleProject();
+        project.Chapters.Add(new Chapter { Number = 2, Title = "Ash", ContentOriginal = "Two.", TranslatedTitles = new SortedDictionary<string, string> { ["ru"] = "Пепел" } });
         project.StaleMetadataTranslations = ["ru"];
-        var metadata = new FakeMetadataTranslator { Result = new MetadataTranslationResult("Новая книга", "Аннотация", new Dictionary<int, string>()) };
+        var metadata = new FakeMetadataTranslator
+        {
+            Result = new MetadataTranslationResult("Новая книга", string.Empty, new Dictionary<int, string> { [1] = "Новые угли" }),
+        };
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), metadata);
 
         await workspace.TranslateMetadataAsync(new SynchronousProgress<MetadataTranslationProgress>(_ => { }), CancellationToken.None);
 
-        Assert.Empty(workspace.ToProject().Chapters[0].TranslatedTitles);
-        Assert.Empty(project.StaleMetadataTranslations);
+        var saved = workspace.ToProject();
+        Assert.Equal("Новая книга", saved.MetadataTranslations["ru"].Name);
+        Assert.Equal("Аннотация", saved.MetadataTranslations["ru"].Annotation);
+        Assert.Equal("Новые угли", saved.Chapters[0].TranslatedTitles["ru"]);
+        Assert.Equal("Пепел", saved.Chapters[1].TranslatedTitles["ru"]);
+        Assert.Contains("ru", saved.StaleMetadataTranslations);
+        Assert.True(workspace.NeedsMetadataTranslation("ru"));
+    }
+
+    [Fact]
+    public async Task TranslateMetadata_CompleteResult_ClearsStaleFlagEvenWhenCaseDiffers()
+    {
+        var project = TranslatedSampleProject();
+        project.Chapters.Add(new Chapter { Number = 2, Title = "Ash", ContentOriginal = "Two.", TranslatedTitles = new SortedDictionary<string, string> { ["ru"] = "Пепел" } });
+        project.StaleMetadataTranslations = ["RU"];
+        var metadata = new FakeMetadataTranslator
+        {
+            Result = new MetadataTranslationResult("Новая книга", "Новая аннотация", new Dictionary<int, string> { [1] = "Новые угли", [2] = "Новый пепел" }),
+        };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), metadata);
+
+        await workspace.TranslateMetadataAsync(new SynchronousProgress<MetadataTranslationProgress>(_ => { }), CancellationToken.None);
+
+        Assert.Empty(workspace.ToProject().StaleMetadataTranslations);
+        Assert.False(workspace.NeedsMetadataTranslation("ru"));
     }
 
     [Fact]
@@ -469,10 +498,42 @@ public sealed class WorkspaceViewModelTests
 
         Assert.DoesNotContain("ru", workspace.ToProject().StaleMetadataTranslations);
 
+        setup.ProjectName = "A Different Crown";
+        workspace.ApplySetup(setup);
+
+        Assert.Contains("ru", workspace.ToProject().StaleMetadataTranslations);
+    }
+
+    [Fact]
+    public void ApplySetup_ChangingTheAnnotationSource_MarksMetadataStale()
+    {
+        var project = TranslatedSampleProject();
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+
         setup.WorldBody = "A different empire.";
         workspace.ApplySetup(setup);
 
         Assert.Contains("ru", workspace.ToProject().StaleMetadataTranslations);
+    }
+
+    [Fact]
+    public void MarkMetadataStale_RequiresACachedTranslation()
+    {
+        var project = SampleProject();
+        project.MetadataTranslations["ru"] = new MetadataTranslation { Name = "Книга", Annotation = "Аннотация" };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        setup.ProjectName = "Renamed";
+        workspace.ApplySetup(setup);
+        project.StaleMetadataTranslations.Clear();
+
+        setup.WorldBody = "Another empire.";
+        project.StaleMetadataTranslations.Clear();
+        project.MetadataTranslations.Clear();
+        workspace.ApplySetup(setup);
+
+        Assert.Empty(project.StaleMetadataTranslations);
     }
 
     [Fact]
@@ -517,6 +578,67 @@ public sealed class WorkspaceViewModelTests
         project.MetadataTranslations["ru"] = new MetadataTranslation { Name = "Книга", Annotation = "Аннотация" };
         project.Chapters[0].TranslatedTitles["ru"] = "Угли";
         return project;
+    }
+
+    [Fact]
+    public async Task TranslateMetadata_WhenBusy_RefusesWithAMessage()
+    {
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        workspace.IsBusy = true;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.TranslateMetadataAsync(new SynchronousProgress<MetadataTranslationProgress>(_ => { }), CancellationToken.None));
+
+        Assert.Contains("Another operation is in progress", exception.Message);
+        Assert.True(workspace.IsBusy);
+    }
+
+    [Fact]
+    public async Task CompleteBook_WhenBusy_RefusesWithAMessage()
+    {
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        workspace.IsBusy = true;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.CompleteBookAsync([], new SynchronousProgress<BookCompletionProgress>(_ => { }), CancellationToken.None));
+
+        Assert.Contains("Another operation is in progress", exception.Message);
+    }
+
+    [Fact]
+    public async Task CompleteBook_EmptyPlan_LeavesProjectClean()
+    {
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        var mutations = new List<string>();
+        workspace.Mutated += name => mutations.Add(name);
+        workspace.IsDirty = false;
+
+        await workspace.CompleteBookAsync([], new SynchronousProgress<BookCompletionProgress>(_ => { }), CancellationToken.None);
+
+        Assert.False(workspace.IsDirty);
+        Assert.Empty(mutations);
+    }
+
+    [Fact]
+    public async Task CompleteBook_AppliedWork_MarksDirtyAndMutatesOnce()
+    {
+        var project = SampleProject();
+        project.Chapters[0].WorldState = null;
+        project.Chapters[0].Logline = string.Empty;
+        var runner = new FakeChapterRunner
+        {
+            Summary = new ChapterSummary("New logline.", new WorldState { TimeAndPlace = "Dusk" }, []),
+        };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        var mutations = new List<string>();
+        workspace.Mutated += name => mutations.Add(name);
+        workspace.IsDirty = false;
+
+        var plan = workspace.BuildCompletionPlan();
+        await workspace.CompleteBookAsync(plan, new SynchronousProgress<BookCompletionProgress>(_ => { }), CancellationToken.None);
+
+        Assert.True(workspace.IsDirty);
+        Assert.Equal(["Complete book"], mutations);
     }
 
     private static IReadOnlyList<LanguageData> Catalog() => [new LanguageData("ru", "Russian")];

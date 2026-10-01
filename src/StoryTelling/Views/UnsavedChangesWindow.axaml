@@ -7,8 +7,6 @@
         Title="{Binding Title}"
         Width="460"
         Height="220"
-        MinWidth="380"
-        MinHeight="180"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -18,9 +16,9 @@
                 BorderThickness="0,1,0,0"
                 BorderBrush="#22000000">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                <Button Content="Cancel" Click="OnCancelClick" />
+                <Button Content="Cancel" IsCancel="True" Click="OnCancelClick" />
                 <Button Content="Discard" Click="OnDiscardClick" />
-                <Button Content="Save" Classes="accent" Click="OnSaveClick" />
+                <Button Content="Save" IsDefault="True" Classes="accent" Click="OnSaveClick" />
             </StackPanel>
         </Border>
 

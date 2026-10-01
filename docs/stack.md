@@ -22,7 +22,7 @@
 | Item | Location |
 |------|----------|
 | Settings / recent projects | `%APPDATA%/StoryTelling/settings.json` (Windows), `~/.config/StoryTelling/settings.json` elsewhere |
-| Logs | `<config>/logs/app-YYYYMMDD-HHMMSS.log` (one file per run, 20 newest kept) |
+| Logs | `<config>/logs/app-YYYYMMDD-HHMMSS.log` (one file per run; the 20 newest existing files are kept at start-up) |
 | Crash log | `<config>/crash.log` |
 | Projects | wherever the user saves a `*.story.json` file |
 
@@ -37,7 +37,7 @@ currently **5**) with migrations applied on load; a file from a newer version is
   needed.
 - No secrets committed; the provider API key lives in user settings under AppData and can be
   overridden per environment with `STORYTELLING_BASE_URL` / `STORYTELLING_MODEL` /
-  `STORYTELLING_API_KEY`.
+  `STORYTELLING_API_KEY`. A key supplied through the environment is never written back to the file.
 
 ## Build / test / run
 

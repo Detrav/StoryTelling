@@ -69,10 +69,6 @@ public sealed class MetadataTranslationService : IMetadataTranslator
 
         var name = GetString(root, "name");
         var annotation = GetString(root, "annotation");
-        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(annotation))
-        {
-            throw new LlmException(LlmErrorKind.InvalidResponse, "The model returned no translated metadata.");
-        }
 
         var titles = new Dictionary<int, string>();
         if (root.TryGetProperty("chapterTitles", out var array) && array.ValueKind == JsonValueKind.Array)
@@ -94,6 +90,11 @@ public sealed class MetadataTranslationService : IMetadataTranslator
                     titles[number] = title.Trim();
                 }
             }
+        }
+
+        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(annotation) && titles.Count == 0)
+        {
+            throw new LlmException(LlmErrorKind.InvalidResponse, "The model returned no translated metadata.");
         }
 
         return new MetadataTranslationResult(name.Trim(), annotation.Trim(), titles);

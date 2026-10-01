@@ -45,8 +45,10 @@ the English original is always preserved.
    addressable knowledge entries (a character is a `Kind = Character` entry); the writer pulls the
    ones it needs through read-only tools (including keyword search), so nothing irrelevant is sent.
    Entries can be imported from Markdown or designed from a large prompt.
-8. **Everything outstanding in one pass.** *Complete book* walks the book in reading order and writes,
-   summarizes and translates whatever is missing or out of date, with progress and a Cancel button.
+8. **Everything outstanding in one pass.** *Complete book* walks the book in reading order and writes
+   every unwritten or out-of-date chapter, summarizes any chapter that has text but no logline / world
+   state yet, and translates every chapter whose translation is missing or out of date — with
+   progress and a Cancel button.
 9. **Translation.** Chapters are translated per target language. A separate action translates the
    book's **accompanying elements** — title, annotation and every chapter title — in one structured
    request per language, caching the result and flagging it out of date when the source changes.

@@ -105,7 +105,11 @@ public partial class MetadataTranslationViewModel : ViewModelBase
         }
         catch (InvalidOperationException exception)
         {
-            Finish(() => Status = exception.Message);
+            Finish(() =>
+            {
+                Status = exception.Message;
+                FailRunning(exception.Message);
+            });
         }
         catch (Exception exception)
         {

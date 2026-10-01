@@ -12,5 +12,5 @@ public sealed class UnsavedChangesViewModel
     public string Title => "Unsaved changes";
 
     public string Message =>
-        $"“{ProjectName}” has unsaved changes. Save before closing?";
+        $"“{ProjectName}” has unsaved changes. Save them before closing?";
 }

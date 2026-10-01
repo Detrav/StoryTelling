@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Tests;
@@ -11,7 +12,6 @@ public sealed class MetadataTranslationItemViewModelTests
 
         Assert.Equal("RU", item.Header);
         Assert.Equal("ru", item.LanguageCode);
-        Assert.Equal("○", item.Marker);
         Assert.False(item.IsRunning);
         Assert.False(item.IsDone);
         Assert.False(item.HasStage);
@@ -24,7 +24,6 @@ public sealed class MetadataTranslationItemViewModelTests
 
         item.MarkRunning("Translating…");
 
-        Assert.Equal("▶", item.Marker);
         Assert.Equal("Translating…", item.Stage);
         Assert.True(item.HasStage);
         Assert.True(item.IsRunning);
@@ -42,29 +41,30 @@ public sealed class MetadataTranslationItemViewModelTests
     }
 
     [Fact]
-    public void MarkDone_SetsDoneAndClearsStage()
+    public void MarkDone_NotifiesThatIsDoneChanged()
     {
         var item = new MetadataTranslationItemViewModel("ru");
-        item.MarkRunning("Translating…");
+        var notifications = new List<string?>();
+        item.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
 
         item.MarkDone();
 
-        Assert.Equal("✓", item.Marker);
-        Assert.Empty(item.Stage);
         Assert.True(item.IsDone);
-        Assert.False(item.IsRunning);
+        Assert.Contains(nameof(MetadataTranslationItemViewModel.IsDone), notifications);
     }
 
     [Fact]
-    public void MarkPending_ClearsDone()
+    public void MarkPending_ClearsDoneAndNotifies()
     {
         var item = new MetadataTranslationItemViewModel("ru");
         item.MarkDone();
+        var notifications = new List<string?>();
+        item.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
 
         item.MarkPending();
 
-        Assert.Equal("○", item.Marker);
         Assert.False(item.IsDone);
+        Assert.Contains(nameof(MetadataTranslationItemViewModel.IsDone), notifications);
     }
 
     [Fact]
@@ -75,7 +75,6 @@ public sealed class MetadataTranslationItemViewModelTests
 
         item.MarkFailed("Provider unavailable");
 
-        Assert.Equal("✗", item.Marker);
         Assert.Equal("Provider unavailable", item.Stage);
         Assert.False(item.IsDone);
         Assert.False(item.IsRunning);

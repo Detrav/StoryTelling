@@ -17,7 +17,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | Import chunk | 8000 chars | `KnowledgeChunker.ImportMaxChars` |
 | Retrieval fragment | 800 chars | `KnowledgeChunker.RetrievalMaxChars` |
 | Max import chunks | 20 | `KnowledgeImportRequest.DefaultMaxChunks` |
-| Structured retries | 3 | `GenerationAssistant` / `ChapterSummarizer` / `MetadataTranslationService` / `KnowledgeImporter` / `ProjectReviewAssistant` |
+| Structured retries | 3 | `GenerationAssistant` / `ChapterSummarizer` |
 | Temperature | `AppSettings.Temperature`, capped at 0.2–0.3 for deterministic calls (translation, metadata translation, import, design, summary, review, editor notes) | each service |
 
 ## 1. Calls overview
@@ -108,10 +108,11 @@ demand from the base plus the previous chapters' diffs (`KnowledgeComposer`).
 - Translation is checked deterministically: a paragraph whose letters are in the wrong script for the
   target language (e.g. Chinese in a Russian translation) is re-translated on its own, without a
   full AI review of the chapter.
-- Metadata translation returns strict JSON (`name`/`annotation`/`chapterTitles[]`); a missing book
-  title or annotation falls back to the English source, and invalid JSON is surfaced as an error.
-  FB2 export then reads only the cached metadata and falls back to English for anything missing — it
-  never calls the model.
+- Metadata translation returns strict JSON (`name`/`annotation`/`chapterTitles[]`); a field the model
+  does not translate is stored **empty** and keeps being reported as missing, malformed or non-object
+  output is surfaced as an error, and a response with neither title, nor annotation, nor any chapter
+  title is rejected. FB2 export then reads only the cached metadata and substitutes the English source
+  for whatever is missing — it never calls the model.
 
 ## 6. Token/context notes
 

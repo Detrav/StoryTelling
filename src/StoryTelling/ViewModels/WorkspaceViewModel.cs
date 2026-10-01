@@ -311,8 +311,7 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         if (IsBusy)
         {
-            progress.Report(new BookCompletionProgress(0, operations.Count, -1, string.Empty));
-            return;
+            throw new InvalidOperationException("Another operation is in progress. Wait for it to finish.");
         }
 
         IsBusy = true;
@@ -359,8 +358,11 @@ public partial class WorkspaceViewModel : ViewModelBase
                     var translationProgress = new Progress<GenerationProgress>(report =>
                         Report(index, DescribeStage(report)));
                     Report(index, "Translating…");
-                    await TranslateLanguageAsync(chapter, code, translationProgress, cancellationToken);
-                    applied++;
+                    var translated = await TranslateLanguageAsync(chapter, code, translationProgress, cancellationToken);
+                    if (!string.IsNullOrEmpty(translated))
+                    {
+                        applied++;
+                    }
                 }
 
                 completed++;
@@ -455,25 +457,41 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     private void ApplyMetadataTranslation(string code, MetadataTranslationResult result)
     {
-        _project.MetadataTranslations[code] = new MetadataTranslation
+        if (!_project.MetadataTranslations.TryGetValue(code, out var cached))
         {
-            Name = result.BookName,
-            Annotation = result.Annotation,
-        };
+            cached = new MetadataTranslation();
+            _project.MetadataTranslations[code] = cached;
+        }
 
+        if (!string.IsNullOrWhiteSpace(result.BookName))
+        {
+            cached.Name = result.BookName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Annotation))
+        {
+            cached.Annotation = result.Annotation;
+        }
+
+        var incomplete = false;
         foreach (var chapter in Chapters)
         {
             if (result.ChapterTitles.TryGetValue(chapter.Number, out var title) && !string.IsNullOrWhiteSpace(title))
             {
                 chapter.TranslatedTitles[code] = title;
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(chapter.Title))
             {
-                chapter.TranslatedTitles.Remove(code);
+                incomplete = true;
             }
         }
 
-        _project.StaleMetadataTranslations.Remove(code);
+        if (incomplete)
+        {
+            return;
+        }
+
+        _project.StaleMetadataTranslations.RemoveAll(stale => string.Equals(stale, code, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string DescribeChapter(ChapterViewModel chapter) =>
@@ -861,7 +879,10 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         foreach (var code in MetadataLanguages)
         {
-            if (_project.MetadataTranslations.ContainsKey(code) && !_project.StaleMetadataTranslations.Contains(code))
+            var alreadyMarked = _project.StaleMetadataTranslations
+                .Any(stale => string.Equals(stale, code, StringComparison.OrdinalIgnoreCase));
+
+            if (_project.MetadataTranslations.ContainsKey(code) && !alreadyMarked)
             {
                 _project.StaleMetadataTranslations.Add(code);
             }
