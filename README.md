@@ -28,8 +28,10 @@ streamlined, token-budgeted memory instead of resending previous chapters.
   fixes.
 - **Multi-language translation** — target languages per project; translate on demand, cached per
   language, with out-of-date flags and automatic repair of paragraphs that come back in the wrong
-  script.
-- **FB2 export** — export the book (English original or any target language) to FictionBook 2.0.
+  script. A separate *Translate book metadata* action translates the book title, the annotation and
+  every chapter title per language.
+- **FB2 export** — export the book (English original or any target language) to FictionBook 2.0,
+  using translated metadata and chapter titles with an English fallback.
 - **Single-file projects** — everything is stored in one portable `*.story.json` file.
 - **Generate with AI** — a wizard that offers several AI options per field, with a brief and your
   own edits.

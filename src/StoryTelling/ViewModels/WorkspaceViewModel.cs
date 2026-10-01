@@ -23,16 +23,18 @@ public partial class WorkspaceViewModel : ViewModelBase
     private readonly IChapterRunner _chapterRunner;
     private readonly IGenerationAssistant _assistant;
     private readonly ITranslationService _translationService;
+    private readonly IMetadataTranslator _metadataTranslator;
     private CancellationTokenSource? _chapterCts;
     private bool _suppressMutation;
 
-    public WorkspaceViewModel(Project project, IClock clock, IChapterRunner chapterRunner, IGenerationAssistant assistant, ITranslationService translationService)
+    public WorkspaceViewModel(Project project, IClock clock, IChapterRunner chapterRunner, IGenerationAssistant assistant, ITranslationService translationService, IMetadataTranslator metadataTranslator)
     {
         _project = project;
         _clock = clock;
         _chapterRunner = chapterRunner;
         _assistant = assistant;
         _translationService = translationService;
+        _metadataTranslator = metadataTranslator;
         _projectName = project.Name;
 
         foreach (var code in project.Settings.TargetLanguages)
@@ -92,6 +94,7 @@ public partial class WorkspaceViewModel : ViewModelBase
     private void AddChapter()
     {
         SelectedChapter = AddNewChapter();
+        MarkMetadataStale();
         IsDirty = true;
         Mutated?.Invoke("Add chapter");
     }
@@ -114,6 +117,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         Chapters.RemoveAt(index);
         Renumber();
         SelectedChapter = Chapters[Math.Min(index, Chapters.Count - 1)];
+        MarkMetadataStale();
         IsDirty = true;
         Mutated?.Invoke("Delete chapter");
     }
@@ -369,6 +373,96 @@ public partial class WorkspaceViewModel : ViewModelBase
             IsDirty = true;
             Mutated?.Invoke("Complete book");
         }
+    }
+
+    public IReadOnlyList<string> MetadataLanguages =>
+        [.. Languages.Where(code => !string.Equals(code, "en", StringComparison.OrdinalIgnoreCase))];
+
+    public bool NeedsMetadataTranslation(string code) =>
+        !MetadataTranslationCoverage.Evaluate(ToProject(), code).IsComplete;
+
+    public IReadOnlyList<MetadataChapterTitle> ChapterTitles() =>
+        [.. Chapters
+            .Where(chapter => !string.IsNullOrWhiteSpace(chapter.Title))
+            .OrderBy(chapter => chapter.Number)
+            .Select(chapter => new MetadataChapterTitle(chapter.Number, chapter.Title.Trim()))];
+
+    public async Task TranslateMetadataAsync(
+        IProgress<MetadataTranslationProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        if (IsBusy)
+        {
+            progress.Report(new MetadataTranslationProgress(0, 0, -1, string.Empty));
+            return;
+        }
+
+        var languages = MetadataLanguages.ToList();
+        IsBusy = true;
+
+        var completed = 0;
+        void Report(int currentIndex, string stage) =>
+            progress.Report(new MetadataTranslationProgress(completed, languages.Count, currentIndex, stage));
+
+        try
+        {
+            for (var index = 0; index < languages.Count; index++)
+            {
+                var code = languages[index];
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (MetadataTranslationCoverage.Evaluate(ToProject(), code).IsComplete)
+                {
+                    completed++;
+                    Report(-1, string.Empty);
+                    continue;
+                }
+
+                var position = index;
+                var translationProgress = new Progress<GenerationProgress>(report =>
+                    Report(position, DescribeStage(report)));
+                Report(index, "Translating…");
+
+                var project = ToProject();
+                var request = new MetadataTranslationRequest(code, project.Name, project.World.Body, ChapterTitles());
+                var result = await _metadataTranslator.TranslateAsync(request, translationProgress, cancellationToken);
+                ApplyMetadataTranslation(code, result);
+
+                completed++;
+                Report(-1, string.Empty);
+            }
+
+            Status = languages.Count == 0 ? "No target languages to translate." : "Book metadata translated.";
+        }
+        finally
+        {
+            IsBusy = false;
+            IsDirty = true;
+            Mutated?.Invoke("Translate book metadata");
+        }
+    }
+
+    private void ApplyMetadataTranslation(string code, MetadataTranslationResult result)
+    {
+        _project.MetadataTranslations[code] = new MetadataTranslation
+        {
+            Name = result.BookName,
+            Annotation = result.Annotation,
+        };
+
+        foreach (var chapter in Chapters)
+        {
+            if (result.ChapterTitles.TryGetValue(chapter.Number, out var title) && !string.IsNullOrWhiteSpace(title))
+            {
+                chapter.TranslatedTitles[code] = title;
+            }
+            else
+            {
+                chapter.TranslatedTitles.Remove(code);
+            }
+        }
+
+        _project.StaleMetadataTranslations.Remove(code);
     }
 
     private static string DescribeChapter(ChapterViewModel chapter) =>
@@ -707,6 +801,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         ProjectName = setup.ProjectName;
 
         var before = SetupSignature(_project);
+        var beforeName = _project.Name;
 
         _project.Name = setup.ProjectName;
         _project.Settings.TargetLanguages = setup.SelectedLanguageCodes.ToList();
@@ -724,9 +819,15 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         UpdateLanguages(setup.SelectedLanguageCodes);
 
-        if (!string.Equals(before, SetupSignature(_project), StringComparison.Ordinal))
+        var signatureChanged = !string.Equals(before, SetupSignature(_project), StringComparison.Ordinal);
+        if (signatureChanged)
         {
             MarkAllStale();
+        }
+
+        if (signatureChanged || !string.Equals(beforeName, _project.Name, StringComparison.Ordinal))
+        {
+            MarkMetadataStale();
         }
 
         IsDirty = true;
@@ -739,6 +840,17 @@ public partial class WorkspaceViewModel : ViewModelBase
             if (chapter.Status != ChapterStatus.Draft)
             {
                 chapter.Status = ChapterStatus.Stale;
+            }
+        }
+    }
+
+    private void MarkMetadataStale()
+    {
+        foreach (var code in MetadataLanguages)
+        {
+            if (_project.MetadataTranslations.ContainsKey(code) && !_project.StaleMetadataTranslations.Contains(code))
+            {
+                _project.StaleMetadataTranslations.Add(code);
             }
         }
     }
@@ -816,6 +928,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         SelectedChapter = Chapters[0];
         SelectedTabIndex = 0;
+        MarkMetadataStale();
         IsDirty = true;
         Mutated?.Invoke("Plan chapters");
     }
@@ -853,8 +966,20 @@ public partial class WorkspaceViewModel : ViewModelBase
             Languages.Add(code);
         }
 
+        foreach (var removed in _project.MetadataTranslations.Keys.Where(code => !Languages.Contains(code)).ToList())
+        {
+            _project.MetadataTranslations.Remove(removed);
+        }
+
+        _project.StaleMetadataTranslations.RemoveAll(code => !Languages.Contains(code));
+
         foreach (var chapter in Chapters)
         {
+            foreach (var removed in chapter.TranslatedTitles.Keys.Where(code => !Languages.Contains(code)).ToList())
+            {
+                chapter.TranslatedTitles.Remove(removed);
+            }
+
             EnsureTranslations(chapter);
             BuildTabs(chapter);
         }
@@ -928,7 +1053,17 @@ public partial class WorkspaceViewModel : ViewModelBase
         });
         summary.Regenerate = (progress, cancellationToken) => RegenerateSummaryAsync(chapter, progress, cancellationToken);
         chapter.Tabs.Add(new ChapterTabViewModel("Summary", summary));
-        var settings = new ChapterSettingsViewModel(chapter, () => RaiseMutation($"Edit settings of chapter {chapter.Number}"));
+        var committedTitle = chapter.Title;
+        var settings = new ChapterSettingsViewModel(chapter, () =>
+        {
+            if (!string.Equals(committedTitle, chapter.Title, StringComparison.Ordinal))
+            {
+                committedTitle = chapter.Title;
+                MarkMetadataStale();
+            }
+
+            RaiseMutation($"Edit settings of chapter {chapter.Number}");
+        });
         settings.GenerateOptions = (brief, options, session, progress, cancellationToken) =>
             GenerateChapterAsync(chapter, brief, options, session, progress, cancellationToken);
         chapter.Tabs.Add(new ChapterTabViewModel("Settings", settings));
@@ -1014,6 +1149,8 @@ public partial class WorkspaceViewModel : ViewModelBase
             viewModel.Translations.Add(new TranslationViewModel(translation.Key, translation.Value));
         }
 
+        viewModel.TranslatedTitles = new SortedDictionary<string, string>(chapter.TranslatedTitles);
+
         return viewModel;
     }
 
@@ -1033,5 +1170,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         StaleTranslations = [.. viewModel.StaleTranslations],
         Translations = new SortedDictionary<string, string>(
             viewModel.Translations.ToDictionary(translation => translation.LanguageCode, translation => translation.Text)),
+        TranslatedTitles = new SortedDictionary<string, string>(viewModel.TranslatedTitles),
     };
 }

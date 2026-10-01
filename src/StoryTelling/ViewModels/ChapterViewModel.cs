@@ -42,6 +42,8 @@ public partial class ChapterViewModel : ObservableObject
     [ObservableProperty]
     private List<string> _staleTranslations = [];
 
+    public SortedDictionary<string, string> TranslatedTitles { get; set; } = [];
+
     public ChapterTextViewModel? PrimaryTextEditor { get; set; }
 
     public ObservableCollection<TranslationViewModel> Translations { get; } = [];

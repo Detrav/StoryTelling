@@ -40,6 +40,36 @@ public sealed class Fb2ExporterTests
     }
 
     [Fact]
+    public void Build_Translated_UsesTranslatedMetadata()
+    {
+        var xml = Fb2Exporter.Build(Project(), "ru");
+        var document = XDocument.Parse(xml);
+
+        Assert.Equal("Корона из углей", document.Root?.Element(_fb + "description")?.Element(_fb + "title-info")?.Element(_fb + "book-title")?.Value);
+        Assert.Contains("Умирающая империя.", xml);
+        Assert.Contains("Угли", xml);
+        Assert.DoesNotContain("A dying empire.", xml);
+    }
+
+    [Fact]
+    public void Build_UntranslatedMetadata_FallsBackToEnglish()
+    {
+        var project = Project();
+        project.MetadataTranslations.Clear();
+        foreach (var chapter in project.Chapters)
+        {
+            chapter.TranslatedTitles.Clear();
+        }
+
+        var xml = Fb2Exporter.Build(project, "ru");
+        var document = XDocument.Parse(xml);
+
+        Assert.Equal("The Ember Crown", document.Root?.Element(_fb + "description")?.Element(_fb + "title-info")?.Element(_fb + "book-title")?.Value);
+        Assert.Contains("A dying empire.", xml);
+        Assert.Contains("Embers", xml);
+    }
+
+    [Fact]
     public void Build_EscapesSpecialCharacters()
     {
         var project = Project();
@@ -56,6 +86,10 @@ public sealed class Fb2ExporterTests
     {
         Name = "The Ember Crown",
         World = new World { Genre = "fantasy", Body = "A dying empire." },
+        MetadataTranslations = new SortedDictionary<string, MetadataTranslation>
+        {
+            ["ru"] = new MetadataTranslation { Name = "Корона из углей", Annotation = "Умирающая империя." },
+        },
         Chapters =
         [
             new Chapter
@@ -64,6 +98,7 @@ public sealed class Fb2ExporterTests
                 Title = "Embers",
                 ContentOriginal = "Original one.",
                 Translations = new SortedDictionary<string, string> { ["ru"] = "Перевод один." },
+                TranslatedTitles = new SortedDictionary<string, string> { ["ru"] = "Угли" },
             },
             new Chapter { Number = 2, Title = "Ash", ContentOriginal = "Original two." },
         ],

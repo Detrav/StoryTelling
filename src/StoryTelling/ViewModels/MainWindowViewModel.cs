@@ -31,6 +31,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     private readonly IProjectReviewAssistant _review;
     private readonly IChapterRunner _chapterRunner;
     private readonly ITranslationService _translationService;
+    private readonly IMetadataTranslator _metadataTranslator;
     private readonly ILogger<MainWindowViewModel> _logger;
     private AppSettings _settings = AppSettings.CreateDefault();
     private IUndoRedoService? _undoRedo;
@@ -46,6 +47,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         IProjectReviewAssistant review,
         IChapterRunner chapterRunner,
         ITranslationService translationService,
+        IMetadataTranslator metadataTranslator,
         ILogger<MainWindowViewModel> logger)
     {
         _repository = repository;
@@ -58,6 +60,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         _review = review;
         _chapterRunner = chapterRunner;
         _translationService = translationService;
+        _metadataTranslator = metadataTranslator;
         _logger = logger;
         _content = new WelcomeViewModel(_settings.RecentProjects, NewProject, RequestOpenProject, OpenRecent);
     }
@@ -119,7 +122,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     [RelayCommand]
     private void NewProject()
     {
-        OpenWorkspace(new WorkspaceViewModel(CreateNewProject(), _clock, _chapterRunner, _assistant, _translationService) { IsDirty = true }, resetUndo: true);
+        OpenWorkspace(new WorkspaceViewModel(CreateNewProject(), _clock, _chapterRunner, _assistant, _translationService, _metadataTranslator) { IsDirty = true }, resetUndo: true);
         _logger.LogInformation("New project created");
     }
 
@@ -172,7 +175,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         try
         {
             var project = await _repository.LoadAsync(path);
-            OpenWorkspace(new WorkspaceViewModel(project, _clock, _chapterRunner, _assistant, _translationService) { FilePath = path }, resetUndo: true);
+            OpenWorkspace(new WorkspaceViewModel(project, _clock, _chapterRunner, _assistant, _translationService, _metadataTranslator) { FilePath = path }, resetUndo: true);
             AddRecent(path);
             _logger.LogInformation("Opened project {Path}", path);
         }
@@ -287,7 +290,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         var path = Workspace?.FilePath;
         var sidebar = Workspace?.IsSidebarVisible ?? true;
 
-        var workspace = new WorkspaceViewModel(project, _clock, _chapterRunner, _assistant, _translationService)
+        var workspace = new WorkspaceViewModel(project, _clock, _chapterRunner, _assistant, _translationService, _metadataTranslator)
         {
             FilePath = path,
             IsSidebarVisible = sidebar,

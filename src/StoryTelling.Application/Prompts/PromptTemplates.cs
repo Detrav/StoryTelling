@@ -1,6 +1,7 @@
 using System.Text;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
+using StoryTelling.Application.Translation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Prompts;
@@ -443,6 +444,46 @@ public static class PromptTemplates
         user.AppendLine($"Translate the following chapter into the language with the ISO code \"{languageCode.Trim()}\".");
         user.AppendLine();
         user.AppendLine(text);
+
+        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
+
+    public static IReadOnlyList<LlmMessage> BuildMetadataTranslation(
+        string languageCode,
+        string bookName,
+        string annotation,
+        IReadOnlyList<MetadataChapterTitle> chapterTitles)
+    {
+        var system = "You translate book metadata for a work of fiction. Translate the book title, the "
+            + "annotation (blurb) and every chapter title into the target language. Preserve proper names, "
+            + "tone and meaning; translate naturally instead of transliterating, and keep the titles short. "
+            + "Reply with ONLY a JSON object that matches the required schema.";
+
+        var user = new StringBuilder();
+        user.AppendLine($"Translate the following into the language with the ISO code \"{languageCode.Trim()}\".");
+        user.AppendLine();
+        user.AppendLine($"Book title: {bookName}");
+
+        if (!string.IsNullOrWhiteSpace(annotation))
+        {
+            user.AppendLine();
+            user.AppendLine("Annotation:");
+            user.AppendLine(annotation.Trim());
+        }
+
+        if (chapterTitles.Count > 0)
+        {
+            user.AppendLine();
+            user.AppendLine("Chapter titles:");
+            foreach (var chapter in chapterTitles)
+            {
+                user.AppendLine($"- {chapter.Number}: {chapter.Title}");
+            }
+        }
+
+        user.AppendLine();
+        user.AppendLine("Return the translated book title as \"name\", the translated annotation as "
+            + "\"annotation\", and the translated chapter titles as \"chapterTitles\" (one entry per number).");
 
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }

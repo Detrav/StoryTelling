@@ -14,8 +14,8 @@ StoryTelling` (the leading `*` appears while there are unsaved changes).
   Close project, Exit.
 - **Edit** — Undo, Redo, Cut, Copy, Paste (placeholders).
 - **View** — Show chapter list (toggle the sidebar).
-- **Chapter** — Generate chapter, Complete book…, Finish story, Regenerate, Stop, Add chapter,
-  Delete chapter, Move up, Move down.
+- **Chapter** — Generate chapter, Complete book…, Translate book metadata…, Finish story, Regenerate,
+  Stop, Add chapter, Delete chapter, Move up, Move down.
 - **Help** — About.
 
 Every chapter action is available both from the toolbar and from the **Chapter** menu.
@@ -50,7 +50,8 @@ Every chapter action is available both from the toolbar and from the **Chapter**
     text has been checked. The status line in the list also carries a tooltip with the same
     explanation.
 - **Toolbar** — icon buttons for Generate (`▶`), Regenerate (`↻`), Finish (`Finish`), Plan chapters
-  (`≡`), Translate (`⇄`), *Complete book* (`Complete book`) and Stop (`■`), with tooltips.
+  (`≡`), *Complete book* (`Complete book`), *Translate book metadata* (`Aa`), Translate (`⇄`) and
+  Stop (`■`), with tooltips.
   *Plan chapters* opens a dialog where the
   author sets the chapter count and an optional brief; the AI proposes that many chapter
   titles + directions forming a complete arc, and *Apply* replaces the chapter list (with a
@@ -130,11 +131,14 @@ Not a persistent chat. Invoked from a *Generate with AI* button; a modal wizard 
 ## Export FB2 (dialog)
 
 *File → Export FB2…* opens a dialog listing the languages: **English (original)** plus every project
-target language, each with its coverage (`N/M translated`). Pick a language and *Export*; a save
-picker asks for the `.fb2` path. If some chapters are not translated to the chosen language, a
-warning says how many will fall back to the English text, and the export can continue. The book is
-written as FictionBook 2.0 (title, annotation from the world description, one section per chapter,
-paragraphs), using the original text, the translations, or the original as a fallback.
+target language. Each row shows its chapter coverage (`N/M translated`) and a metadata line
+(`metadata complete`, or `needs: book title, annotation, chapter titles 8/10, out of date`). Pick a
+language and *Export*; a save picker asks for the `.fb2` path. If some chapters are not translated,
+or the book metadata is incomplete, a single warning spells out what will fall back to the English
+text and the export can continue. The book is written as FictionBook 2.0 (title, annotation from the
+world description, one section per chapter, paragraphs), using the cached metadata and translations
+where present and the English text otherwise. Export is a pure function: it only reads caches, never
+calls the model.
 
 ## Complete book (dialog)
 
@@ -157,6 +161,18 @@ translations, an empty plan is written out, and a setup change refreshes the sta
 is still missing. A chapter whose required fields are not filled in is skipped and the row says
 what to fill in.
 
+## Translate book metadata (dialog)
+
+The toolbar's **Aa** button (also *Chapter → Translate book metadata…*) translates the book's
+accompanying elements — the **book title**, the **annotation** and **every chapter title** — into the
+project's target languages. It opens a modal dialog that lists every target language and, in one
+pass, translates the ones whose metadata is missing or out of date (languages already complete are
+marked done and skipped). Each row shows `○` pending, `▶` running, `✓` done or `✗` failed, a
+determinate progress bar runs above the list, and **Cancel / Close** mirror *Complete book*. The
+results are cached in the project per language; the chapter text tabs keep showing only the body,
+and the translated titles are used by FB2 export. Cached metadata is flagged **out of date** whenever
+the book name, the world, the chapter set or a chapter title changes, and the dialog re-translates it.
+
 ## Settings (dialog)
 
 A separate modal window, split into tabs:
@@ -176,7 +192,9 @@ pipeline (writer → editor with change notes → summarizer producing a logline
 and a knowledge diff), the chapter *Summary* tab (editable knowledge diff + editor notes) and
 per-language translation with out-of-date flags and wrong-script repair. A *Complete book* action
 fills in every pending chapter, summary and translation in one pass, with progress, a log and a
-Cancel button. Export to FB2 is available for the English original and every target language.
+Cancel button. A *Translate book metadata* action translates the book title, annotation and chapter
+titles per language. Export to FB2 is available for the English original and every target language,
+with translated metadata and an English fallback.
 
 Remaining work is hardening and polish (environment-variable overrides / *clear secrets*, a
 structured-output capability gate, a translation glossary, embeddings for retrieval).

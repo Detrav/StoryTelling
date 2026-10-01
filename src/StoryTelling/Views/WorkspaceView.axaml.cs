@@ -62,6 +62,18 @@ public partial class WorkspaceView : UserControl
         await dialog.ShowDialog(window);
     }
 
+    private async void OnTranslateMetadataClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
+        {
+            return;
+        }
+
+        var viewModel = new MetadataTranslationViewModel(workspace.MetadataLanguages, workspace.NeedsMetadataTranslation, workspace.TranslateMetadataAsync);
+        var dialog = new MetadataTranslationWindow { DataContext = viewModel };
+        await dialog.ShowDialog(window);
+    }
+
     private void Execute(Action<WorkspaceViewModel> action)
     {
         if (DataContext is WorkspaceViewModel workspace)

@@ -21,4 +21,8 @@ public sealed class Project
     public List<Chapter> Chapters { get; set; } = [];
 
     public WorldState InitialWorldState { get; set; } = new();
+
+    public SortedDictionary<string, MetadataTranslation> MetadataTranslations { get; set; } = [];
+
+    public List<string> StaleMetadataTranslations { get; set; } = [];
 }

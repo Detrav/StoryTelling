@@ -51,6 +51,7 @@
             <MenuItem Header="_Chapter" IsEnabled="{Binding HasProject}">
                         <MenuItem Header="_Generate chapter" Command="{Binding Workspace.GenerateCommand}" />
                         <MenuItem Header="_Complete book…" Click="OnCompleteBookClick" />
+                        <MenuItem Header="_Translate book metadata…" Click="OnTranslateMetadataClick" />
                         <MenuItem Header="_Finish story" Command="{Binding Workspace.FinishStoryCommand}" />
                         <MenuItem Header="_Regenerate" Command="{Binding Workspace.RegenerateCommand}" />
                         <MenuItem Header="_Stop" Command="{Binding Workspace.StopCommand}" />

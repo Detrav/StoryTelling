@@ -67,6 +67,8 @@ public partial class MainWindow : Window
 
     private async void OnCompleteBookClick(object? sender, RoutedEventArgs e) => await GuardedAsync(CompleteBookAsync);
 
+    private async void OnTranslateMetadataClick(object? sender, RoutedEventArgs e) => await GuardedAsync(TranslateMetadataAsync);
+
     private async Task CompleteBookAsync()
     {
         if (_viewModel?.Workspace is not { } workspace)
@@ -76,6 +78,18 @@ public partial class MainWindow : Window
 
         var viewModel = new BookCompletionViewModel(workspace.BuildCompletionPlan, workspace.CompleteBookAsync);
         var window = new BookCompletionWindow { DataContext = viewModel };
+        await window.ShowDialog(this);
+    }
+
+    private async Task TranslateMetadataAsync()
+    {
+        if (_viewModel?.Workspace is not { } workspace)
+        {
+            return;
+        }
+
+        var viewModel = new MetadataTranslationViewModel(workspace.MetadataLanguages, workspace.NeedsMetadataTranslation, workspace.TranslateMetadataAsync);
+        var window = new MetadataTranslationWindow { DataContext = viewModel };
         await window.ShowDialog(this);
     }
 
@@ -152,14 +166,23 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!language.IsOriginal
-            && language.Translated < language.Total
-            && !await ConfirmDialog.ShowAsync(
-                this,
-                "Untranslated chapters",
-                $"{language.Total - language.Translated} of {language.Total} chapters are not translated to {language.DisplayName}; the original English text will be used for them. Export anyway?"))
+        if (!language.IsOriginal && (!language.MetadataComplete || language.Translated < language.Total))
         {
-            return;
+            var reasons = new List<string>();
+            if (language.Translated < language.Total)
+            {
+                reasons.Add($"{language.Total - language.Translated} of {language.Total} chapters are not translated to {language.DisplayName}; the original English text will be used for them");
+            }
+
+            if (!language.MetadataComplete)
+            {
+                reasons.Add($"the book metadata is not fully translated ({language.MetadataCoverage}); the English text will be used for it");
+            }
+
+            if (!await ConfirmDialog.ShowAsync(this, "Incomplete export", string.Join("\n\n", reasons) + "\n\nExport anyway?"))
+            {
+                return;
+            }
         }
 
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions

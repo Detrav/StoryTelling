@@ -2,6 +2,7 @@ using System.Linq;
 using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Settings;
+using StoryTelling.Application.Translation;
 using StoryTelling.Domain;
 using StoryTelling.Infrastructure.Diff;
 using StoryTelling.ViewModels;
@@ -15,7 +16,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void ToProject_PreservesChapterFields()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
 
         var chapter = Assert.Single(workspace.ToProject().Chapters);
 
@@ -33,7 +34,7 @@ public sealed class WorkspaceViewModelTests
     public void ApplySetup_DoesNotDestroyDomainData()
     {
         var project = SampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
         workspace.ApplySetup(setup);
@@ -50,7 +51,7 @@ public sealed class WorkspaceViewModelTests
         var project = SampleProject();
         project.Chapters[0].StaleTranslations = ["ru"];
         var translation = new FakeTranslationService { Result = "Дым обновлён." };
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), translation);
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), translation, new FakeMetadataTranslator());
 
         await workspace.TranslateChapterCommand.ExecuteAsync(null);
 
@@ -67,7 +68,7 @@ public sealed class WorkspaceViewModelTests
             KnowledgeChanges = [new KnowledgeChange { Operation = KnowledgeChangeOperation.Update, Kind = KnowledgeKind.Character, Title = "Mira Vale", Content = "dead" }],
             EditorNotes = [new EditorNote { Kind = EditorNoteKind.Continuity, Text = "Fixed the timeline." }],
         };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var summary = (ChapterSummaryViewModel)workspace.SelectedChapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
         workspace.SelectedChapter.Direction = "Advance.";
 
@@ -95,7 +96,7 @@ public sealed class WorkspaceViewModelTests
                 new KnowledgeChange { Operation = KnowledgeChangeOperation.Create, Kind = KnowledgeKind.Item, Title = "Relic", Content = "x" },
             ]),
         };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var chapter = workspace.SelectedChapter;
         var summary = (ChapterSummaryViewModel)chapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
 
@@ -110,7 +111,7 @@ public sealed class WorkspaceViewModelTests
     public void ApplySetup_WorldChange_MarksChaptersStale()
     {
         var project = SampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
         setup.WorldBody = "A changed world.";
@@ -124,7 +125,7 @@ public sealed class WorkspaceViewModelTests
     public void ApplySetup_NoChange_KeepsChaptersGenerated()
     {
         var project = SampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var setup = workspace.CreateSetup(Catalog(), new DiffPlexTextDiff(), new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
 
         workspace.ApplySetup(setup);
@@ -136,7 +137,7 @@ public sealed class WorkspaceViewModelTests
     public void EditSummaryKnowledge_MarksLaterChaptersStale()
     {
         var project = SampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         workspace.AddChapterCommand.Execute(null);
         workspace.Chapters[1].Status = ChapterStatus.Generated;
         workspace.SelectedChapter = workspace.Chapters[0];
@@ -157,7 +158,7 @@ public sealed class WorkspaceViewModelTests
             Chapters = [new Chapter { Number = 1, Title = "One", Direction = "Go.", Status = ChapterStatus.Draft }],
         };
         var runner = new FakeChapterRunner();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         string? warning = null;
         workspace.WarningRequested += (_, message) => warning = message;
 
@@ -173,7 +174,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void ApplyChapterPlan_ReplacesChapters()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         workspace.IsDirty = false;
 
         workspace.ApplyChapterPlan([("Embers", "Open quietly."), ("Ash", "Raise the stakes.")]);
@@ -190,7 +191,7 @@ public sealed class WorkspaceViewModelTests
     public async Task PlanChaptersAsync_UsesChapterPlanTarget()
     {
         var assistant = new FakeGenerationAssistant();
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
 
         await workspace.PlanChaptersAsync(3, "dark fantasy", new GenerationSession(), null, CancellationToken.None);
 
@@ -207,7 +208,7 @@ public sealed class WorkspaceViewModelTests
         {
             Options = [new GenerationOption(new Dictionary<string, string> { ["Title"] = "The End", ["Direction"] = "Everything resolves." })],
         };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
         var before = workspace.Chapters.Count;
 
         await workspace.FinishStoryCommand.ExecuteAsync(null);
@@ -223,7 +224,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void AddChapter_RenumbersAndMarksDirty()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         workspace.IsDirty = false;
 
         workspace.AddChapterCommand.Execute(null);
@@ -236,7 +237,7 @@ public sealed class WorkspaceViewModelTests
     [Fact]
     public void DeleteChapter_BlocksWhenOnlyOneRemains()
     {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
 
         workspace.DeleteChapterCommand.Execute(workspace.SelectedChapter);
 
@@ -247,7 +248,7 @@ public sealed class WorkspaceViewModelTests
     public async Task Generate_WritesDraftIntoChapterAndMarksGenerated()
     {
         var agent = new FakeChapterRunner { Text = "Aria stepped into the dark." };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), agent, new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), agent, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var chapter = workspace.SelectedChapter;
         chapter.Status = ChapterStatus.Draft;
         chapter.ContentOriginal = string.Empty;
@@ -265,7 +266,7 @@ public sealed class WorkspaceViewModelTests
     public async Task Generate_EmptyDirection_WarnsAndDoesNotRun()
     {
         var runner = new FakeChapterRunner { Text = "New draft." };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var chapter = workspace.SelectedChapter;
         chapter.Direction = string.Empty;
         string? warning = null;
@@ -276,6 +277,48 @@ public sealed class WorkspaceViewModelTests
         Assert.NotNull(warning);
         Assert.Null(runner.LastStateBefore);
         Assert.Equal("Introduction text.", chapter.ContentOriginal);
+    }
+
+    [Fact]
+    public async Task TranslateMetadata_AppliesResultAndClearsStale()
+    {
+        var project = SampleProject();
+        project.StaleMetadataTranslations = ["ru"];
+        var metadata = new FakeMetadataTranslator
+        {
+            Result = new MetadataTranslationResult("Корона", "Аннотация", new Dictionary<int, string> { [1] = "Угли" }),
+        };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), metadata);
+
+        await workspace.TranslateMetadataAsync(new Progress<MetadataTranslationProgress>(_ => { }), CancellationToken.None);
+
+        Assert.Equal("Корона", project.MetadataTranslations["ru"].Name);
+        Assert.Equal("Аннотация", project.MetadataTranslations["ru"].Annotation);
+        Assert.Equal("Угли", workspace.ToProject().Chapters[0].TranslatedTitles["ru"]);
+        Assert.Empty(project.StaleMetadataTranslations);
+        Assert.Equal("ru", metadata.LastRequest!.LanguageCode);
+    }
+
+    [Fact]
+    public void MetadataLanguages_ExcludesEnglish()
+    {
+        var project = SampleProject();
+        project.Settings.TargetLanguages = ["ru", "en", "de"];
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+
+        Assert.Equal(new[] { "ru", "de" }, workspace.MetadataLanguages);
+    }
+
+    [Fact]
+    public void AddChapter_MarksMetadataStale()
+    {
+        var project = SampleProject();
+        project.MetadataTranslations["ru"] = new MetadataTranslation { Name = "Корона", Annotation = "Аннотация" };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+
+        workspace.AddChapterCommand.Execute(null);
+
+        Assert.Contains("ru", workspace.ToProject().StaleMetadataTranslations);
     }
 
     private static IReadOnlyList<LanguageData> Catalog() => [new LanguageData("ru", "Russian")];

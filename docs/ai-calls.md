@@ -18,7 +18,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | Retrieval fragment | 800 chars | `KnowledgeChunker.RetrievalMaxChars` |
 | Max import chunks | 20 | `KnowledgeImportRequest.DefaultMaxChunks` |
 | Structured retries | 3 | `GenerationAssistant` / `ChapterSummarizer` |
-| Temperature | `AppSettings.Temperature`, capped at 0.2–0.3 for deterministic calls (translation, import, design, summary, review, editor notes) | each service |
+| Temperature | `AppSettings.Temperature`, capped at 0.2–0.3 for deterministic calls (translation, metadata translation, import, design, summary, review, editor notes) | each service |
 
 ## 1. Calls overview
 
@@ -39,6 +39,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Knowledge import (extract)** | Setup *Import…* (`.md`) | no | JSON (`entries[]`) per chunk | reviewed → Setup |
 | **Knowledge design (prompt)** | Setup *From prompt…* | no | JSON (`entries[]`) — one request for the whole prompt | reviewed → Setup |
 | **Translation** | translation tab / *Translate chapter* / CLI | no | plain text; paragraphs that end up in the wrong script are re-translated individually | `Chapter.Translations[code]` |
+| **Metadata translation** | toolbar/menu *Translate book metadata* | no | strict JSON (`name`/`annotation`/`chapterTitles[]`) — one request per language | `Project.MetadataTranslations[code]`, `Chapter.TranslatedTitles[code]` |
 | **Probe** | Settings *Test connection* / CLI `ping` | no | chat ping + structured-output probe | none |
 
 ## 2. What is always sent in the seed
@@ -60,6 +61,7 @@ Legend: `yes` always · `opt` included but truncated/optional · `-` not include
 | Import (extract) | importer system | - | - | - | source chunk | yes | - | optional |
 | Design (prompt) | designer system | - | - | - | description chunk | yes | - | optional |
 | Translation | translator system | - | - | - | text to translate | yes | - | - |
+| Metadata translation | translator system | - | - | - | book name + annotation + chapter titles | yes | - | - |
 
 ## 3. Tools (read-only, model-facing)
 
@@ -106,6 +108,10 @@ demand from the base plus the previous chapters' diffs (`KnowledgeComposer`).
 - Translation is checked deterministically: a paragraph whose letters are in the wrong script for the
   target language (e.g. Chinese in a Russian translation) is re-translated on its own, without a
   full AI review of the chapter.
+- Metadata translation returns strict JSON (`name`/`annotation`/`chapterTitles[]`); a missing book
+  title or annotation falls back to the English source, and invalid JSON is surfaced as an error.
+  FB2 export then reads only the cached metadata and falls back to English for anything missing — it
+  never calls the model.
 
 ## 6. Token/context notes
 

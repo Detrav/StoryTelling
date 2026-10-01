@@ -42,7 +42,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         await repository.SaveAsync(SampleProject(), path);
         var json = await File.ReadAllTextAsync(path);
 
-        Assert.Contains("\"schemaVersion\": 4", json);
+        Assert.Contains($"\"schemaVersion\": {ProjectSchema.Version}", json);
         Assert.Contains("\"world\"", json);
         Assert.Contains("\"initialWorldState\"", json);
         Assert.Contains("\"timeAndPlace\"", json);

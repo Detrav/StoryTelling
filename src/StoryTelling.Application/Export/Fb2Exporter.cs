@@ -13,14 +13,17 @@ public static partial class Fb2Exporter
 
     public static string Build(Project project, string languageCode)
     {
+        var bookTitle = ResolveBookTitle(project, languageCode);
+        var annotation = ResolveAnnotation(project, languageCode);
+
         var titleInfo = new XElement(_fb + "title-info",
             new XElement(_fb + "genre", ResolveGenre(project)),
             new XElement(_fb + "author", new XElement(_fb + "nickname", "StoryTelling")),
-            new XElement(_fb + "book-title", project.Name ?? string.Empty));
+            new XElement(_fb + "book-title", bookTitle));
 
-        if (!string.IsNullOrWhiteSpace(project.World.Body))
+        if (!string.IsNullOrWhiteSpace(annotation))
         {
-            titleInfo.Add(new XElement(_fb + "annotation", new XElement(_fb + "p", project.World.Body.Trim())));
+            titleInfo.Add(new XElement(_fb + "annotation", new XElement(_fb + "p", annotation.Trim())));
         }
 
         titleInfo.Add(new XElement(_fb + "lang", ResolveLanguage(languageCode)));
@@ -35,12 +38,12 @@ public static partial class Fb2Exporter
                 new XElement(_fb + "version", "1.0")));
 
         var body = new XElement(_fb + "body",
-            new XElement(_fb + "title", new XElement(_fb + "p", project.Name ?? string.Empty)));
+            new XElement(_fb + "title", new XElement(_fb + "p", bookTitle)));
 
         foreach (var chapter in project.Chapters.OrderBy(chapter => chapter.Number))
         {
             var section = new XElement(_fb + "section",
-                new XElement(_fb + "title", new XElement(_fb + "p", ResolveChapterTitle(chapter))));
+                new XElement(_fb + "title", new XElement(_fb + "p", ResolveChapterTitle(chapter, languageCode))));
 
             foreach (var paragraph in SplitParagraphs(ResolveText(project, chapter, languageCode)))
             {
@@ -66,7 +69,7 @@ public static partial class Fb2Exporter
 
     private static string ResolveText(Project project, Chapter chapter, string languageCode)
     {
-        if (string.Equals(languageCode, "en", StringComparison.OrdinalIgnoreCase))
+        if (IsOriginal(languageCode))
         {
             return chapter.ContentOriginal;
         }
@@ -76,8 +79,34 @@ public static partial class Fb2Exporter
             : chapter.ContentOriginal;
     }
 
-    private static string ResolveChapterTitle(Chapter chapter) =>
-        string.IsNullOrWhiteSpace(chapter.Title) ? $"Chapter {chapter.Number}" : chapter.Title.Trim();
+    private static string ResolveBookTitle(Project project, string languageCode) =>
+        !IsOriginal(languageCode)
+        && project.MetadataTranslations.TryGetValue(languageCode, out var metadata)
+        && !string.IsNullOrWhiteSpace(metadata.Name)
+            ? metadata.Name.Trim()
+            : project.Name ?? string.Empty;
+
+    private static string ResolveAnnotation(Project project, string languageCode) =>
+        !IsOriginal(languageCode)
+        && project.MetadataTranslations.TryGetValue(languageCode, out var metadata)
+        && !string.IsNullOrWhiteSpace(metadata.Annotation)
+            ? metadata.Annotation.Trim()
+            : project.World.Body ?? string.Empty;
+
+    private static string ResolveChapterTitle(Chapter chapter, string languageCode)
+    {
+        if (!IsOriginal(languageCode)
+            && chapter.TranslatedTitles.TryGetValue(languageCode, out var translated)
+            && !string.IsNullOrWhiteSpace(translated))
+        {
+            return translated.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(chapter.Title) ? $"Chapter {chapter.Number}" : chapter.Title.Trim();
+    }
+
+    private static bool IsOriginal(string languageCode) =>
+        string.Equals(languageCode, "en", StringComparison.OrdinalIgnoreCase);
 
     private static string ResolveGenre(Project project) =>
         string.IsNullOrWhiteSpace(project.World.Genre) ? "prose" : project.World.Genre.Trim();

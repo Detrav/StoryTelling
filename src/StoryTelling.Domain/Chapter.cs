@@ -14,6 +14,8 @@ public sealed class Chapter
 
     public SortedDictionary<string, string> Translations { get; set; } = [];
 
+    public SortedDictionary<string, string> TranslatedTitles { get; set; } = [];
+
     public List<string> StaleTranslations { get; set; } = [];
 
     public string Logline { get; set; } = string.Empty;

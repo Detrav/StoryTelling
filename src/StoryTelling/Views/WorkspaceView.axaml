@@ -98,6 +98,7 @@
                         <Button Content="Finish" Command="{Binding FinishStoryCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan the concluding chapter" />
                         <Button Content="≡" Click="OnPlanChaptersClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan chapters with AI" />
                         <Button Content="Complete book" Click="OnCompleteBookClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate all pending work: chapters, summaries and translations" />
+                        <Button Content="Aa" Click="OnTranslateMetadataClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate book metadata (title, annotation, chapter titles)" />
                         <Button Content="⇄" Command="{Binding TranslateChapterCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate this chapter" />
                         <Button Content="■" Command="{Binding StopCommand}" IsEnabled="{Binding IsBusy}" ToolTip.Tip="Stop" />
                     </StackPanel>

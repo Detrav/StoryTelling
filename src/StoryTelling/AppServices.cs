@@ -45,6 +45,7 @@ internal static class AppServices
         services.AddSingleton<IChapterWorkflow, ChapterWorkflow>();
         services.AddSingleton<IChapterRunner, ChapterRunner>();
         services.AddSingleton<ITranslationService, TranslationService>();
+        services.AddSingleton<IMetadataTranslator, MetadataTranslationService>();
         services.AddSingleton<MainWindowViewModel>();
 
         Provider = services.BuildServiceProvider();
