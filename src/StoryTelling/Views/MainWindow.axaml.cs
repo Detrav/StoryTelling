@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         if (_viewModel is not null)
         {
             _viewModel.ErrorOccurred -= OnErrorOccurred;
+            _viewModel.WarningOccurred -= OnWarningOccurred;
             _viewModel.OpenProjectDialogRequested -= OnOpenProjectDialogRequested;
             _viewModel.SaveRequested -= OnSaveRequested;
             _viewModel.SaveAsRequested -= OnSaveAsRequested;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
         if (_viewModel is not null)
         {
             _viewModel.ErrorOccurred += OnErrorOccurred;
+            _viewModel.WarningOccurred += OnWarningOccurred;
             _viewModel.OpenProjectDialogRequested += OnOpenProjectDialogRequested;
             _viewModel.SaveRequested += OnSaveRequested;
             _viewModel.SaveAsRequested += OnSaveAsRequested;
@@ -44,6 +46,8 @@ public partial class MainWindow : Window
     }
 
     private void OnErrorOccurred(string message) => ErrorDialog.Show(this, "Something went wrong", message);
+
+    private void OnWarningOccurred(string title, string message) => ErrorDialog.Show(this, title, message);
 
     private async void OnOpenProjectDialogRequested() => await GuardedAsync(OpenProjectAsync);
 

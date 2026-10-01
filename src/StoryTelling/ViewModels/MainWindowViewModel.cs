@@ -64,6 +64,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
 
     public event Action<string>? ErrorOccurred;
 
+    public event Action<string, string>? WarningOccurred;
+
     public event Action? OpenProjectDialogRequested;
 
     public event Action? SaveRequested;
@@ -241,6 +243,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         workspace.PropertyChanged += OnWorkspacePropertyChanged;
         workspace.CloseRequested += CloseProject;
         workspace.Mutated += OnWorkspaceMutated;
+        workspace.WarningRequested += OnWorkspaceWarning;
         Workspace = workspace;
         Content = workspace;
 
@@ -273,6 +276,8 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
 
         _undoRedo?.Push(name);
     }
+
+    private void OnWorkspaceWarning(string title, string message) => WarningOccurred?.Invoke(title, message);
 
     private void ApplyState(string state)
     {
@@ -342,6 +347,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         Workspace.PropertyChanged -= OnWorkspacePropertyChanged;
         Workspace.CloseRequested -= CloseProject;
         Workspace.Mutated -= OnWorkspaceMutated;
+        Workspace.WarningRequested -= OnWorkspaceWarning;
     }
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs e)

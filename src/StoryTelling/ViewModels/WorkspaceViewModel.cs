@@ -58,6 +58,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     public event Action<string>? Mutated;
 
+    public event Action<string, string>? WarningRequested;
+
     [ObservableProperty]
     private string _projectName;
 
@@ -170,6 +172,15 @@ public partial class WorkspaceViewModel : ViewModelBase
             return;
         }
 
+        var missing = MissingForGeneration(chapter);
+        if (missing.Count > 0)
+        {
+            WarningRequested?.Invoke(
+                $"Cannot generate chapter {chapter.Number}",
+                "Fill in the following first:\n• " + string.Join("\n• ", missing));
+            return;
+        }
+
         _chapterCts?.Dispose();
         _chapterCts = new CancellationTokenSource();
         var token = _chapterCts.Token;
@@ -226,6 +237,51 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
 
+    private IReadOnlyList<string> MissingForGeneration(ChapterViewModel chapter)
+    {
+        var missing = new List<string>();
+        var world = _project.World;
+
+        if (string.IsNullOrWhiteSpace(world.Title) && string.IsNullOrWhiteSpace(world.Body))
+        {
+            missing.Add("the world — title and description (Project setup → World)");
+        }
+
+        var frameEmpty = string.IsNullOrWhiteSpace(world.Genre)
+            && string.IsNullOrWhiteSpace(world.Tone)
+            && string.IsNullOrWhiteSpace(world.Style)
+            && string.IsNullOrWhiteSpace(world.PointOfView)
+            && string.IsNullOrWhiteSpace(world.Tense)
+            && string.IsNullOrWhiteSpace(world.Rating);
+        if (frameEmpty)
+        {
+            missing.Add("the story frame — genre, tone, style, point of view, tense, rating (Project setup → World)");
+        }
+
+        if (StateBeforeIsEmpty(chapter))
+        {
+            missing.Add("the starting situation — initial world state (Project setup → Initial world state)");
+        }
+
+        if (string.IsNullOrWhiteSpace(chapter.Direction))
+        {
+            missing.Add($"the direction of chapter {chapter.Number} (chapter Settings tab)");
+        }
+
+        return missing;
+    }
+
+    private bool StateBeforeIsEmpty(ChapterViewModel chapter)
+    {
+        var prior = Chapters
+            .Where(candidate => candidate.Number < chapter.Number && candidate.WorldState is not null)
+            .OrderByDescending(candidate => candidate.Number)
+            .FirstOrDefault()?.WorldState;
+
+        var state = prior ?? _project.InitialWorldState;
+        return string.IsNullOrWhiteSpace(state.TimeAndPlace) && string.IsNullOrWhiteSpace(state.Description);
+    }
+
     private void MarkLaterStale(int number)
     {
         foreach (var other in Chapters)
@@ -242,6 +298,14 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         if (IsBusy || SelectedChapter is not { } chapter || chapter.Translations.Count == 0)
         {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(chapter.ContentOriginal))
+        {
+            WarningRequested?.Invoke(
+                "Nothing to translate",
+                "This chapter has no text yet. Generate or write it before translating.");
             return;
         }
 
@@ -296,6 +360,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     private async Task<string> TranslateLanguageAsync(ChapterViewModel chapter, string languageCode, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(chapter.ContentOriginal))
+        {
+            WarningRequested?.Invoke("Nothing to translate", "This chapter has no text yet. Generate or write it before translating.");
+            return string.Empty;
+        }
+
         var text = await _translationService.TranslateAsync(chapter.ContentOriginal, languageCode, progress, cancellationToken);
         var translation = chapter.Translations.FirstOrDefault(candidate => candidate.LanguageCode == languageCode);
         if (translation is not null)

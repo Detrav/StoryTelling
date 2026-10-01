@@ -36,7 +36,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Knowledge review** | Setup *Knowledge review* | yes | JSON (findings + optional fix) | shown in review window |
 | **Knowledge import (extract)** | Setup *Import…* (`.md`) | no | JSON (`entries[]`) per chunk | reviewed → Setup |
 | **Knowledge design (prompt)** | Setup *From prompt…* | no | JSON (`entries[]`) — one request for the whole prompt | reviewed → Setup |
-| **Translation** | translation tab / *Translate chapter* / CLI | no | plain text | `Chapter.Translations[code]` |
+| **Translation** | translation tab / *Translate chapter* / CLI | no | plain text; paragraphs that end up in the wrong script are re-translated individually | `Chapter.Translations[code]` |
 | **Probe** | Settings *Test connection* / CLI `ping` | no | chat ping + structured-output probe | none |
 
 ## 2. What is always sent in the seed
@@ -99,6 +99,9 @@ demand from the base plus the previous chapters' diffs (`KnowledgeComposer`).
 - Generation options are de-duplicated and filtered against the **avoid list** before being shown.
 - Editing a chapter's knowledge diff / summary, and changing the Setup world / knowledge / initial
   state, mark the affected chapters **stale**.
+- Translation is checked deterministically: a paragraph whose letters are in the wrong script for the
+  target language (e.g. Chinese in a Russian translation) is re-translated on its own, without a
+  full AI review of the chapter.
 
 ## 6. Token/context notes
 

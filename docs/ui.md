@@ -61,8 +61,10 @@ Every chapter action is available both from the toolbar and from the **Chapter**
     itself is never edited by a chapter.
   - *Settings* — the chapter's own settings: title, direction (what should happen), notes and the
     generation status. A *Generate with AI* button proposes the title and direction from the world,
-    the previous chapters and the knowledge base (tool-backed). Which characters appear is decided
-    by the writer (via tools), not by hand.
+    the previous chapters and the knowledge base (tool-backed). Before writing, the app checks the
+    required fields and shows a warning listing what is missing (the world, the story frame, the
+    initial world state for the first chapter, and this chapter's direction) — it never fills them
+    automatically. Which characters appear is decided by the writer (via tools), not by hand.
 
 ## Project setup (dialog)
 

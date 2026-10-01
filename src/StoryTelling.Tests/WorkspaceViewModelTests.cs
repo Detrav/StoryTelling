@@ -68,6 +68,7 @@ public sealed class WorkspaceViewModelTests
         };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
         var summary = (ChapterSummaryViewModel)workspace.SelectedChapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
+        workspace.SelectedChapter.Direction = "Advance.";
 
         Assert.Empty(summary.Changes);
 
@@ -147,6 +148,28 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
+    public async Task Generate_EmptySetup_WarnsWithDetails()
+    {
+        var project = new Project
+        {
+            World = new World(),
+            Chapters = [new Chapter { Number = 1, Title = "One", Direction = "Go.", Status = ChapterStatus.Draft }],
+        };
+        var runner = new FakeChapterRunner();
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        string? warning = null;
+        workspace.WarningRequested += (_, message) => warning = message;
+
+        await workspace.GenerateCommand.ExecuteAsync(null);
+
+        Assert.NotNull(warning);
+        Assert.Contains("world", warning);
+        Assert.Contains("frame", warning);
+        Assert.Contains("initial world state", warning);
+        Assert.Null(runner.LastStateBefore);
+    }
+
+    [Fact]
     public void AddChapter_RenumbersAndMarksDirty()
     {
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService());
@@ -177,6 +200,7 @@ public sealed class WorkspaceViewModelTests
         var chapter = workspace.SelectedChapter;
         chapter.Status = ChapterStatus.Draft;
         chapter.ContentOriginal = string.Empty;
+        chapter.Direction = "Advance.";
 
         await workspace.GenerateCommand.ExecuteAsync(null);
 
@@ -184,6 +208,23 @@ public sealed class WorkspaceViewModelTests
         Assert.Equal(ChapterStatus.Generated, chapter.Status);
         Assert.NotNull(agent.LastStateBefore);
         Assert.Contains("Dusk above the keep", agent.LastStateBefore!.TimeAndPlace);
+    }
+
+    [Fact]
+    public async Task Generate_EmptyDirection_WarnsAndDoesNotRun()
+    {
+        var runner = new FakeChapterRunner { Text = "New draft." };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService());
+        var chapter = workspace.SelectedChapter;
+        chapter.Direction = string.Empty;
+        string? warning = null;
+        workspace.WarningRequested += (_, message) => warning = message;
+
+        await workspace.GenerateCommand.ExecuteAsync(null);
+
+        Assert.NotNull(warning);
+        Assert.Null(runner.LastStateBefore);
+        Assert.Equal("Introduction text.", chapter.ContentOriginal);
     }
 
     private static IReadOnlyList<LanguageData> Catalog() => [new LanguageData("ru", "Russian")];
@@ -194,7 +235,17 @@ public sealed class WorkspaceViewModelTests
         CreatedUtc = _timestamp,
         UpdatedUtc = _timestamp,
         Settings = new StorySettings { TargetLanguages = ["ru"] },
-        World = new World { Title = "Ashen Reach", Body = "A dying empire." },
+        World = new World
+        {
+            Title = "Ashen Reach",
+            Body = "A dying empire.",
+            Genre = "fantasy",
+            Tone = "grim",
+            Style = "terse",
+            PointOfView = "third person",
+            Tense = "past",
+            Rating = "PG-13",
+        },
         Knowledge =
         [
             new KnowledgeEntry { Kind = KnowledgeKind.Note, Title = "bestiary.md", Content = "Wyverns nest in cliffs.", Tags = ["lore"] },

@@ -71,6 +71,70 @@ public sealed class TranslationService : ITranslationService
             throw new LlmException(LlmErrorKind.InvalidResponse, "The model returned an empty translation.");
         }
 
-        return translated;
+        return await RepairAsync(connection, settings, text, translated, languageCode, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string> RepairAsync(
+        LlmConnection connection,
+        AppSettings settings,
+        string source,
+        string translated,
+        string languageCode,
+        IProgress<GenerationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var expected = LanguageScripts.For(languageCode);
+        if (expected == CharScript.None)
+        {
+            return translated;
+        }
+
+        var sourceParagraphs = TranslationQuality.SplitParagraphs(source);
+        var targetParagraphs = TranslationQuality.SplitParagraphs(translated);
+        if (sourceParagraphs.Count != targetParagraphs.Count || sourceParagraphs.Count == 0)
+        {
+            return translated;
+        }
+
+        var suspects = TranslationQuality.SuspectParagraphs(targetParagraphs, expected);
+        if (suspects.Count == 0)
+        {
+            return translated;
+        }
+
+        progress?.Report(new GenerationProgress($"Fixing {suspects.Count} paragraph(s)", 0));
+
+        var repaired = false;
+        foreach (var index in suspects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var paragraph = await TranslateOneAsync(connection, settings, sourceParagraphs[index], languageCode, cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(paragraph))
+            {
+                targetParagraphs[index] = paragraph.Trim();
+                repaired = true;
+            }
+        }
+
+        return repaired ? string.Join("\n\n", targetParagraphs) : translated;
+    }
+
+    private async Task<string> TranslateOneAsync(
+        LlmConnection connection,
+        AppSettings settings,
+        string paragraph,
+        string languageCode,
+        CancellationToken cancellationToken)
+    {
+        var request = new LlmRequest
+        {
+            Model = settings.Model,
+            Messages = PromptTemplates.BuildTranslation(paragraph, languageCode),
+            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            MaxTokens = settings.MaxTokens,
+        };
+
+        var completion = await _llmClient.CompleteAsync(connection, request, cancellationToken).ConfigureAwait(false);
+        return GeneratedText.StripCodeFence(completion.Content.Trim());
     }
 }
