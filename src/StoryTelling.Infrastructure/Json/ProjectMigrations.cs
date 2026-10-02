@@ -63,10 +63,15 @@ public static class ProjectMigrations
         var frame = AsObject(root["frame"]);
         var lore = AsObject(root["lore"]);
 
+        var body = new List<string>();
+        AppendLine(body, Text(lore, "body"));
+        AppendLabeled(body, "Premise", Text(frame, "premise"));
+        AppendLabeled(body, "Direction", Text(frame, "direction"));
+
         var world = new JsonObject
         {
             ["title"] = Text(lore, "title"),
-            ["body"] = Text(lore, "body"),
+            ["body"] = string.Join("\n\n", body),
             ["tags"] = CopyArray(lore, "tags"),
             ["genre"] = Text(frame, "genre"),
             ["tone"] = Text(frame, "tone"),
@@ -104,20 +109,10 @@ public static class ProjectMigrations
             tags.Add(role);
         }
 
-        if (character["traits"] is JsonArray traits)
-        {
-            foreach (var trait in traits)
-            {
-                if (trait is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text))
-                {
-                    tags.Add(text.Trim());
-                }
-            }
-        }
-
         var lines = new List<string>();
         AppendLine(lines, Text(character, "description"));
         AppendLabeled(lines, "Personality", Text(character, "personality"));
+        AppendLabeled(lines, "Traits", JoinTraits(character));
         AppendLabeled(lines, "Background", Text(character, "background"));
         AppendLabeled(lines, "Goals", Text(character, "goals"));
         AppendLabeled(lines, "Age", Text(character, "age"));
@@ -130,6 +125,18 @@ public static class ProjectMigrations
             ["tags"] = tags,
             ["content"] = string.Join("\n", lines),
         };
+    }
+
+    private static string JoinTraits(JsonObject character)
+    {
+        if (character["traits"] is not JsonArray traits)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("; ", traits
+            .Select(trait => trait is JsonValue value && value.TryGetValue<string>(out var text) ? text.Trim() : string.Empty)
+            .Where(text => text.Length > 0));
     }
 
     private static void AppendLine(List<string> lines, string value)

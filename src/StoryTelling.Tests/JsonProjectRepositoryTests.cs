@@ -186,15 +186,18 @@ public sealed class JsonProjectRepositoryTests : IDisposable
 
         Assert.Equal(ProjectSchema.Version, project.SchemaVersion);
         Assert.Equal("Ashen Reach", project.World.Title);
-        Assert.Equal("A dying empire.", project.World.Body);
+        Assert.StartsWith("A dying empire.", project.World.Body);
+        Assert.Contains("Premise: A rebellion.", project.World.Body);
+        Assert.Contains("Direction: Rise.", project.World.Body);
         Assert.Equal("fantasy", project.World.Genre);
         Assert.Equal("grim", project.World.Tone);
         Assert.Equal("Dawn", project.InitialWorldState.TimeAndPlace);
         var character = Assert.Single(project.Knowledge);
         Assert.Equal(KnowledgeKind.Character, character.Kind);
         Assert.Equal("Aria", character.Title);
-        Assert.Contains("brave", character.Tags);
+        Assert.Contains("protagonist", character.Tags);
         Assert.Contains("A scout.", character.Content);
+        Assert.Contains("Traits: brave", character.Content);
     }
 
     [Fact]

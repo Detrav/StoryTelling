@@ -54,6 +54,7 @@ internal static class Program
                 "experiment" => await ExperimentAsync(rest, token),
                 "continuity" => await ContinuityAsync(rest, token),
                 "review" => await ReviewAsync(rest, token),
+                "apply-fixes" => await ApplyFixesAsync(rest, token),
                 "create" => await CreateAsync(rest, token),
                 _ => Help(),
             };
@@ -650,7 +651,7 @@ internal static class Program
         var file = ArgReader.Value(args, "--file");
         if (string.IsNullOrWhiteSpace(file))
         {
-            Console.Error.WriteLine("usage: storydev review --file <path> [--check numbers,facts|all] [--brief <text>] [--trace <dir>] [--out <path.json>]");
+            Console.Error.WriteLine("usage: storydev review --file <path> [--check numbers,facts|all] [--brief <text>] [--trace <dir>] [--out <path.json>] [--apply] [--apply-content]");
             return 2;
         }
 
@@ -659,6 +660,7 @@ internal static class Program
         var output = ArgReader.Value(args, "--out");
         var requested = ArgReader.Value(args, "--check");
         var apply = args.Contains("--apply");
+        var applyContent = args.Contains("--apply-content");
 
         var checks = SelectChecks(requested);
         if (checks.Count == 0)
@@ -682,7 +684,18 @@ internal static class Program
         foreach (var check in checks)
         {
             Console.WriteLine($"== {check.Label} ({check.Id}) ==");
-            var findings = await reviewer.ReviewAsync(project, brief, check, new ConsoleProgress("review"), cancellationToken);
+
+            IReadOnlyList<ReviewFinding> findings;
+            try
+            {
+                findings = await reviewer.ReviewAsync(project, brief, check, new ConsoleProgress("review"), cancellationToken);
+            }
+            catch (LlmException exception)
+            {
+                Console.WriteLine($"  failed ({exception.Kind}): {exception.Message}");
+                continue;
+            }
+
             all.AddRange(findings);
 
             foreach (var finding in findings)
@@ -718,7 +731,7 @@ internal static class Program
             var applied = 0;
             foreach (var finding in all)
             {
-                if (finding.Fix is { IsEmpty: false } fix && ApplyReviewFix(project, fix))
+                if (finding.Fix is { IsEmpty: false } fix && ApplyReviewFix(project, fix, applyContent))
                 {
                     applied++;
                 }
@@ -740,7 +753,201 @@ internal static class Program
         return 0;
     }
 
-    private static bool ApplyReviewFix(Project project, ReviewFix fix)
+    private static async Task<int> ApplyFixesAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    {
+        var file = ArgReader.Value(args, "--file");
+        var fixesPath = ArgReader.Value(args, "--fixes");
+        if (string.IsNullOrWhiteSpace(file) || string.IsNullOrWhiteSpace(fixesPath))
+        {
+            Console.Error.WriteLine("usage: storydev apply-fixes --file <book.json> --fixes <edits.json>");
+            return 2;
+        }
+
+        var json = await File.ReadAllTextAsync(fixesPath, cancellationToken);
+        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
+
+        var applied = 0;
+        var total = 0;
+        using (var document = JsonDocument.Parse(json))
+        {
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                total++;
+                if (element.TryGetProperty("create", out var create) && create.ValueKind == JsonValueKind.Object)
+                {
+                    CreateKnowledgeEntry(project, create);
+                    applied++;
+                    continue;
+                }
+
+                if (element.TryGetProperty("section", out _))
+                {
+                    applied += ApplySectionEdit(project, element) ? 1 : 0;
+                    continue;
+                }
+
+                var entry = project.Knowledge.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Title.Trim(), GetJsonString(element, "reference").Trim(), StringComparison.OrdinalIgnoreCase));
+                if (entry is null)
+                {
+                    Console.WriteLine($"  not resolved: {GetJsonString(element, "reference")}");
+                    continue;
+                }
+
+                if (element.TryGetProperty("find", out _))
+                {
+                    var find = GetJsonString(element, "find");
+                    var replace = GetJsonString(element, "replace");
+                    if (find.Length > 0 && entry.Content.Contains(find, StringComparison.Ordinal))
+                    {
+                        entry.Content = entry.Content.Replace(find, replace, StringComparison.Ordinal);
+                        applied++;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  find not present in [{entry.Title}]: {find}");
+                    }
+
+                    continue;
+                }
+
+                if (ApplyCuratedEdit(project, new ReviewEdit(GenerationTarget.Knowledge, entry.Title, GetJsonString(element, "field"), GetJsonString(element, "value"))))
+                {
+                    applied++;
+                }
+                else
+                {
+                    Console.WriteLine($"  not applied: {GetJsonString(element, "field")} [{entry.Title}]");
+                }
+            }
+        }
+
+        await SaveAsync(project, file, cancellationToken);
+        Console.WriteLine($"  applied {applied}/{total} edit(s)");
+        return 0;
+    }
+
+    private static bool ApplySectionEdit(Project project, JsonElement element)
+    {
+        var field = GetJsonString(element, "field");
+        var find = GetJsonString(element, "find");
+        var replace = GetJsonString(element, "replace");
+        var value = GetJsonString(element, "value");
+
+        string? Apply(string? current)
+        {
+            if (current is null)
+            {
+                return null;
+            }
+
+            if (find.Length > 0)
+            {
+                return current.Contains(find, StringComparison.Ordinal) ? current.Replace(find, replace, StringComparison.Ordinal) : null;
+            }
+
+            return value;
+        }
+
+        switch (GetJsonString(element, "section").ToLowerInvariant())
+        {
+            case "world":
+                return ApplyWorld(project, field, Apply);
+            case "initialworldstate":
+                return ApplyInitialState(project, field, Apply);
+            default:
+                return false;
+        }
+    }
+
+    private static bool ApplyWorld(Project project, string field, Func<string?, string?> apply)
+    {
+        var world = project.World;
+        switch (field.Trim().ToLowerInvariant())
+        {
+            case "title": return Set(world.Title, apply, value => world.Title = value);
+            case "body": return Set(world.Body, apply, value => world.Body = value);
+            case "genre": return Set(world.Genre, apply, value => world.Genre = value);
+            case "tone": return Set(world.Tone, apply, value => world.Tone = value);
+            case "style": return Set(world.Style, apply, value => world.Style = value);
+            case "pointofview": return Set(world.PointOfView, apply, value => world.PointOfView = value);
+            case "tense": return Set(world.Tense, apply, value => world.Tense = value);
+            case "rating": return Set(world.Rating, apply, value => world.Rating = value);
+            default: return false;
+        }
+    }
+
+    private static bool ApplyInitialState(Project project, string field, Func<string?, string?> apply)
+    {
+        var state = project.InitialWorldState;
+        return field.Trim().ToLowerInvariant() switch
+        {
+            "timeandplace" => Set(state.TimeAndPlace, apply, value => state.TimeAndPlace = value),
+            "situation" => Set(state.Situation, apply, value => state.Situation = value),
+            _ => false,
+        };
+    }
+
+    private static bool Set(string current, Func<string?, string?> apply, Action<string> assign)
+    {
+        if (apply(current) is { } updated)
+        {
+            assign(updated);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void CreateKnowledgeEntry(Project project, JsonElement create)
+    {
+        var entry = new KnowledgeEntry
+        {
+            Kind = Enum.TryParse<KnowledgeKind>(GetJsonString(create, "kind"), ignoreCase: true, out var kind) ? kind : KnowledgeKind.Note,
+            Title = GetJsonString(create, "title").Trim(),
+            Content = GetJsonString(create, "content"),
+        };
+
+        if (create.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array)
+        {
+            entry.Tags = [.. tags.EnumerateArray().Where(tag => tag.ValueKind == JsonValueKind.String).Select(tag => tag.GetString()!.Trim()).Where(tag => tag.Length > 0)];
+        }
+
+        project.Knowledge.Add(entry);
+    }
+
+    private static bool ApplyCuratedEdit(Project project, ReviewEdit edit)
+    {
+        var entry = project.Knowledge.FirstOrDefault(candidate =>
+            string.Equals(candidate.Title.Trim(), edit.Reference.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+        {
+            return false;
+        }
+
+        switch (edit.Field.Trim().ToLowerInvariant())
+        {
+            case "kind" when Enum.TryParse<KnowledgeKind>(edit.Value.Trim(), ignoreCase: true, out var kind):
+                entry.Kind = kind;
+                return true;
+            case "title":
+                entry.Title = edit.Value.Trim();
+                return true;
+            case "tags":
+                entry.Tags = [.. edit.Value.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+                return true;
+            case "content":
+                entry.Content = edit.Value;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static string GetJsonString(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? string.Empty : string.Empty;
+
+    private static bool ApplyReviewFix(Project project, ReviewFix fix, bool applyContent)
     {
         var changed = false;
         foreach (var edit in fix.Edits)
@@ -763,12 +970,25 @@ internal static class Program
                     entry.Kind = kind;
                     break;
                 case "title":
-                    entry.Title = edit.Value.Trim();
-                    break;
+                    Console.WriteLine($"      skip rename [{entry.Title}] -> [{edit.Value.Trim()}]");
+                    continue;
                 case "tags":
                     entry.Tags = [.. edit.Value.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
                     break;
                 case "content":
+                    if (!applyContent)
+                    {
+                        Console.WriteLine($"      skip content (use --apply-content) [{entry.Title}]");
+                        continue;
+                    }
+
+                    var value = edit.Value.Trim();
+                    if (value.Length < entry.Content.Length * 0.8)
+                    {
+                        Console.WriteLine($"      skip destructive content shrink [{entry.Title}] ({entry.Content.Length} -> {value.Length} chars)");
+                        continue;
+                    }
+
                     entry.Content = edit.Value;
                     break;
                 default:
@@ -914,7 +1134,8 @@ internal static class Program
         Console.WriteLine("  context   Print the assembled writer prompt for one chapter (no provider): --file <path> --number N");
         Console.WriteLine("  regenerate Rewrite one chapter in place with the current seed: --file <path> --chapter N [--out <path>]");
         Console.WriteLine("  continuity Check a chapter's direction against the established facts: --file <path> [--chapter N | --all]");
-        Console.WriteLine("  review    AI-review the knowledge base for contradictions: --file <path> [--check numbers,facts|all] [--brief <text>] [--trace <dir>] [--out <path.json>]");
+        Console.WriteLine("  review    AI-review the knowledge base for contradictions: --file <path> [--check numbers,facts|all] [--brief <text>] [--trace <dir>] [--out <path.json>] [--apply] [--apply-content]");
+        Console.WriteLine("  apply-fixes Apply curated knowledge edits: --file <book.json> --fixes <edits.json>");
         Console.WriteLine("  judge     Score whether a chapter continues the story: --file <path> --chapter N");
         Console.WriteLine("  compare   Pick which of two chapter drafts continues better: --a <pathA> --b <pathB> --chapter N");
         Console.WriteLine("  experiment Run full-book passes with full prompt traces: --file <base> [--out <dir>] [--from N] [--to M]");

@@ -39,11 +39,28 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
             MaxTokens = settings.MaxTokens,
         };
 
-        var content = await _llmClient
-            .CompleteJsonAsync(connection, request, "ReviewFindings", ReviewSchema.Build(), cancellationToken)
-            .ConfigureAwait(false);
+        var content = await CompleteWithRetryAsync(connection, request, cancellationToken).ConfigureAwait(false);
 
         return ReviewDeduplicator.Deduplicate(ParseFindings(content), snapshot);
+    }
+
+    private async Task<string> CompleteWithRetryAsync(LlmConnection connection, LlmRequest request, CancellationToken cancellationToken)
+    {
+        const int attempts = 2;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await _llmClient
+                    .CompleteJsonAsync(connection, request, "ReviewFindings", ReviewSchema.Build(), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (LlmException) when (attempt < attempts)
+            {
+                await Task.Delay(300, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 
     private static IReadOnlyList<ReviewFinding> ParseFindings(string content)
