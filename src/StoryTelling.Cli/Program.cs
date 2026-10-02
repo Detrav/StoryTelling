@@ -255,6 +255,7 @@ internal static class Program
             Target = GenerationTarget.ChapterPlan,
             Brief = brief,
             Variants = count,
+            Bundle = true,
             Context = BookBuilder.BuildContext(project),
             Snapshot = snapshot,
         };

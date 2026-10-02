@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
@@ -30,8 +31,9 @@ public static class PromptTemplates
             + "Constraints: Work in English only. "
             + (useTools ? "Consult the project with the provided tools before answering. " : string.Empty)
             + "Respect everything already established.\n"
-            + $"Output: Exactly {request.Variants} distinct options matching the required JSON schema — "
-            + "no prose, no explanations.";
+            + (request.Bundle
+                ? $"Output: Exactly {request.Variants} sequential items matching the required JSON schema — no prose, no explanations."
+                : $"Output: Exactly {request.Variants} distinct options matching the required JSON schema — no prose, no explanations.");
 
         var specs = GenerationTargets.Fields(request.Target);
         var ownFields = specs.Select(spec => spec.Field).ToHashSet();
@@ -115,10 +117,14 @@ public static class PromptTemplates
         if (request.Target == GenerationTarget.ChapterPlan)
         {
             user.AppendLine();
-            user.AppendLine($"Plan exactly {request.Variants} chapters. Spread the whole story across them "
-                + $"(setup, rising action, climax, resolution) and make sure it reaches a FULL resolution in "
-                + $"chapter {request.Variants}: the last chapter must resolve every open thread — no cliffhanger, "
-                + "no new mystery, nothing left for a sequel.");
+            user.AppendLine($"Plan exactly {request.Variants} chapters in reading order. These are sequential "
+                + "chapters of ONE story, not alternative options: chapter 1 happens first, chapter 2 continues "
+                + "it, and so on. Do not number or name other chapters inside a chapter's direction and do not "
+                + "describe the whole arc in every direction — each direction describes only that chapter and "
+                + "ends where the next one begins.");
+            user.AppendLine($"Spread the story across them (setup, rising action, climax, resolution) and make "
+                + $"sure it reaches a FULL resolution in chapter {request.Variants}: the last chapter must "
+                + "resolve every open thread — no cliffhanger, no new mystery, nothing left for a sequel.");
         }
 
         if (request.Target == GenerationTarget.Finale)
@@ -133,7 +139,9 @@ public static class PromptTemplates
             user.AppendLine($"Author's brief: {request.Brief.Trim()}");
         }
 
-        user.AppendLine($"Provide exactly {request.Variants} distinct options.");
+        user.AppendLine(request.Bundle
+            ? $"Provide exactly {request.Variants} sequential items."
+            : $"Provide exactly {request.Variants} distinct options.");
 
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
@@ -434,8 +442,8 @@ public static class PromptTemplates
 
     public static string WriterGather() =>
         "Consult the project with the tools to refresh the facts you need (characters, initial world "
-        + "state, recent loglines, knowledge, search). When you have what you need, reply with one short "
-        + "line; do not write the chapter yet.";
+        + "state, recent loglines, knowledge, search). When you have what you need, reply with exactly "
+        + "\"Ready.\" and nothing else. Never write any part of the chapter in this phase.";
 
     public static string WriterWrite(Chapter chapter) =>
         $"Now write chapter {chapter.Number}"
@@ -448,9 +456,25 @@ public static class PromptTemplates
     public static string WriterBrief(Chapter chapter)
     {
         var lines = new List<string> { $"Chapter {chapter.Number}: {chapter.Title.Trim()}".TrimEnd() };
-        AddLine(lines, "Direction", chapter.Direction);
+        AddLine(lines, "Direction", DirectionFor(chapter.Direction));
         AddLine(lines, "Notes", chapter.Notes);
         return string.Join("\n", lines);
+    }
+
+    private static readonly Regex _chapterSentence = new(
+        @"\bchapter\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b[^.!?]*[.!?]",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public static string DirectionFor(string direction)
+    {
+        if (string.IsNullOrWhiteSpace(direction))
+        {
+            return direction;
+        }
+
+        var cleaned = _chapterSentence.Replace(direction, string.Empty);
+        cleaned = Regex.Replace(cleaned, @"\s{2,}", " ").Trim();
+        return cleaned.Length == 0 ? direction.Trim() : cleaned;
     }
 
     public static string WriterWorldStyle(World world)
@@ -587,6 +611,34 @@ public static class PromptTemplates
         }
 
         return string.Join("\n", lines);
+    }
+
+    public static string WriterCast(Project project)
+    {
+        var cast = project.Knowledge
+            .Where(entry => entry.Kind == KnowledgeKind.Character && !string.IsNullOrWhiteSpace(entry.Title))
+            .ToList();
+        if (cast.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder("Cast:");
+        foreach (var entry in cast)
+        {
+            builder.Append('\n').Append("- ").Append(entry.Title.Trim());
+            if (entry.Tags.Count > 0)
+            {
+                builder.Append(" [").Append(string.Join(", ", entry.Tags)).Append(']');
+            }
+
+            if (!string.IsNullOrWhiteSpace(entry.Content))
+            {
+                builder.Append('\n').Append(entry.Content.Trim());
+            }
+        }
+
+        return builder.ToString();
     }
 
     public static string WriterWorldLore(World world)
@@ -779,7 +831,7 @@ public static class PromptTemplates
         user.AppendLine("Reply with:");
         user.AppendLine("- logline: 1-2 sentences on what actually happened in this chapter.");
         user.AppendLine("- timeAndPlace: a short when/where line for the situation immediately after this chapter.");
-        user.AppendLine("- situation: the situation after this chapter, in this order: where we are; what changed; what is still unresolved; what this sets up next. Always write it.");
+        user.AppendLine("- situation: the situation after this chapter, in this order: where we are; what changed; what is still unresolved; what follows from this. Do not say \"this sets up next\" and never name chapters. Always write it.");
         user.AppendLine("- knowledgeChanges: the entries this chapter changed.");
         user.AppendLine("Base everything strictly on the chapter text.");
         user.AppendLine();

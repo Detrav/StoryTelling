@@ -36,7 +36,7 @@ internal static class ChapterToolLoop
             Model = settings.Model,
             Messages = [.. seed, LlmMessage.User(gatherInstruction)],
             Temperature = settings.TemperatureFor(LlmTask.Writer),
-            MaxTokens = settings.MaxTokens,
+            MaxTokens = Math.Min(settings.MaxTokens, 1024),
         };
 
         return await new ToolAgent(llmClient)

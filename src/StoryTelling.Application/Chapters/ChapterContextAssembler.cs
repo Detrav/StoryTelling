@@ -55,6 +55,7 @@ public sealed class ChapterContextAssembler : IContextAssembler
         AddRequired(Truncate(PromptTemplates.WriterState(context.StateBefore), context.RequiredSectionMaxChars));
         AddRequired(PromptTemplates.WriterRecap(context.Snapshot, context.Chapter, context.RecentLoglineCount));
         AddRequired(PromptTemplates.OpenThreads(context.Snapshot));
+        AddRequired(PromptTemplates.WriterCast(context.Snapshot));
         AddOptional(PromptTemplates.WriterWorldLore(context.Snapshot.World));
         AddOptional(PromptTemplates.WriterManifest(context.Snapshot, context.Chapter));
 

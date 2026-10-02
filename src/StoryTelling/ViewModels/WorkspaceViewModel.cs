@@ -1036,6 +1036,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             Target = GenerationTarget.ChapterPlan,
             Brief = brief,
             Variants = count,
+            Bundle = true,
             Context = new GenerationContext { Fields = ProjectFields() },
             Snapshot = snapshot,
         };

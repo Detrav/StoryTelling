@@ -14,5 +14,7 @@ public sealed record GenerationRequest
 
     public Project? Snapshot { get; init; }
 
+    public bool Bundle { get; init; }
+
     public IReadOnlyList<string> Avoid { get; init; } = [];
 }

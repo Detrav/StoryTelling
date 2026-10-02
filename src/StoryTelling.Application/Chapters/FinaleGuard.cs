@@ -31,10 +31,18 @@ public static class FinaleGuard
         "leaves the door open",
         "sets up a sequel",
         "sets up future",
+        "sets up next",
+        "potential for further",
+        "potential for more",
+        "will continue",
+        "continues to",
+        "awaits the next",
+        "more to come",
     ];
 
-    public static bool IsUnresolved(ChapterResult result) =>
+    public static bool IsUnresolved(ChapterResult result, IReadOnlyList<KnowledgeEntry> composedKnowledge) =>
         result.KnowledgeChanges.Any(change => change.Kind == KnowledgeKind.Thread && change.Status == KnowledgeStatus.Open)
+        || composedKnowledge.Any(entry => entry.Kind == KnowledgeKind.Thread && entry.Status == KnowledgeStatus.Open)
         || HasCliffhanger(result.Text)
         || HasCliffhanger(result.WorldState?.Situation)
         || HasCliffhanger(result.WorldState?.TimeAndPlace)
@@ -43,4 +51,17 @@ public static class FinaleGuard
     public static bool HasCliffhanger(string? text) =>
         !string.IsNullOrWhiteSpace(text)
         && _cliffhangerMarkers.Any(marker => text.Contains(marker, StringComparison.OrdinalIgnoreCase));
+
+    public static string StripContinuation(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return text ?? string.Empty;
+        }
+
+        var sentences = System.Text.RegularExpressions.Regex.Split(text, @"(?<=[.!?])\s+");
+        var kept = sentences.Where(sentence => !HasCliffhanger(sentence)).ToList();
+        var result = string.Join(" ", kept).Trim();
+        return result.Length == 0 ? text.Trim() : result;
+    }
 }

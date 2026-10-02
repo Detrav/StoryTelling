@@ -26,18 +26,50 @@ public sealed class ChapterRunner : IChapterRunner
         CancellationToken cancellationToken = default)
     {
         var stateBefore = StateBefore(project, project.Chapters.IndexOf(chapter));
-        var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number));
+        var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
+        var effective = WithKnowledge(project, knowledge);
+        var finale = IsFinale(project, chapter);
         var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, progress, cancellationToken).ConfigureAwait(false);
 
-        if (IsFinale(project, chapter) && FinaleGuard.IsUnresolved(result))
+        if (finale && FinaleGuard.IsUnresolved(result, FinaleThreads(project, knowledge, result)))
         {
+            progress?.Report(new GenerationProgress("Finale unresolved — retrying", 0));
             result = await _workflow.RunAsync(effective, ForWriting(project, chapter, strict: true), stateBefore, progress, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (finale)
+        {
+            result = FinaleCloser.Close(result, FinaleThreads(project, knowledge, result));
         }
 
         Apply(chapter, result);
         MarkLaterStale(project, chapter.Number);
         return result;
     }
+
+    private static IReadOnlyList<KnowledgeEntry> FinaleThreads(
+        Project project,
+        IReadOnlyList<KnowledgeEntry> knowledge,
+        ChapterResult result)
+    {
+        var list = knowledge.Select(Clone).ToList();
+        if (result.KnowledgeChanges.Count > 0)
+        {
+            KnowledgeComposer.Apply(list, result.KnowledgeChanges);
+        }
+
+        return list;
+    }
+
+    private static KnowledgeEntry Clone(KnowledgeEntry entry) => new()
+    {
+        Id = entry.Id,
+        Kind = entry.Kind,
+        Title = entry.Title,
+        Tags = [.. entry.Tags],
+        Content = entry.Content,
+        Status = entry.Status,
+    };
 
     public async Task<ChapterResult> GenerateNextAsync(
         Project project,
@@ -62,12 +94,20 @@ public sealed class ChapterRunner : IChapterRunner
 
         try
         {
-            var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, number));
+            var knowledge = KnowledgeComposer.Compose(project, number);
+            var effective = WithKnowledge(project, knowledge);
             var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, progress, cancellationToken).ConfigureAwait(false);
 
-            if (IsFinale(project, chapter) && FinaleGuard.IsUnresolved(result))
+            var finale = IsFinale(project, chapter);
+            if (finale && FinaleGuard.IsUnresolved(result, FinaleThreads(project, knowledge, result)))
             {
+                progress?.Report(new GenerationProgress("Finale unresolved — retrying", 0));
                 result = await _workflow.RunAsync(effective, ForWriting(project, chapter, strict: true), stateBefore, progress, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (finale)
+            {
+                result = FinaleCloser.Close(result, FinaleThreads(project, knowledge, result));
             }
 
             Apply(chapter, result);
