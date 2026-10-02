@@ -13,6 +13,14 @@
                 <TextBlock Text="{Binding Status}" Opacity="0.7" VerticalAlignment="Center" />
             </StackPanel>
 
+            <Border BorderThickness="1"
+                    BorderBrush="#22000000"
+                    CornerRadius="4"
+                    MaxHeight="140"
+                    IsVisible="{Binding IsBusy}">
+                <ListBox ItemsSource="{Binding Steps}" ItemTemplate="{StaticResource ProgressItemTemplate}" />
+            </Border>
+
             <TextBlock Text="Logline" Opacity="0.7" />
             <TextBox Text="{Binding Logline}" LostFocus="OnCommit" />
 

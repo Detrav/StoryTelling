@@ -20,13 +20,19 @@ internal sealed class FakeChapterRunner : IChapterRunner
 
     public WorldState? LastStateBefore { get; private set; }
 
+    public Exception? Throws { get; set; }
+
     public Task<ChapterResult> GenerateAsync(
         Project project,
         Chapter chapter,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default)
     {
+        if (Throws is not null)
+        {
+            return Task.FromException<ChapterResult>(Throws);
+        }
+
         var index = project.Chapters.IndexOf(chapter);
         LastStateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
         return Task.FromResult(new ChapterResult(Text, Logline, WorldState, KnowledgeChanges, EditorNotes, ToolCalls));
@@ -35,7 +41,6 @@ internal sealed class FakeChapterRunner : IChapterRunner
     public Task<ChapterResult> GenerateNextAsync(
         Project project,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<ChapterResult>> RunAsync(

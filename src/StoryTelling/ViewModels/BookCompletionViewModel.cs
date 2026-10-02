@@ -154,45 +154,10 @@ public partial class BookCompletionViewModel : ViewModelBase
         }
     }
 
-    private void UpdateOperations(int completed, int currentIndex, string stage)
-    {
-        for (var index = 0; index < Operations.Count; index++)
-        {
-            var item = Operations[index];
-            if (index == currentIndex)
-            {
-                item.MarkRunning(stage);
-            }
-            else if (index < completed)
-            {
-                item.MarkDone();
-            }
-            else
-            {
-                item.MarkPending();
-            }
-        }
-    }
+    private void UpdateOperations(int completed, int currentIndex, string stage) =>
+        ProgressItems.Update(Operations, completed, currentIndex, stage);
 
-    private void CancelRunning()
-    {
-        foreach (var item in Operations)
-        {
-            if (item.IsRunning)
-            {
-                item.MarkPending();
-            }
-        }
-    }
+    private void CancelRunning() => ProgressItems.CancelRunning(Operations);
 
-    private void FailRunning(string message)
-    {
-        foreach (var item in Operations)
-        {
-            if (item.IsRunning)
-            {
-                item.MarkFailed(message);
-            }
-        }
-    }
+    private void FailRunning(string message) => ProgressItems.FailRunning(Operations, message);
 }

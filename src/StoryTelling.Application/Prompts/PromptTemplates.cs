@@ -310,6 +310,67 @@ public static class PromptTemplates
         return lines.Count == 0 ? string.Empty : "World state before this chapter:\n" + string.Join("\n", lines);
     }
 
+    public static string WriterPosition(Project project, Chapter chapter)
+    {
+        var total = project.Chapters.Count;
+        if (total <= 1)
+        {
+            return "This is the opening of the book.";
+        }
+
+        return $"This is chapter {chapter.Number} of {total}. Earlier chapters have already happened — "
+            + "continue the story from the situation below instead of starting it over, and do not "
+            + "re-introduce people or places the reader has already met.";
+    }
+
+    public static string WriterStorySoFar(Project project, Chapter chapter, int recentCount)
+    {
+        var prior = project.Chapters
+            .Where(candidate => candidate.Number < chapter.Number && !string.IsNullOrWhiteSpace(candidate.Logline))
+            .OrderBy(candidate => candidate.Number)
+            .ToList();
+
+        if (prior.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var selected = new List<Chapter> { prior[0] };
+        if (recentCount > 0)
+        {
+            foreach (var recent in prior.Skip(Math.Max(0, prior.Count - recentCount)))
+            {
+                if (recent.Number != prior[0].Number)
+                {
+                    selected.Add(recent);
+                }
+            }
+        }
+
+        selected = [.. selected.OrderBy(candidate => candidate.Number)];
+
+        var lines = new List<string> { "Story so far:" };
+        lines.Add(DescribeLogline(selected[0]));
+
+        var omitted = prior.Count - selected.Count;
+        if (omitted > 0)
+        {
+            lines.Add($"- …({omitted} chapter{(omitted == 1 ? string.Empty : "s")} omitted)…");
+        }
+
+        for (var index = 1; index < selected.Count; index++)
+        {
+            lines.Add(DescribeLogline(selected[index]));
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    private static string DescribeLogline(Chapter chapter) =>
+        $"- Chapter {chapter.Number}"
+        + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
+        + $": {chapter.Logline.Trim()}";
+
     public static string WriterWorldLore(World world)
     {
         if (string.IsNullOrWhiteSpace(world.Title) && string.IsNullOrWhiteSpace(world.Body))

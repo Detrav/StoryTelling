@@ -92,7 +92,36 @@ public partial class MainWindow : Window
 
     private async void OnExportFb2Click(object? sender, RoutedEventArgs e) => await GuardedAsync(ExportFb2Async);
 
+    private async void OnGenerateChapterClick(object? sender, RoutedEventArgs e) => await GuardedAsync(GenerateChapterAsync);
+
+    private async Task GenerateChapterAsync()
+    {
+        if (_viewModel?.Workspace is { } workspace)
+        {
+            await ChapterGenerationRunner.RunAsync(this, workspace);
+        }
+    }
+
     private async void OnCompleteBookClick(object? sender, RoutedEventArgs e) => await GuardedAsync(CompleteBookAsync);
+
+    private async void OnFinishStoryClick(object? sender, RoutedEventArgs e) => await GuardedAsync(FinishStoryAsync);
+
+    private async Task FinishStoryAsync()
+    {
+        if (_viewModel?.Workspace is not { } workspace)
+        {
+            return;
+        }
+
+        var viewModel = new ProgressTaskViewModel(
+            "Finish story",
+            "The AI plans a concluding chapter with a title and direction. Review it, then Generate.",
+            [new ProgressItemViewModel("Plan the final chapter")],
+            workspace.PlanFinalChapterAsync);
+
+        var window = new ProgressWindow { DataContext = viewModel };
+        await window.ShowDialog(this);
+    }
 
     private async void OnTranslateMetadataClick(object? sender, RoutedEventArgs e) => await GuardedAsync(TranslateMetadataAsync);
 
@@ -129,6 +158,9 @@ public partial class MainWindow : Window
         try
         {
             await action();
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception exception)
         {

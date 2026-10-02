@@ -15,6 +15,8 @@ internal sealed class FakeGenerationAssistant : IGenerationAssistant
 
     public GenerationRequest? LastRequest { get; private set; }
 
+    public Exception? Throws { get; set; }
+
     public Task<IReadOnlyList<GenerationOption>> GenerateAsync(
         GenerationRequest request,
         GenerationSession? session = null,
@@ -22,6 +24,8 @@ internal sealed class FakeGenerationAssistant : IGenerationAssistant
         CancellationToken cancellationToken = default)
     {
         LastRequest = request;
-        return Task.FromResult(Options);
+        return Throws is null
+            ? Task.FromResult(Options)
+            : Task.FromException<IReadOnlyList<GenerationOption>>(Throws);
     }
 }

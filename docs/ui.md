@@ -15,17 +15,17 @@ StoryTelling` (the leading `*` appears while there are unsaved changes).
 - **Edit** — Undo, Redo.
 - **View** — Show chapter list (toggle the sidebar).
 - **Chapter** — Generate chapter, Complete book…, Translate book metadata…, Finish story,
-  Regenerate, Stop, Add chapter, Delete chapter, Move up, Move down.
+  Add chapter, Delete chapter, Move up, Move down.
 - **Help** — Open logs folder, About.
 
-Undo/Redo (`Ctrl+Z` / `Ctrl+Y`) cover project edits made in the current session; the same toolbar
-(`↶` `↷`) sits under the menu. Closing a dirty project — through the window close button,
-*File → Close project* or *Exit* — asks what to do with the unsaved changes: **Save** (with a file
-picker when the project has never been saved), **Discard** or **Cancel** (also the default when the
-dialog is dismissed). Actions are not duplicated everywhere: *Add / Delete chapter* and *Move up /
-down* live in the **Chapter** menu and the chapter-list context menu, *Plan chapters* and *Translate
-chapter* live only on the workspace toolbar, and *Translate book metadata* exists in both the menu and
-the toolbar.
+Undo/Redo (`Ctrl+Z` / `Ctrl+Y`) cover project edits made in the current session and are reachable both
+from this menu and from the end of the workspace toolbar. Closing a dirty project — through the window
+close button, *File → Close project* or *Exit* — asks what to do with the unsaved changes: **Save**
+(with a file picker when the project has never been saved), **Discard** or **Cancel** (also the default
+when the dialog is dismissed). Actions are not duplicated everywhere: *Add / Delete chapter* and *Move
+up / down* live in the **Chapter** menu and the chapter-list context menu, *Plan chapters* and
+*Translate chapter* live only on the workspace toolbar, and *Translate book metadata* exists in both
+the menu and the toolbar.
 
 ## Welcome
 
@@ -37,13 +37,13 @@ the toolbar.
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ File  Edit  View  Chapter  Help                                           │
-│ ↶ ↷                                                                     │
 ├──────────────┬───────────────────────────────────────────────────────────┤
-│ Chapters  [+]│  Chapter 3 — The Long Night  ▶ ↻ Finish ≡ Complete book Aa ⇄ ■│
-│ 1 Embers     ├───────────────────────────────────────────────────────────┤
-│ 2 Ashes      │ Ch (EN) | Ch (RU) | Ch (DE) | Summary | Settings         │
-│ 3 Long Night │                                                            │
-│ 4 …          │  editor text …                                            │
+│ Chapters  [+]│  Chapter 3 — The Long Night  ▶ Finish ≡ Complete book Aa ⇄│
+│ 1 Embers     │                                          │ ↶ ↷            │
+│ 2 Ashes      ├───────────────────────────────────────────────────────────┤
+│ 3 Long Night │ Ch (EN) | Ch (RU) | Ch (DE) | Summary | Settings         │
+│ 4 …          │                                                            │
+│              │  editor text …                                            │
 └──────────────┴───────────────────────────────────────────────────────────┘
 ```
 
@@ -57,25 +57,31 @@ the toolbar.
     *Stale* the AI set (for example on a later chapter after an earlier one was edited) once the
     text has been checked. The status line in the list also carries a tooltip with the same
     explanation.
-- **Toolbar** — icon buttons for Generate (`▶`), Regenerate (`↻`), Finish (`Finish`), Plan chapters
-  (`≡`), *Complete book* (`Complete book`), *Translate book metadata* (`Aa`), Translate (`⇄`) and
-  Stop (`■`), with tooltips.
-  *Plan chapters* opens a dialog where the
+- **Toolbar** — icon buttons for Generate (`▶`), Finish (`Finish`), Plan chapters (`≡`),
+  *Complete book* (`Complete book`), *Translate book metadata* (`Aa`) and Translate (`⇄`), followed
+  by a separator and the Undo/Redo pair (`↶` `↷`) whose tooltips name the action they revert.
+  *Generate* opens a blocking dialog (see below). *Plan chapters* opens a dialog where the
   author sets the chapter count and an optional brief; the AI proposes that many chapter
   titles + directions forming a complete arc, and *Apply* replaces the chapter list (with a
-  confirmation when chapters already contain written text). *Finish* appends a final chapter and
-  plans its title + direction as the story's resolution (no cliffhanger); review it, then Generate.
-  *Complete book* runs every outstanding AI task across the book (see below).
+  confirmation when chapters already contain written text). *Finish* opens a progress dialog that
+  appends a final chapter and plans its title + direction as the story's resolution (no cliffhanger);
+  review it, then Generate. *Translate* (`⇄`) opens a progress dialog that translates this chapter
+  into every target language, one row per language, and can be cancelled. *Complete book* runs every
+  outstanding AI task across the book (see below).
+  There is no separate *Regenerate* button: generating a chapter that already has text rewrites it
+  through the same dialog. To re-derive only the summary of an existing chapter, use *Regenerate
+  summary* on the **Summary** tab.
 - **Editor tabs** — built per chapter:
   - *Chapter (EN)* — the original text.
   - *Chapter (XX)* — one tab per project target language, each with a *Translate with AI* button
-    (real translation) and a *Stop* button; a tab shows **Out of date** in amber when the original
-    changed since it was translated. The toolbar's translate button translates the whole chapter
-    into every target language.
+    (real translation) and a *Stop* button; while it runs an inline step list shows the translation
+    progress. A tab shows **Out of date** in amber when the original changed since it was translated.
+    The toolbar's translate button translates the whole chapter into every target language.
   - *Summary* — what the chapter produced, in three parts: the **logline**, the **world state**
     (time and place + a free-form description) and the **knowledge** (the chapter's changes to the
     story database). A *Regenerate summary* button rebuilds the logline, world state and knowledge
-    diff from the existing chapter text without rewriting the chapter; *Stop* cancels it. The
+    diff from the existing chapter text without rewriting the chapter; *Stop* cancels it and an
+    inline step list shows its progress. The
     knowledge list is editable — add / edit / delete a change — and each row is colour-coded:
     light-green created, light-yellow modified, light-red deleted. Below it, the **editor notes**
     list what the editor changed (continuity / style / pacing / …). There is no free-form recap:
@@ -148,6 +154,26 @@ world description, one section per chapter, paragraphs), using the cached metada
 where present and the English text otherwise. Export is a pure function: it only reads caches, never
 calls the model.
 
+## Generate chapter (dialog)
+
+*Chapter → Generate chapter…* and the toolbar's **▶** open a modal dialog that blocks the workspace
+while the chapter is written. Before it opens, the required fields are checked and, if anything is
+missing, the usual warning lists what to fill in and no dialog is shown.
+
+While it runs the dialog shows the pipeline as a list — **Gather context**, **Write draft**,
+**Edit draft**, **Summarize and update the story state** — advancing each row (`○` pending,
+`▶` running, `✓` done, `✗` failed) with the current stage and tool-call count as the row's detail,
+over an indeterminate progress bar. **Cancel** stops the generation, closes the dialog and leaves the
+chapter unchanged; closing the window (the title-bar button) cancels the same way. On success the
+status reads *Done* with *Close to read the chapter*; on failure it shows the reason and notes that the
+chapter was left unchanged. The text is written to the chapter in the background and appears in the
+editor tab once the dialog is closed, so there is no live preview while generating.
+
+*Finish story* and *Translate chapter* use the same progress list with their own steps — one row for
+the final-chapter plan; one row per target language — each with **Cancel**.
+*Complete book* uses the same pass in bulk and keeps its own multi-operation dialog with Cancel, since
+it can be stopped between chapters.
+
 ## Complete book (dialog)
 
 The toolbar's **Complete book** button (also *Chapter → Complete book…*) opens a modal dialog that
@@ -190,6 +216,10 @@ A separate modal window, split into tabs:
 - **Provider** — preset (OpenAI / OpenRouter / Ollama / LM Studio), base URL, model, API key.
 - **Parameters** — timeout, max tokens, temperature, max tool calls (how many context lookups the
   AI may make per generation), *Test connection*.
+- **Context** — how much of the project is sent when a chapter is written: the writer-seed **token
+  budget**, how many **recent loglines** to include in the story-so-far, the **required-section
+  cap** (the world state), and the **tool-result budget**. Larger values add continuity, cost more
+  tokens and can dilute focus.
 - **Languages** — the global catalog: add (code + name), remove; the selected row is the
   default language for new projects.
 

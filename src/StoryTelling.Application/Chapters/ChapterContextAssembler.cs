@@ -5,11 +5,11 @@ namespace StoryTelling.Application.Chapters;
 
 public sealed class ChapterContextAssembler : IContextAssembler
 {
-    public const int DefaultTokenBudget = 2000;
+    public const int DefaultTokenBudget = 4000;
+
+    public const int DefaultRequiredSectionMaxChars = 6000;
 
     private const int CharsPerToken = 4;
-
-    private const int MaxRequiredSectionChars = 4000;
 
     public ChapterContext AssembleWriter(WriterContext context)
     {
@@ -52,7 +52,9 @@ public sealed class ChapterContextAssembler : IContextAssembler
 
         AddRequired(PromptTemplates.WriterBrief(context.Chapter));
         AddRequired(PromptTemplates.WriterWorldStyle(context.Snapshot.World));
-        AddRequired(Truncate(PromptTemplates.WriterState(context.StateBefore), MaxRequiredSectionChars));
+        AddRequired(PromptTemplates.WriterPosition(context.Snapshot, context.Chapter));
+        AddRequired(Truncate(PromptTemplates.WriterState(context.StateBefore), context.RequiredSectionMaxChars));
+        AddRequired(PromptTemplates.WriterStorySoFar(context.Snapshot, context.Chapter, context.RecentLoglineCount));
         AddOptional(PromptTemplates.WriterWorldLore(context.Snapshot.World));
         AddOptional(PromptTemplates.WriterManifest(context.Snapshot, context.Chapter));
 

@@ -154,7 +154,7 @@ This sequence is a *recommended order*, not a blocking wizard; the author may ju
   of entries (characters, places, factions, items, events, rules, background) instead of extracting
   them from source material. A file/prompt that would need more than the chunk limit is **rejected
   with an error** before running. The user reviews the proposed entries (with checkboxes) before
-  they are added. Import targets large chunks (~8000 characters, fewer requests); retrieval keeps
+  they are added. Import targets larger chunks (~3000 characters) than retrieval; retrieval keeps
   small fragments (~800) for BM25 precision — both sizes are defined once in `KnowledgeChunker`.
 - **Retrieval.** A keyword/BM25 ranker (embeddings later) selects the most relevant entries or
   fragments for a query. Retrieval is exposed to the model as `search_knowledge`.

@@ -22,12 +22,11 @@ public sealed class ChapterRunner : IChapterRunner
         Project project,
         Chapter chapter,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default)
     {
         var stateBefore = StateBefore(project, project.Chapters.IndexOf(chapter));
         var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number));
-        var result = await _workflow.RunAsync(effective, chapter, stateBefore, progress, onDelta, cancellationToken).ConfigureAwait(false);
+        var result = await _workflow.RunAsync(effective, chapter, stateBefore, progress, cancellationToken).ConfigureAwait(false);
 
         Apply(chapter, result);
         MarkLaterStale(project, chapter.Number);
@@ -37,7 +36,6 @@ public sealed class ChapterRunner : IChapterRunner
     public async Task<ChapterResult> GenerateNextAsync(
         Project project,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default)
     {
         var number = project.Chapters.Count + 1;
@@ -57,7 +55,7 @@ public sealed class ChapterRunner : IChapterRunner
         try
         {
             var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, number));
-            var result = await _workflow.RunAsync(effective, chapter, stateBefore, progress, onDelta, cancellationToken).ConfigureAwait(false);
+            var result = await _workflow.RunAsync(effective, chapter, stateBefore, progress, cancellationToken).ConfigureAwait(false);
             Apply(chapter, result);
             return result;
         }
@@ -77,7 +75,7 @@ public sealed class ChapterRunner : IChapterRunner
         var results = new List<ChapterResult>();
         for (var i = 0; i < count; i++)
         {
-            results.Add(await GenerateNextAsync(project, progress, null, cancellationToken).ConfigureAwait(false));
+            results.Add(await GenerateNextAsync(project, progress, cancellationToken).ConfigureAwait(false));
         }
 
         return results;

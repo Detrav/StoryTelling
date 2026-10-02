@@ -8,6 +8,5 @@ public interface IChapterAgent
     Task<ChapterDraft> WriteAsync(
         WriterContext context,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default);
 }

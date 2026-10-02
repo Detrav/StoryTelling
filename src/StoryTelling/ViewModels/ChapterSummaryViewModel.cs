@@ -33,6 +33,9 @@ public partial class ChapterSummaryViewModel : ViewModelBase
 
     public ObservableCollection<KnowledgeChangeEditorViewModel> Changes { get; } = [];
 
+    public ObservableCollection<ProgressItemViewModel> Steps { get; } =
+        [new ProgressItemViewModel("Summarize and update the story state")];
+
     public IReadOnlyList<EditorNote> EditorNotes => _chapter.EditorNotes;
 
     [ObservableProperty]
@@ -125,22 +128,29 @@ public partial class ChapterSummaryViewModel : ViewModelBase
 
         IsBusy = true;
         Status = "Regenerating…";
+        ProgressItems.Update(Steps, 0, 0, Status);
 
         var progress = new Progress<GenerationProgress>(report =>
-            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…");
+        {
+            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…";
+            ProgressItems.Update(Steps, 0, 0, Status);
+        });
 
         try
         {
             await regenerate(progress, token);
             Status = "Summary regenerated.";
+            ProgressItems.MarkAllDone(Steps);
         }
         catch (OperationCanceledException)
         {
             Status = "Stopped.";
+            ProgressItems.CancelRunning(Steps);
         }
         catch (Exception exception)
         {
             Status = $"Failed: {exception.Message}";
+            ProgressItems.FailRunning(Steps, exception.Message);
         }
         finally
         {

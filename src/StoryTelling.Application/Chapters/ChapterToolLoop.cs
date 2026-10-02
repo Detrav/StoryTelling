@@ -39,7 +39,7 @@ internal static class ChapterToolLoop
         };
 
         return await new ToolAgent(llmClient)
-            .GatherAsync(connection, request, tools, toolset.Invoke, settings.MaxToolCalls, progress: progress, cancellationToken: cancellationToken)
+            .GatherAsync(connection, request, tools, toolset.Invoke, settings.MaxToolCalls, settings.ToolResultMaxChars, progress, cancellationToken)
             .ConfigureAwait(false);
     }
 }

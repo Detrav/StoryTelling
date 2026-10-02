@@ -20,6 +20,14 @@ public sealed class AppSettings
 
     public int MaxToolCalls { get; set; } = 12;
 
+    public int ContextTokenBudget { get; set; } = 4000;
+
+    public int RecentLoglineCount { get; set; } = 3;
+
+    public int ContextRequiredSectionMaxChars { get; set; } = 6000;
+
+    public int ToolResultMaxChars { get; set; } = 24000;
+
     public double Temperature { get; set; } = 0.8;
 
     public string DefaultLanguageCode { get; set; } = "ru";

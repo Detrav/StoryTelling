@@ -9,6 +9,10 @@ internal sealed class FakeTranslationService : ITranslationService
 
     public string? LastLanguageCode { get; private set; }
 
+    public int CancelAfter { get; set; } = int.MaxValue;
+
+    private int _calls;
+
     public Task<string> TranslateAsync(
         string text,
         string languageCode,
@@ -16,6 +20,13 @@ internal sealed class FakeTranslationService : ITranslationService
         CancellationToken cancellationToken = default)
     {
         LastLanguageCode = languageCode;
+        _calls++;
+
+        if (_calls > CancelAfter)
+        {
+            throw new OperationCanceledException();
+        }
+
         return Task.FromResult(Result);
     }
 }

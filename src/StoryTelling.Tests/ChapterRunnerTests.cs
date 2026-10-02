@@ -69,7 +69,7 @@ public sealed class ChapterRunnerTests
             Notes = [new EditorNote { Kind = EditorNoteKind.Style, Text = "Tightened prose." }],
         };
         var summarizer = new FakeChapterSummarizer { Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, []) };
-        var runner = new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer), summarizer, new FakeClock(_timestamp));
+        var runner = new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
         var project = Project();
         project.Chapters[0].Translations["ru"] = "Дым.";
 
@@ -140,7 +140,7 @@ public sealed class ChapterRunnerTests
         writer = new FakeChapterAgent { Text = "Draft.", ToolCalls = 2 };
         var editor = new FakeChapterEditor { Result = "Edited." };
         summarizer = new FakeChapterSummarizer { Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, []) };
-        return new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer), summarizer, new FakeClock(_timestamp));
+        return new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
     }
 
     private static Project Project() => new()

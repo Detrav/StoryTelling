@@ -14,7 +14,6 @@ internal sealed class FakeChapterAgent : IChapterAgent
     public Task<ChapterDraft> WriteAsync(
         WriterContext context,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default)
     {
         LastContext = context;

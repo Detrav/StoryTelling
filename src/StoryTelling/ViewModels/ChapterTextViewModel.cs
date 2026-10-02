@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using StoryTelling.Application.Generation;
@@ -8,7 +9,7 @@ public partial class ChapterTextViewModel : ViewModelBase
 {
     private readonly Action<string> _apply;
     private readonly CommitDebouncer _debouncer;
-    private bool _streaming;
+    private bool _applying;
     private CancellationTokenSource? _cts;
 
     public ChapterTextViewModel(string header, string text, bool isTranslation, Action<string> apply, Action commit)
@@ -38,6 +39,9 @@ public partial class ChapterTextViewModel : ViewModelBase
     [ObservableProperty]
     private string _status = string.Empty;
 
+    public ObservableCollection<ProgressItemViewModel> Steps { get; } =
+        [new ProgressItemViewModel("Translate this chapter")];
+
     [RelayCommand]
     private async Task TranslateAsync()
     {
@@ -52,9 +56,13 @@ public partial class ChapterTextViewModel : ViewModelBase
 
         IsBusy = true;
         Status = "Translating…";
+        ProgressItems.Update(Steps, 0, 0, Status);
 
         var progress = new Progress<GenerationProgress>(report =>
-            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…");
+        {
+            Status = report.ToolCalls > 0 ? $"{report.Stage}… ({report.ToolCalls} tool calls)" : $"{report.Stage}…";
+            ProgressItems.Update(Steps, 0, 0, Status);
+        });
 
         try
         {
@@ -62,14 +70,17 @@ public partial class ChapterTextViewModel : ViewModelBase
             Text = translated;
             IsStale = false;
             Status = "Translated.";
+            ProgressItems.MarkAllDone(Steps);
         }
         catch (OperationCanceledException)
         {
             Status = "Stopped.";
+            ProgressItems.CancelRunning(Steps);
         }
         catch (Exception exception)
         {
             Status = $"Failed: {exception.Message}";
+            ProgressItems.FailRunning(Steps, exception.Message);
         }
         finally
         {
@@ -80,26 +91,28 @@ public partial class ChapterTextViewModel : ViewModelBase
     [RelayCommand]
     private void StopTranslate() => _cts?.Cancel();
 
-    public void BeginStream()
+    public void ReplaceText(string text)
     {
-        _streaming = true;
-        Text = string.Empty;
-    }
+        _debouncer.Cancel();
+        _applying = true;
 
-    public void AppendStreaming(string delta) => Text += delta;
+        try
+        {
+            Text = text;
+        }
+        finally
+        {
+            _applying = false;
+        }
 
-    public void EndStream(string finalText)
-    {
-        Text = finalText;
-        _streaming = false;
-        _apply(finalText);
+        _apply(text);
     }
 
     public void Commit() => _debouncer.CommitNow();
 
     partial void OnTextChanged(string value)
     {
-        if (_streaming)
+        if (_applying)
         {
             return;
         }

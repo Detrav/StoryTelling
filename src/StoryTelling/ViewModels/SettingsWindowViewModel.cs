@@ -27,6 +27,10 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         _timeoutSeconds = settings.TimeoutSeconds;
         _maxTokens = settings.MaxTokens;
         _maxToolCalls = settings.MaxToolCalls;
+        _contextTokenBudget = settings.ContextTokenBudget;
+        _recentLoglineCount = settings.RecentLoglineCount;
+        _contextRequiredSectionMaxChars = settings.ContextRequiredSectionMaxChars;
+        _toolResultMaxChars = settings.ToolResultMaxChars;
         _temperature = settings.Temperature;
         _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
@@ -64,6 +68,18 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
 
     [ObservableProperty]
     private int _maxToolCalls;
+
+    [ObservableProperty]
+    private int _contextTokenBudget;
+
+    [ObservableProperty]
+    private int _recentLoglineCount;
+
+    [ObservableProperty]
+    private int _contextRequiredSectionMaxChars;
+
+    [ObservableProperty]
+    private int _toolResultMaxChars;
 
     [ObservableProperty]
     private double _temperature;
@@ -167,6 +183,10 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         TimeoutSeconds = TimeoutSeconds,
         MaxTokens = MaxTokens,
         MaxToolCalls = MaxToolCalls,
+        ContextTokenBudget = ContextTokenBudget,
+        RecentLoglineCount = RecentLoglineCount,
+        ContextRequiredSectionMaxChars = ContextRequiredSectionMaxChars,
+        ToolResultMaxChars = ToolResultMaxChars,
         Temperature = Temperature,
         DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
         Languages = Languages.ToList(),
@@ -183,6 +203,10 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             TimeoutSeconds,
             MaxTokens,
             MaxToolCalls,
+            ContextTokenBudget,
+            RecentLoglineCount,
+            ContextRequiredSectionMaxChars,
+            ToolResultMaxChars,
             Temperature,
             SelectedDefault?.Code ?? _original.DefaultLanguageCode,
             [.. Languages]);
@@ -205,6 +229,10 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         TimeoutSeconds = snapshot.TimeoutSeconds;
         MaxTokens = snapshot.MaxTokens;
         MaxToolCalls = snapshot.MaxToolCalls;
+        ContextTokenBudget = snapshot.ContextTokenBudget;
+        RecentLoglineCount = snapshot.RecentLoglineCount;
+        ContextRequiredSectionMaxChars = snapshot.ContextRequiredSectionMaxChars;
+        ToolResultMaxChars = snapshot.ToolResultMaxChars;
         Temperature = snapshot.Temperature;
 
         Languages.Clear();
@@ -225,6 +253,10 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         int TimeoutSeconds,
         int MaxTokens,
         int MaxToolCalls,
+        int ContextTokenBudget,
+        int RecentLoglineCount,
+        int ContextRequiredSectionMaxChars,
+        int ToolResultMaxChars,
         double Temperature,
         string DefaultLanguageCode,
         List<LanguageData> Languages);

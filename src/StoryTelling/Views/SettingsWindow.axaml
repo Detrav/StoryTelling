@@ -70,6 +70,36 @@
                 </StackPanel>
             </TabItem>
 
+            <TabItem Header="Context">
+                <StackPanel Margin="18" Spacing="12">
+                    <TextBlock Text="How much of the project is sent to the model when a chapter is written. Larger budgets add continuity but cost more tokens and can dilute focus."
+                               Opacity="0.7"
+                               TextWrapping="Wrap" />
+
+                    <Grid ColumnDefinitions="*,*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                            <TextBlock Text="Context token budget" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding ContextTokenBudget}" Minimum="200" Maximum="65536" Increment="500" LostFocus="OnCommit" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="6,0">
+                            <TextBlock Text="Recent loglines" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding RecentLoglineCount}" Minimum="0" Maximum="20" LostFocus="OnCommit" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                            <TextBlock Text="Required section cap (chars)" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding ContextRequiredSectionMaxChars}" Minimum="500" Maximum="100000" Increment="500" LostFocus="OnCommit" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                            <TextBlock Text="Tool result budget (chars)" Opacity="0.7" />
+                            <NumericUpDown Value="{Binding ToolResultMaxChars}" Minimum="1000" Maximum="200000" Increment="1000" LostFocus="OnCommit" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+
             <TabItem Header="Languages">
                 <Grid Margin="18" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8">
                     <TextBlock Grid.Row="0"

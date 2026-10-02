@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\examples\*.story.json" Link="examples\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\StoryTelling.Domain\StoryTelling.Domain.csproj" />
     <ProjectReference Include="..\StoryTelling.Application\StoryTelling.Application.csproj" />
     <ProjectReference Include="..\StoryTelling.Infrastructure\StoryTelling.Infrastructure.csproj" />

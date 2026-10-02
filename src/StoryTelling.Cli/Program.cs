@@ -47,6 +47,7 @@ internal static class Program
                 "recompute" => await RecomputeAsync(rest, token),
                 "edit" => await EditAsync(rest, token),
                 "draft" => await DraftAsync(rest, token),
+                "context" => await ContextAsync(rest, token),
                 "create" => await CreateAsync(rest, token),
                 _ => Help(),
             };
@@ -88,6 +89,10 @@ internal static class Program
         settings.ApiKey = ArgReader.String(args, "--api-key", settings.ApiKey);
         settings.MaxTokens = ArgReader.Int(args, "--max-tokens", settings.MaxTokens);
         settings.MaxToolCalls = ArgReader.Int(args, "--max-tool-calls", settings.MaxToolCalls);
+        settings.ContextTokenBudget = ArgReader.Int(args, "--context-token-budget", settings.ContextTokenBudget);
+        settings.RecentLoglineCount = ArgReader.Int(args, "--recent-loglines", settings.RecentLoglineCount);
+        settings.ContextRequiredSectionMaxChars = ArgReader.Int(args, "--required-cap", settings.ContextRequiredSectionMaxChars);
+        settings.ToolResultMaxChars = ArgReader.Int(args, "--tool-result-max-chars", settings.ToolResultMaxChars);
         settings.Temperature = ArgReader.Double(args, "--temperature", settings.Temperature);
         settings.TimeoutSeconds = ArgReader.Int(args, "--timeout", settings.TimeoutSeconds);
         return settings;
@@ -429,6 +434,48 @@ internal static class Program
         return 0;
     }
 
+    private static async Task<int> ContextAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    {
+        var file = ArgReader.Value(args, "--file");
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            Console.Error.WriteLine("usage: storydev context --file <path> --number N");
+            return 2;
+        }
+
+        var number = ArgReader.Int(args, "--number", 1);
+        using var context = await BuildAsync(args, cancellationToken);
+        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
+        var chapter = project.Chapters.FirstOrDefault(candidate => candidate.Number == number);
+        if (chapter is null)
+        {
+            Console.Error.WriteLine($"chapter {number} not found");
+            return 2;
+        }
+
+        var index = project.Chapters.IndexOf(chapter);
+        var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
+        var settings = await context.SettingsService.LoadAsync(cancellationToken);
+        var writerContext = new WriterContext(
+            project,
+            chapter,
+            stateBefore,
+            settings.ContextTokenBudget,
+            settings.RecentLoglineCount,
+            settings.ContextRequiredSectionMaxChars);
+        var assembled = new ChapterContextAssembler().AssembleWriter(writerContext);
+
+        Console.WriteLine($"  estimated tokens: ~{assembled.EstimatedTokens}");
+        foreach (var message in assembled.Messages)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"===== {message.Role} =====");
+            Console.WriteLine(message.Content);
+        }
+
+        return 0;
+    }
+
     private static async Task<int> DraftAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
         var file = ArgReader.Value(args, "--file");
@@ -452,9 +499,17 @@ internal static class Program
 
         var index = project.Chapters.IndexOf(chapter);
         var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
+        var settings = await context.SettingsService.LoadAsync(cancellationToken);
         Console.WriteLine($"  Drafting chapter {number}…");
+        var writerContext = new WriterContext(
+            project,
+            chapter,
+            stateBefore,
+            settings.ContextTokenBudget,
+            settings.RecentLoglineCount,
+            settings.ContextRequiredSectionMaxChars);
         var draft = await new ChapterAgent(context.LlmClient, context.SettingsService, new ChapterContextAssembler())
-            .WriteAsync(new WriterContext(project, chapter, stateBefore, ChapterContextAssembler.DefaultTokenBudget), new ConsoleProgress("draft"), null, cancellationToken);
+            .WriteAsync(writerContext, new ConsoleProgress("draft"), cancellationToken);
 
         await WriteAndReportAsync(output, draft.Text, cancellationToken);
         return 0;
@@ -496,7 +551,7 @@ internal static class Program
         var writer = new ChapterAgent(context.LlmClient, context.SettingsService, new ChapterContextAssembler());
         var editor = new ChapterEditor(context.LlmClient, context.SettingsService, new DiffPlexTextDiff());
         var summarizer = new ChapterSummarizer(context.LlmClient, context.SettingsService);
-        var workflow = new ChapterWorkflow(writer, editor, summarizer);
+        var workflow = new ChapterWorkflow(writer, editor, summarizer, context.SettingsService);
         return new ChapterRunner(workflow, summarizer, new SystemClock());
     }
 
@@ -548,11 +603,13 @@ internal static class Program
         Console.WriteLine("  recompute Refresh summaries/world state from a chapter onward: --file <path> [--from N]");
         Console.WriteLine("  edit      Run the editor on one chapter (debug): --file <path> --number N [--in <draft.txt>] [--out <edited.txt>]");
         Console.WriteLine("  draft     Run the writer on one chapter (debug): --file <path> --number N [--out <draft.txt>]");
+        Console.WriteLine("  context   Print the assembled writer prompt for one chapter (no provider): --file <path> --number N");
         Console.WriteLine("  create    Full run (setup + chapters): --out <path> [--chapters N] [--brief ...] [--characters N]");
         Console.WriteLine("  export    Write an FB2: --file <path> [--language <code>] [--out <path.fb2>] (no provider needed)");
         Console.WriteLine();
         Console.WriteLine("Common options:");
         Console.WriteLine("  --base-url --model --api-key --max-tokens --max-tool-calls --temperature --timeout");
+        Console.WriteLine("  --context-token-budget --recent-loglines --required-cap --tool-result-max-chars");
         return 0;
     }
 }

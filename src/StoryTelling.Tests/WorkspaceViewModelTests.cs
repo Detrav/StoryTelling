@@ -54,7 +54,7 @@ public sealed class WorkspaceViewModelTests
         var translation = new FakeTranslationService { Result = "Дым обновлён." };
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), translation, new FakeMetadataTranslator());
 
-        await workspace.TranslateChapterCommand.ExecuteAsync(null);
+        await workspace.TranslateChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None);
 
         Assert.Equal("Дым обновлён.", workspace.SelectedChapter.Translations.Single().Text);
         Assert.Empty(workspace.SelectedChapter.StaleTranslations);
@@ -75,7 +75,7 @@ public sealed class WorkspaceViewModelTests
 
         Assert.Empty(summary.Changes);
 
-        await workspace.GenerateCommand.ExecuteAsync(null);
+        await workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None);
 
         var change = Assert.Single(summary.Changes);
         Assert.Equal("Mira Vale", change.Title);
@@ -151,7 +151,7 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
-    public async Task Generate_EmptySetup_WarnsWithDetails()
+    public void Generate_EmptySetup_WarnsWithDetails()
     {
         var project = new Project
         {
@@ -163,8 +163,9 @@ public sealed class WorkspaceViewModelTests
         string? warning = null;
         workspace.WarningRequested += (_, message) => warning = message;
 
-        await workspace.GenerateCommand.ExecuteAsync(null);
+        var valid = workspace.ValidateGeneration();
 
+        Assert.False(valid);
         Assert.NotNull(warning);
         Assert.Contains("world", warning);
         Assert.Contains("frame", warning);
@@ -212,7 +213,7 @@ public sealed class WorkspaceViewModelTests
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
         var before = workspace.Chapters.Count;
 
-        await workspace.FinishStoryCommand.ExecuteAsync(null);
+        await workspace.PlanFinalChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None);
 
         Assert.Equal(before + 1, workspace.Chapters.Count);
         var last = workspace.Chapters[^1];
@@ -255,7 +256,7 @@ public sealed class WorkspaceViewModelTests
         chapter.ContentOriginal = string.Empty;
         chapter.Direction = "Advance.";
 
-        await workspace.GenerateCommand.ExecuteAsync(null);
+        await workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None);
 
         Assert.Equal("Aria stepped into the dark.", chapter.ContentOriginal);
         Assert.Equal(ChapterStatus.Generated, chapter.Status);
@@ -264,7 +265,7 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
-    public async Task Generate_EmptyDirection_WarnsAndDoesNotRun()
+    public void Generate_EmptyDirection_WarnsAndDoesNotRun()
     {
         var runner = new FakeChapterRunner { Text = "New draft." };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
@@ -273,8 +274,9 @@ public sealed class WorkspaceViewModelTests
         string? warning = null;
         workspace.WarningRequested += (_, message) => warning = message;
 
-        await workspace.GenerateCommand.ExecuteAsync(null);
+        var valid = workspace.ValidateGeneration();
 
+        Assert.False(valid);
         Assert.NotNull(warning);
         Assert.Null(runner.LastStateBefore);
         Assert.Equal("Introduction text.", chapter.ContentOriginal);
@@ -640,6 +642,202 @@ public sealed class WorkspaceViewModelTests
         Assert.True(workspace.IsDirty);
         Assert.Equal(["Complete book"], mutations);
     }
+
+    [Fact]
+    public async Task GenerateChapterAsync_RefreshesTheEditorWithoutStreaming()
+    {
+        var runner = new FakeChapterRunner { Text = "Aria stepped into the dark." };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        var chapter = workspace.SelectedChapter;
+        var editor = (ChapterTextViewModel)chapter.Tabs[0].Content;
+
+        await workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None);
+
+        Assert.Equal("Aria stepped into the dark.", chapter.ContentOriginal);
+        Assert.Equal("Aria stepped into the dark.", editor.Text);
+    }
+
+    [Fact]
+    public void ValidateGeneration_FailsWhenRequiredFieldsAreMissing()
+    {
+        var project = SampleProject();
+        project.Chapters[0].Direction = string.Empty;
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        string? warning = null;
+        workspace.WarningRequested += (_, message) => warning = message;
+
+        Assert.False(workspace.ValidateGeneration());
+        Assert.Contains("direction", warning);
+    }
+
+    [Fact]
+    public void ValidateGeneration_SucceedsWhenTheChapterIsReady()
+    {
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        workspace.SelectedChapter.Direction = "Advance.";
+
+        Assert.True(workspace.ValidateGeneration());
+    }
+
+    [Fact]
+    public async Task GenerateChapterAsync_WhenBusy_Refuses()
+    {
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        workspace.IsBusy = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GenerateChapterAsync_Cancelled_SetsStoppedStatus()
+    {
+        var runner = new FakeChapterRunner { Throws = new OperationCanceledException() };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None));
+
+        Assert.Equal("Stopped.", workspace.Status);
+        Assert.False(workspace.IsBusy);
+    }
+
+    [Fact]
+    public void UndoRedo_IsAbsentUntilAHostIsAttached()
+    {
+        var workspace = Build();
+
+        Assert.False(workspace.HasUndoRedo);
+        Assert.Null(workspace.UndoCommand);
+        Assert.Null(workspace.RedoCommand);
+        Assert.Equal("Undo", workspace.UndoLabel);
+    }
+
+    [Fact]
+    public void AttachUndoRedo_ExposesTheHostCommandsAndLabels()
+    {
+        var workspace = Build();
+        var host = new FakeUndoRedoHost { UndoLabel = "Undo: Add chapter", RedoLabel = "Redo" };
+        var notifications = new List<string?>();
+        workspace.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
+
+        workspace.AttachUndoRedo(host);
+
+        Assert.True(workspace.HasUndoRedo);
+        Assert.Same(host.UndoCommand, workspace.UndoCommand);
+        Assert.Equal("Undo: Add chapter", workspace.UndoLabel);
+        Assert.Contains(nameof(WorkspaceViewModel.UndoLabel), notifications);
+    }
+
+    [Fact]
+    public void UndoRedo_ForwardsLabelChanges()
+    {
+        var workspace = Build();
+        var host = new FakeUndoRedoHost();
+        workspace.AttachUndoRedo(host);
+        var notifications = new List<string?>();
+        workspace.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
+
+        host.UndoLabel = "Undo: Plan chapters";
+        host.Raise(nameof(IUndoRedoHost.UndoLabel));
+
+        Assert.Equal("Undo: Plan chapters", workspace.UndoLabel);
+        Assert.Contains(nameof(WorkspaceViewModel.UndoLabel), notifications);
+    }
+
+    [Fact]
+    public void DetachUndoRedo_StopsForwarding()
+    {
+        var workspace = Build();
+        var host = new FakeUndoRedoHost();
+        workspace.AttachUndoRedo(host);
+
+        workspace.DetachUndoRedo();
+        host.UndoLabel = "Undo: something later";
+        host.Raise(nameof(IUndoRedoHost.UndoLabel));
+
+        Assert.False(workspace.HasUndoRedo);
+        Assert.Equal("Undo", workspace.UndoLabel);
+    }
+
+    [Fact]
+    public void ChapterCapabilities_FollowTheListPositions()
+    {
+        var workspace = Build();
+
+        Assert.False(workspace.Chapters[0].CanMoveUp);
+        Assert.False(workspace.Chapters[0].CanMoveDown);
+        Assert.False(workspace.Chapters[0].CanDelete);
+
+        workspace.AddChapterCommand.Execute(null);
+
+        Assert.False(workspace.Chapters[0].CanMoveUp);
+        Assert.True(workspace.Chapters[0].CanMoveDown);
+        Assert.True(workspace.Chapters[0].CanDelete);
+        Assert.True(workspace.Chapters[1].CanMoveUp);
+        Assert.False(workspace.Chapters[1].CanMoveDown);
+    }
+
+    [Fact]
+    public void BuildTranslatePlan_ListsEveryTargetLanguage()
+    {
+        var workspace = Build();
+
+        var plan = workspace.BuildTranslatePlan();
+
+        Assert.Equal(["Translate to RU"], plan.Select(item => item.Header));
+        Assert.True(workspace.PrepareTranslation());
+    }
+
+    [Fact]
+    public async Task TranslateChapter_CancelledMidway_KeepsAppliedTranslationsAndMarksDirty()
+    {
+        var project = SampleProject();
+        project.Settings = new StorySettings { TargetLanguages = ["ru", "de"] };
+        project.Chapters[0].Translations = new SortedDictionary<string, string> { ["ru"] = string.Empty, ["de"] = string.Empty };
+        project.Chapters[0].StaleTranslations = ["ru", "de"];
+        var translation = new FakeTranslationService { Result = "Done.", CancelAfter = 1 };
+        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), translation, new FakeMetadataTranslator());
+        workspace.IsDirty = false;
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            workspace.TranslateChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None));
+
+        Assert.Equal("Stopped.", workspace.Status);
+        Assert.True(workspace.IsDirty);
+        Assert.Equal("Done.", workspace.SelectedChapter.Translations[0].Text);
+    }
+
+    [Fact]
+    public async Task PlanFinalChapter_NoOptions_SetsAFailedStatusAndRethrows()
+    {
+        var assistant = new FakeGenerationAssistant { Options = [] };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            workspace.PlanFinalChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None));
+
+        Assert.Equal("Failed: The model returned no usable plan. Try again.", workspace.Status);
+        Assert.False(workspace.IsBusy);
+    }
+
+    [Fact]
+    public async Task PlanFinalChapter_Cancelled_SetsStoppedStatus()
+    {
+        var assistant = new FakeGenerationAssistant
+        {
+            Throws = new OperationCanceledException(),
+        };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            workspace.PlanFinalChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None));
+
+        Assert.Equal("Stopped.", workspace.Status);
+    }
+
+    private static WorkspaceViewModel Build() =>
+        new(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
 
     private static IReadOnlyList<LanguageData> Catalog() => [new LanguageData("ru", "Russian")];
 

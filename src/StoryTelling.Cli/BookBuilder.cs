@@ -47,7 +47,7 @@ internal sealed class BookBuilder
         {
             var number = project.Chapters.Count + 1;
             Console.WriteLine($"  Writing chapter {number}…");
-            var result = await _runner.GenerateNextAsync(project, new ConsoleProgress($"chapter {number}"), null, cancellationToken);
+            var result = await _runner.GenerateNextAsync(project, new ConsoleProgress($"chapter {number}"), cancellationToken);
             Console.WriteLine($"  Chapter {number}: {result.Text.Length} chars, {result.ToolCalls} tool calls");
             Console.WriteLine($"    logline: {result.Logline}");
         }

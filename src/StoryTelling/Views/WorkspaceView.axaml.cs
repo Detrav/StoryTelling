@@ -27,7 +27,21 @@ public partial class WorkspaceView : UserControl
     private void SetStatus(object? sender, ChapterStatus status) =>
         Execute(vm => vm.SetChapterStatus(Chapter(sender), status));
 
+    private void OnGenerateClick(object? sender, RoutedEventArgs e) => Guarded(() =>
+    {
+        if (DataContext is WorkspaceViewModel workspace)
+        {
+            return ChapterGenerationRunner.RunAsync(this, workspace);
+        }
+
+        return Task.CompletedTask;
+    });
+
     private void OnPlanChaptersClick(object? sender, RoutedEventArgs e) => Guarded(RunPlanChaptersAsync);
+
+    private void OnFinishStoryClick(object? sender, RoutedEventArgs e) => Guarded(RunFinishStoryAsync);
+
+    private void OnTranslateChapterClick(object? sender, RoutedEventArgs e) => Guarded(RunTranslateChapterAsync);
 
     private void OnCompleteBookClick(object? sender, RoutedEventArgs e) => Guarded(RunCompleteBookAsync);
 
@@ -67,6 +81,49 @@ public partial class WorkspaceView : UserControl
 
         var viewModel = new BookCompletionViewModel(workspace.BuildCompletionPlan, workspace.CompleteBookAsync);
         var dialog = new BookCompletionWindow { DataContext = viewModel };
+        await dialog.ShowDialog(window);
+    }
+
+    private async Task RunFinishStoryAsync()
+    {
+        if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
+        {
+            return;
+        }
+
+        var viewModel = new ProgressTaskViewModel(
+            "Finish story",
+            "The AI plans a concluding chapter with a title and direction. Review it, then Generate.",
+            [new ProgressItemViewModel("Plan the final chapter")],
+            workspace.PlanFinalChapterAsync);
+
+        await ShowProgressAsync(window, viewModel);
+    }
+
+    private async Task RunTranslateChapterAsync()
+    {
+        if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
+        {
+            return;
+        }
+
+        if (!workspace.PrepareTranslation())
+        {
+            return;
+        }
+
+        var viewModel = new ProgressTaskViewModel(
+            "Translate chapter",
+            "Translates this chapter into every target language of the project.",
+            workspace.BuildTranslatePlan(),
+            workspace.TranslateChapterAsync);
+
+        await ShowProgressAsync(window, viewModel);
+    }
+
+    private static async Task ShowProgressAsync(Window window, ProgressTaskViewModel viewModel)
+    {
+        var dialog = new ProgressWindow { DataContext = viewModel };
         await dialog.ShowDialog(window);
     }
 

@@ -9,12 +9,13 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | Knob | Value | Where |
 |------|-------|-------|
 | `MaxToolCalls` | 12 | `AppSettings` — per tool-gather loop |
-| Tool-result budget | 24000 chars | `ToolAgent.DefaultMaxResultChars` |
-| Writer seed budget | 2000 tokens (~8000 chars) | `ChapterContextAssembler.DefaultTokenBudget` |
-| Required seed section cap | 4000 chars (state) | `ChapterContextAssembler` |
+| Tool-result budget | 24000 chars | `AppSettings.ToolResultMaxChars` |
+| Writer seed budget | 4000 tokens (~16000 chars) | `AppSettings.ContextTokenBudget` |
+| Required seed section cap | 6000 chars (state) | `AppSettings.ContextRequiredSectionMaxChars` |
+| Recent loglines in seed | 3 | `AppSettings.RecentLoglineCount` |
 | Knowledge manifest cap (seed) | 120 entries | `PromptTemplates.Build` |
 | Summary knowledge digest | 2000 chars/entry, 16000 total | `PromptTemplates.BuildSummarizer` |
-| Import chunk | 8000 chars | `KnowledgeChunker.ImportMaxChars` |
+| Import chunk | 3000 chars | `KnowledgeChunker.ImportMaxChars` |
 | Retrieval fragment | 800 chars | `KnowledgeChunker.RetrievalMaxChars` |
 | Max import chunks | 20 | `KnowledgeImportRequest.DefaultMaxChunks` |
 | Structured retries | 3 | `GenerationAssistant` / `ChapterSummarizer` |
@@ -31,7 +32,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Generate — Chapter settings** | chapter *Settings* tab | yes | JSON array (title/direction ×N) | chapter Title/Direction |
 | **Generate — Chapter plan** | toolbar *Plan chapters* | yes | JSON array of N chapters (title/direction, in reading order) | replaces the chapter list (with confirmation) |
 | **Generate — Final chapter** | toolbar *Finish* | yes | JSON (title/direction) resolving the story | appends a chapter |
-| **Writer** | Generate / Regenerate | yes | streamed prose | `Chapter.ContentOriginal` |
+| **Writer** | Generate | yes | streamed prose (collected, no UI streaming) | `Chapter.ContentOriginal` |
 | **Editor** | same run (after writer) | yes | streamed revised prose | `Chapter.ContentOriginal` (replaces draft) |
 | **Editor notes** | same run (after edit) | no | JSON (`changes[]`: kind + note) from the local diff hunks | `Chapter.EditorNotes` |
 | **Summarizer** | chapter run / *Regenerate summary* / recompute | no | JSON (logline/timeAndPlace/description/knowledgeChanges) | `Chapter.Logline`, `WorldState`, `KnowledgeChanges` |

@@ -1,3 +1,4 @@
+using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
 using StoryTelling.Domain;
 
@@ -8,12 +9,18 @@ public sealed class ChapterWorkflow : IChapterWorkflow
     private readonly IChapterAgent _writer;
     private readonly IChapterEditor _editor;
     private readonly IChapterSummarizer _summarizer;
+    private readonly ISettingsService _settingsService;
 
-    public ChapterWorkflow(IChapterAgent writer, IChapterEditor editor, IChapterSummarizer summarizer)
+    public ChapterWorkflow(
+        IChapterAgent writer,
+        IChapterEditor editor,
+        IChapterSummarizer summarizer,
+        ISettingsService settingsService)
     {
         _writer = writer;
         _editor = editor;
         _summarizer = summarizer;
+        _settingsService = settingsService;
     }
 
     public async Task<ChapterResult> RunAsync(
@@ -21,11 +28,17 @@ public sealed class ChapterWorkflow : IChapterWorkflow
         Chapter chapter,
         WorldState stateBefore,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default)
     {
-        var writerContext = new WriterContext(project, chapter, stateBefore, ChapterContextAssembler.DefaultTokenBudget);
-        var draft = await _writer.WriteAsync(writerContext, progress, onDelta, cancellationToken).ConfigureAwait(false);
+        var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var writerContext = new WriterContext(
+            project,
+            chapter,
+            stateBefore,
+            settings.ContextTokenBudget,
+            settings.RecentLoglineCount,
+            settings.ContextRequiredSectionMaxChars);
+        var draft = await _writer.WriteAsync(writerContext, progress, cancellationToken).ConfigureAwait(false);
 
         var edit = await _editor
             .EditAsync(project, chapter, draft.Text, stateBefore, progress, cancellationToken)

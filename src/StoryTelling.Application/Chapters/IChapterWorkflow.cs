@@ -10,6 +10,5 @@ public interface IChapterWorkflow
         Chapter chapter,
         WorldState stateBefore,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default);
 }

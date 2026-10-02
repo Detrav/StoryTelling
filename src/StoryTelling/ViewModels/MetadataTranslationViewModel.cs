@@ -158,45 +158,10 @@ public partial class MetadataTranslationViewModel : ViewModelBase
         }
     }
 
-    private void UpdateItems(int completed, int currentIndex, string stage)
-    {
-        for (var index = 0; index < Languages.Count; index++)
-        {
-            var item = Languages[index];
-            if (index == currentIndex)
-            {
-                item.MarkRunning(stage);
-            }
-            else if (index < completed)
-            {
-                item.MarkDone();
-            }
-            else
-            {
-                item.MarkPending();
-            }
-        }
-    }
+    private void UpdateItems(int completed, int currentIndex, string stage) =>
+        ProgressItems.Update(Languages, completed, currentIndex, stage);
 
-    private void CancelRunning()
-    {
-        foreach (var item in Languages)
-        {
-            if (item.IsRunning)
-            {
-                item.MarkPending();
-            }
-        }
-    }
+    private void CancelRunning() => ProgressItems.CancelRunning(Languages);
 
-    private void FailRunning(string message)
-    {
-        foreach (var item in Languages)
-        {
-            if (item.IsRunning)
-            {
-                item.MarkFailed(message);
-            }
-        }
-    }
+    private void FailRunning(string message) => ProgressItems.FailRunning(Languages, message);
 }

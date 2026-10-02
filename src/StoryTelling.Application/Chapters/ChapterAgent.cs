@@ -23,7 +23,6 @@ public sealed class ChapterAgent : IChapterAgent
     public async Task<ChapterDraft> WriteAsync(
         WriterContext context,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
@@ -47,7 +46,7 @@ public sealed class ChapterAgent : IChapterAgent
             MaxTokens = settings.MaxTokens,
         };
 
-        var text = await StreamTextAsync(connection, write, onDelta, cancellationToken).ConfigureAwait(false);
+        var text = await StreamTextAsync(connection, write, cancellationToken).ConfigureAwait(false);
         if (GeneratedText.LooksTruncated(text))
         {
             progress?.Report(new GenerationProgress("Completing", toolCalls));
@@ -60,7 +59,7 @@ public sealed class ChapterAgent : IChapterAgent
                 ],
             };
 
-            var completed = await StreamTextAsync(connection, retry, null, cancellationToken).ConfigureAwait(false);
+            var completed = await StreamTextAsync(connection, retry, cancellationToken).ConfigureAwait(false);
             if (completed.Length >= text.Length)
             {
                 text = completed;
@@ -71,16 +70,12 @@ public sealed class ChapterAgent : IChapterAgent
         return new ChapterDraft(text, toolCalls);
     }
 
-    private async Task<string> StreamTextAsync(LlmConnection connection, LlmRequest request, Func<string, Task>? onDelta, CancellationToken cancellationToken)
+    private async Task<string> StreamTextAsync(LlmConnection connection, LlmRequest request, CancellationToken cancellationToken)
     {
         var builder = new StringBuilder();
         await foreach (var delta in _llmClient.StreamAsync(connection, request, cancellationToken).ConfigureAwait(false))
         {
             builder.Append(delta);
-            if (onDelta is not null)
-            {
-                await onDelta(delta).ConfigureAwait(false);
-            }
         }
 
         return builder.ToString().Trim();

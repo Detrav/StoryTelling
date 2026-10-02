@@ -41,6 +41,15 @@ streamlined, token-budgeted memory instead of resending previous chapters.
 - **Developer CLI** — `storydev` drives the same engine from a terminal for probing prompts and
   batch passes.
 
+## Requirements
+
+A tool-calling language model with a large **context window — 64k tokens recommended**. The app
+keeps its own prompt small (a token-budgeted seed plus bounded tool results), but it still expects
+headroom for the seed, the tool-call loop and the generated chapter together. Models with a smaller
+window (e.g. 16k) may return truncated or inconsistent chapters, especially with larger context
+budgets — this is why the budgets are configurable in *Settings → Context*. Local models served by
+LM Studio or Ollama work the same as a hosted provider.
+
 ## Documentation
 
 - [Overview](docs/overview.md)

@@ -19,6 +19,7 @@
                             Width="30"
                             Height="26"
                             Command="{Binding AddChapterCommand}"
+                            IsEnabled="{Binding !IsBusy}"
                             ToolTip.Tip="Add chapter" />
                 </Grid>
 
@@ -36,10 +37,10 @@
                             <Grid ColumnDefinitions="22,*" Background="Transparent" Margin="6,4">
                                 <Grid.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Delete chapter" Click="OnDeleteChapterClick" />
+                                        <MenuItem Header="Delete chapter" Click="OnDeleteChapterClick" IsEnabled="{Binding CanDelete}" />
                                         <Separator />
-                                        <MenuItem Header="Move up" Click="OnMoveChapterUpClick" />
-                                        <MenuItem Header="Move down" Click="OnMoveChapterDownClick" />
+                                        <MenuItem Header="Move up" Click="OnMoveChapterUpClick" IsEnabled="{Binding CanMoveUp}" />
+                                        <MenuItem Header="Move down" Click="OnMoveChapterDownClick" IsEnabled="{Binding CanMoveDown}" />
                                         <Separator />
                                         <MenuItem Header="Status">
                                             <MenuItem Header="Draft — not written"
@@ -93,14 +94,15 @@
                         <TextBlock Text="{Binding Status}" FontSize="11" Opacity="0.7" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                        <Button Content="▶" Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate this chapter" />
-                        <Button Content="↻" Command="{Binding RegenerateCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Regenerate this chapter" />
-                        <Button Content="Finish" Command="{Binding FinishStoryCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan the concluding chapter" />
+                        <Button Content="▶" Click="OnGenerateClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate this chapter" />
+                        <Button Content="Finish" Click="OnFinishStoryClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan the concluding chapter" />
                         <Button Content="≡" Click="OnPlanChaptersClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan chapters with AI" />
                         <Button Content="Complete book" Click="OnCompleteBookClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate all pending work: chapters, summaries and translations" />
                         <Button Content="Aa" Click="OnTranslateMetadataClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate book metadata (title, annotation, chapter titles)" />
-                        <Button Content="⇄" Command="{Binding TranslateChapterCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate this chapter" />
-                        <Button Content="■" Command="{Binding StopCommand}" IsEnabled="{Binding IsBusy}" ToolTip.Tip="Stop" />
+                        <Button Content="⇄" Click="OnTranslateChapterClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate this chapter" />
+                        <Separator />
+                        <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="{Binding UndoLabel}" IsVisible="{Binding HasUndoRedo}" />
+                        <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="{Binding RedoLabel}" IsVisible="{Binding HasUndoRedo}" />
                     </StackPanel>
                 </Grid>
             </Border>

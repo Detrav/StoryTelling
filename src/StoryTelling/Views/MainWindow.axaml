@@ -45,17 +45,15 @@
             </MenuItem>
 
             <MenuItem Header="_Chapter" IsEnabled="{Binding HasProject}">
-                        <MenuItem Header="_Generate chapter" Command="{Binding Workspace.GenerateCommand}" />
-                        <MenuItem Header="_Complete book…" Click="OnCompleteBookClick" />
-                        <MenuItem Header="_Translate book metadata…" Click="OnTranslateMetadataClick" />
-                        <MenuItem Header="_Finish story" Command="{Binding Workspace.FinishStoryCommand}" />
-                        <MenuItem Header="_Regenerate" Command="{Binding Workspace.RegenerateCommand}" />
-                        <MenuItem Header="_Stop" Command="{Binding Workspace.StopCommand}" />
+                        <MenuItem Header="_Generate chapter" Click="OnGenerateChapterClick" IsEnabled="{Binding !Workspace.IsBusy}" />
+                        <MenuItem Header="_Complete book…" Click="OnCompleteBookClick" IsEnabled="{Binding !Workspace.IsBusy}" />
+                        <MenuItem Header="_Translate book metadata…" Click="OnTranslateMetadataClick" IsEnabled="{Binding !Workspace.IsBusy}" />
+                        <MenuItem Header="_Finish story" Click="OnFinishStoryClick" IsEnabled="{Binding !Workspace.IsBusy}" />
                 <Separator />
-                <MenuItem Header="_Add chapter" Command="{Binding Workspace.AddChapterCommand}" />
-                <MenuItem Header="_Delete chapter" Command="{Binding Workspace.DeleteChapterCommand}" />
-                <MenuItem Header="Move _up" Command="{Binding Workspace.MoveChapterUpCommand}" />
-                <MenuItem Header="Move _down" Command="{Binding Workspace.MoveChapterDownCommand}" />
+                <MenuItem Header="_Add chapter" Command="{Binding Workspace.AddChapterCommand}" IsEnabled="{Binding !Workspace.IsBusy}" />
+                <MenuItem Header="_Delete chapter" Command="{Binding Workspace.DeleteChapterCommand}" IsEnabled="{Binding !Workspace.IsBusy}" />
+                <MenuItem Header="Move _up" Command="{Binding Workspace.MoveChapterUpCommand}" IsEnabled="{Binding !Workspace.IsBusy}" />
+                <MenuItem Header="Move _down" Command="{Binding Workspace.MoveChapterDownCommand}" IsEnabled="{Binding !Workspace.IsBusy}" />
             </MenuItem>
 
             <MenuItem Header="_Help">
@@ -64,17 +62,6 @@
                 <MenuItem Header="_About" Click="OnAboutClick" />
             </MenuItem>
         </Menu>
-
-        <Border DockPanel.Dock="Top"
-                Padding="8,4"
-                BorderThickness="0,0,0,1"
-                BorderBrush="#22000000"
-                IsVisible="{Binding HasProject}">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="{Binding UndoLabel}" />
-                <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="{Binding RedoLabel}" />
-            </StackPanel>
-        </Border>
 
         <ContentControl Content="{Binding Content}" />
     </DockPanel>

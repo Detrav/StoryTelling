@@ -28,6 +28,8 @@ public sealed class CommitDebouncer
         _commit();
     }
 
+    public void Cancel() => _timer?.Stop();
+
     private DispatcherTimer CreateTimer()
     {
         var timer = new DispatcherTimer { Interval = _delay };

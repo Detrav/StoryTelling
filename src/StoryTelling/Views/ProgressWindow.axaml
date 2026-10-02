@@ -1,13 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:StoryTelling.ViewModels"
-        x:Class="StoryTelling.Views.BookCompletionWindow"
-        x:DataType="vm:BookCompletionViewModel"
-        Title="Complete book"
-        Width="760"
-        Height="600"
-        MinWidth="520"
-        MinHeight="380"
+        x:Class="StoryTelling.Views.ProgressWindow"
+        x:DataType="vm:ProgressTaskViewModel"
+        Title="{Binding Title}"
+        Width="560"
+        Height="440"
+        MinWidth="420"
+        MinHeight="300"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
@@ -27,10 +27,15 @@
             </Grid>
         </Border>
 
-        <Grid Margin="18" RowDefinitions="Auto,Auto,*" RowSpacing="10">
-            <TextBlock Grid.Row="0" Text="Complete book" FontSize="18" FontWeight="SemiBold" />
+        <Grid Margin="18" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+            <TextBlock Grid.Row="0" Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="1"
+                       Text="{Binding Description}"
+                       TextWrapping="Wrap"
+                       Opacity="0.75"
+                       IsVisible="{Binding HasDescription}" />
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" IsVisible="{Binding HasProgress}">
                 <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1"
                            Margin="12,0,0,0"
@@ -39,9 +44,9 @@
                            Opacity="0.7" />
             </Grid>
 
-            <Border Grid.Row="2" BorderThickness="1" BorderBrush="#22000000" CornerRadius="4">
-                <ListBox x:Name="OperationList"
-                         ItemsSource="{Binding Operations}"
+            <Border Grid.Row="3" BorderThickness="1" BorderBrush="#22000000" CornerRadius="4">
+                <ListBox x:Name="TaskList"
+                         ItemsSource="{Binding Items}"
                          ItemTemplate="{StaticResource ProgressItemTemplate}" />
             </Border>
         </Grid>

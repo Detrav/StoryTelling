@@ -9,13 +9,11 @@ public interface IChapterRunner
         Project project,
         Chapter chapter,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default);
 
     Task<ChapterResult> GenerateNextAsync(
         Project project,
         IProgress<GenerationProgress>? progress = null,
-        Func<string, Task>? onDelta = null,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ChapterResult>> RunAsync(

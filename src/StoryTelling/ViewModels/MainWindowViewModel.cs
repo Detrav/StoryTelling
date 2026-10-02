@@ -270,6 +270,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         workspace.CloseRequested += RequestClose;
         workspace.Mutated += OnWorkspaceMutated;
         workspace.WarningRequested += OnWorkspaceWarning;
+        workspace.AttachUndoRedo(this);
         Workspace = workspace;
         Content = workspace;
 
@@ -376,6 +377,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         Workspace.CloseRequested -= RequestClose;
         Workspace.Mutated -= OnWorkspaceMutated;
         Workspace.WarningRequested -= OnWorkspaceWarning;
+        Workspace.DetachUndoRedo();
     }
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -7,7 +7,7 @@ public static class KnowledgeChunker
 {
     public const int RetrievalMaxChars = 800;
 
-    public const int ImportMaxChars = 8000;
+    public const int ImportMaxChars = 3000;
 
     private static readonly Regex _heading = new("^#{1,6}\\s", RegexOptions.Compiled);
 

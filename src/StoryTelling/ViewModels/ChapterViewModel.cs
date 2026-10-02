@@ -42,6 +42,15 @@ public partial class ChapterViewModel : ObservableObject
     [ObservableProperty]
     private List<string> _staleTranslations = [];
 
+    [ObservableProperty]
+    private bool _canMoveUp;
+
+    [ObservableProperty]
+    private bool _canMoveDown;
+
+    [ObservableProperty]
+    private bool _canDelete;
+
     public SortedDictionary<string, string> TranslatedTitles { get; set; } = [];
 
     public ChapterTextViewModel? PrimaryTextEditor { get; set; }
