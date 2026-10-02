@@ -12,8 +12,6 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
 {
     private const int _chunkChars = KnowledgeChunker.ImportMaxChars;
 
-    private const double DeterministicTemperature = 0.3;
-
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -60,7 +58,7 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
             {
                 Model = settings.Model,
                 Messages = BuildMessages(request.Mode, work[index], request.Brief),
-                Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+                Temperature = settings.TemperatureFor(LlmTask.Import),
                 MaxTokens = settings.MaxTokens,
             };
 

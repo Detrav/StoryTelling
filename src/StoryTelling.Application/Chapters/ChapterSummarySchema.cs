@@ -3,7 +3,7 @@ using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
 
-public static class ChapterBriefingSchema
+public static class ChapterSummarySchema
 {
     public static JsonObject Build()
     {
@@ -16,6 +16,12 @@ public static class ChapterBriefingSchema
                 {
                     ["type"] = "string",
                     ["enum"] = new JsonArray([.. Enum.GetNames<KnowledgeChangeOperation>().Select(name => (JsonNode)name)]),
+                },
+                ["entryId"] = new JsonObject { ["type"] = "string" },
+                ["status"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["enum"] = new JsonArray(["None", .. Enum.GetNames<KnowledgeStatus>().Select(name => (JsonNode)name)]),
                 },
                 ["title"] = new JsonObject { ["type"] = "string" },
                 ["kind"] = new JsonObject
@@ -31,7 +37,7 @@ public static class ChapterBriefingSchema
                 ["content"] = new JsonObject { ["type"] = "string" },
                 ["reason"] = new JsonObject { ["type"] = "string" },
             },
-            ["required"] = new JsonArray { "operation", "title", "kind", "tags", "content", "reason" },
+            ["required"] = new JsonArray { "operation", "entryId", "status", "title", "kind", "tags", "content", "reason" },
             ["additionalProperties"] = false,
         };
 
@@ -42,14 +48,14 @@ public static class ChapterBriefingSchema
             {
                 ["logline"] = new JsonObject { ["type"] = "string" },
                 ["timeAndPlace"] = new JsonObject { ["type"] = "string" },
-                ["description"] = new JsonObject { ["type"] = "string" },
+                ["situation"] = new JsonObject { ["type"] = "string" },
                 ["knowledgeChanges"] = new JsonObject
                 {
                     ["type"] = "array",
                     ["items"] = change,
                 },
             },
-            ["required"] = new JsonArray { "logline", "timeAndPlace", "description", "knowledgeChanges" },
+            ["required"] = new JsonArray { "logline", "timeAndPlace", "situation", "knowledgeChanges" },
             ["additionalProperties"] = false,
         };
     }

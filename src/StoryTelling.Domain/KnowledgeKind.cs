@@ -10,4 +10,5 @@ public enum KnowledgeKind
     Faction,
     Rule,
     Background,
+    Thread,
 }

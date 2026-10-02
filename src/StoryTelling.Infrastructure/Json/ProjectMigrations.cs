@@ -24,8 +24,38 @@ public static class ProjectMigrations
             MigrateV1ToV2(root);
         }
 
+        if (version < 6)
+        {
+            MigrateV5ToV6(root);
+        }
+
         root["schemaVersion"] = ProjectSchema.Version;
         return root.ToJsonString();
+    }
+
+    private static void MigrateV5ToV6(JsonObject root)
+    {
+        RenameSituation(root["initialWorldState"] as JsonObject);
+
+        if (root["chapters"] is JsonArray chapters)
+        {
+            foreach (var chapter in chapters.OfType<JsonObject>())
+            {
+                RenameSituation(chapter["worldState"] as JsonObject);
+                chapter.Remove("storySoFar");
+            }
+        }
+    }
+
+    private static void RenameSituation(JsonObject? state)
+    {
+        if (state is null || !state.TryGetPropertyValue("description", out var description))
+        {
+            return;
+        }
+
+        state["situation"] = description?.DeepClone();
+        state.Remove("description");
     }
 
     private static void MigrateV1ToV2(JsonObject root)

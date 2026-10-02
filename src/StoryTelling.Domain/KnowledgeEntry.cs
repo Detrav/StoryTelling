@@ -11,4 +11,6 @@ public sealed class KnowledgeEntry
     public List<string> Tags { get; set; } = [];
 
     public string Content { get; set; } = string.Empty;
+
+    public KnowledgeStatus? Status { get; set; }
 }

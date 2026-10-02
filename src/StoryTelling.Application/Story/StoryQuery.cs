@@ -60,7 +60,7 @@ public sealed class StoryQuery
     public IReadOnlyList<KnowledgeSummary> ListEntries(KnowledgeKind? kind) =>
         _project.Knowledge
             .Where(entry => kind is null || entry.Kind == kind)
-            .Select(entry => new KnowledgeSummary(entry.Id, entry.Kind, entry.Title, [.. entry.Tags]))
+            .Select(entry => new KnowledgeSummary(entry.Id, entry.Kind, entry.Title, [.. entry.Tags], entry.Status))
             .ToList();
 
     public KnowledgeEntry? GetEntry(string idOrTitle)

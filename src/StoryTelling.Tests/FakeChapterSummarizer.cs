@@ -16,19 +16,15 @@ internal sealed class FakeChapterSummarizer : IChapterSummarizer
 
     public int CallCount { get; private set; }
 
-    public string? LastPreviousStorySoFar { get; private set; }
-
     public Task<ChapterSummary> SummarizeAsync(
         Chapter chapter,
         WorldState stateBefore,
         IReadOnlyList<KnowledgeEntry> knowledge,
-        string previousStorySoFar = "",
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         LastChapter = chapter;
         LastKnowledge = knowledge;
-        LastPreviousStorySoFar = previousStorySoFar;
         CallCount++;
         return Task.FromResult(SummaryFactory?.Invoke(chapter) ?? Summary);
     }

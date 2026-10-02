@@ -33,6 +33,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
     private readonly ITranslationService _translationService;
     private readonly IMetadataTranslator _metadataTranslator;
     private readonly ILogger<MainWindowViewModel> _logger;
+    private readonly IContinuityReviewer? _continuityReviewer;
     private AppSettings _settings = AppSettings.CreateDefault();
     private IUndoRedoService? _undoRedo;
 
@@ -48,8 +49,10 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         IChapterRunner chapterRunner,
         ITranslationService translationService,
         IMetadataTranslator metadataTranslator,
-        ILogger<MainWindowViewModel> logger)
+        ILogger<MainWindowViewModel> logger,
+        IContinuityReviewer? continuityReviewer = null)
     {
+        _continuityReviewer = continuityReviewer;
         _repository = repository;
         _settingsService = settingsService;
         _clock = clock;
@@ -316,7 +319,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         var path = Workspace?.FilePath;
         var sidebar = Workspace?.IsSidebarVisible ?? true;
 
-        var workspace = new WorkspaceViewModel(project, _clock, _chapterRunner, _assistant, _translationService, _metadataTranslator)
+        var workspace = new WorkspaceViewModel(project, _clock, _chapterRunner, _assistant, _translationService, _metadataTranslator, _continuityReviewer)
         {
             FilePath = path,
             IsSidebarVisible = sidebar,

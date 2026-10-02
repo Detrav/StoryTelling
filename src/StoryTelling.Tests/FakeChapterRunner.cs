@@ -14,8 +14,6 @@ internal sealed class FakeChapterRunner : IChapterRunner
 
     public int ToolCalls { get; set; } = 1;
 
-    public string StorySoFar { get; set; } = string.Empty;
-
     public List<KnowledgeChange> KnowledgeChanges { get; set; } = [];
 
     public List<EditorNote> EditorNotes { get; set; } = [];
@@ -37,7 +35,7 @@ internal sealed class FakeChapterRunner : IChapterRunner
 
         var index = project.Chapters.IndexOf(chapter);
         LastStateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
-        return Task.FromResult(new ChapterResult(Text, Logline, WorldState, KnowledgeChanges, EditorNotes, ToolCalls, StorySoFar));
+        return Task.FromResult(new ChapterResult(Text, Logline, WorldState, KnowledgeChanges, EditorNotes, ToolCalls));
     }
 
     public Task<ChapterResult> GenerateNextAsync(

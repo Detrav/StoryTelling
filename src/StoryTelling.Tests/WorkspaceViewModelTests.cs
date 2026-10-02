@@ -43,7 +43,7 @@ public sealed class WorkspaceViewModelTests
         Assert.Equal("Wyverns nest in cliffs.", project.Knowledge.Single().Content);
         Assert.Contains("lore", project.Knowledge.Single().Tags);
         Assert.Equal("Dusk above the keep", project.InitialWorldState.TimeAndPlace);
-        Assert.Equal("Aria crouches in the ruins.", project.InitialWorldState.Description);
+        Assert.Equal("Aria crouches in the ruins.", project.InitialWorldState.Situation);
     }
 
     [Fact]
@@ -658,18 +658,6 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
-    public async Task GenerateChapterAsync_CopiesTheStorySoFarBackToTheChapter()
-    {
-        var runner = new FakeChapterRunner { StorySoFar = "The running retelling." };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var chapter = workspace.SelectedChapter;
-
-        await workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None);
-
-        Assert.Equal("The running retelling.", chapter.StorySoFar);
-    }
-
-    [Fact]
     public void ValidateGeneration_FailsWhenRequiredFieldsAreMissing()
     {
         var project = SampleProject();
@@ -877,7 +865,7 @@ public sealed class WorkspaceViewModelTests
         InitialWorldState = new WorldState
         {
             TimeAndPlace = "Dusk above the keep",
-            Description = "Aria crouches in the ruins.",
+            Situation = "Aria crouches in the ruins.",
         },
         Chapters =
         [

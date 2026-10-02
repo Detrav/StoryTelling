@@ -42,7 +42,7 @@ public sealed class ChapterAgent : IChapterAgent
         {
             Model = settings.Model,
             Messages = [.. messages, LlmMessage.User(PromptTemplates.WriterWrite(context.Chapter))],
-            Temperature = settings.Temperature,
+            Temperature = settings.TemperatureFor(LlmTask.Writer),
             MaxTokens = settings.MaxTokens,
         };
 

@@ -120,7 +120,7 @@ internal sealed class BookBuilder
 
             case GenerationTarget.InitialWorldState:
                 project.InitialWorldState.TimeAndPlace = Get(fields, "TimeAndPlace") ?? project.InitialWorldState.TimeAndPlace;
-                project.InitialWorldState.Description = Get(fields, "Description") ?? project.InitialWorldState.Description;
+                project.InitialWorldState.Situation = Get(fields, "Situation") ?? project.InitialWorldState.Situation;
                 return true;
 
             case GenerationTarget.Knowledge:

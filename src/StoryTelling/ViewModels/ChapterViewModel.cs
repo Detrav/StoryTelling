@@ -31,9 +31,6 @@ public partial class ChapterViewModel : ObservableObject
     private string _logline = string.Empty;
 
     [ObservableProperty]
-    private string _storySoFar = string.Empty;
-
-    [ObservableProperty]
     private DateTimeOffset _createdUtc;
 
     [ObservableProperty]

@@ -74,6 +74,12 @@ public static class ReviewSchema
             ["type"] = "object",
             ["properties"] = new JsonObject
             {
+                ["reconciliation"] = new JsonObject
+                {
+                    ["type"] = "array",
+                    ["description"] = "For each person, every age/date statement with its source and the implied birth year, used to check consistency.",
+                    ["items"] = new JsonObject { ["type"] = "string" },
+                },
                 ["findings"] = new JsonObject
                 {
                     ["type"] = "array",

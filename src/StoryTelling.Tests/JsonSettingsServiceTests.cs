@@ -132,6 +132,39 @@ public sealed class JsonSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoad_RoundTripsRoleTemperatures()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        var service = new JsonSettingsService(path);
+        var settings = AppSettings.CreateDefault();
+        settings.RoleTemperatures["review"] = 0.5;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(0.5, loaded.RoleTemperatures["review"]);
+    }
+
+    [Fact]
+    public async Task Save_WithEnvironmentApiKey_PreservesBudgetsAndRoleTemperatures()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        var service = new JsonSettingsService(path);
+
+        await WithEnvironmentAsync([("STORYTELLING_API_KEY", "env-key")], async () =>
+        {
+            var settings = AppSettings.CreateDefault();
+            settings.ContextTokenBudget = 7777;
+            settings.RoleTemperatures["writer"] = 0.55;
+            await service.SaveAsync(settings);
+        });
+
+        var reloaded = await service.LoadAsync();
+        Assert.Equal(7777, reloaded.ContextTokenBudget);
+        Assert.Equal(0.55, reloaded.RoleTemperatures["writer"]);
+    }
+
+    [Fact]
     public async Task Save_WithoutEnvironmentApiKey_PersistsTheConfiguredKey()
     {
         var path = Path.Combine(_directory, "settings.json");

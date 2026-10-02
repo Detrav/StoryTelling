@@ -12,8 +12,6 @@ public sealed class ChapterSummarizer : IChapterSummarizer
 {
     public const int MaxStructuredAttempts = 3;
 
-    private const double DeterministicTemperature = 0.3;
-
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -27,33 +25,17 @@ public sealed class ChapterSummarizer : IChapterSummarizer
         Chapter chapter,
         WorldState stateBefore,
         IReadOnlyList<KnowledgeEntry> knowledge,
-        string previousStorySoFar = "",
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
 
-        var briefing = await BriefAsync(connection, settings, chapter, stateBefore, knowledge, progress, cancellationToken).ConfigureAwait(false);
-        var storySoFar = await SyncAsync(connection, settings, previousStorySoFar, briefing, chapter.Number, cancellationToken).ConfigureAwait(false);
-
-        return new ChapterSummary(briefing.Logline, briefing.WorldState, briefing.KnowledgeChanges, storySoFar);
-    }
-
-    private async Task<ChapterBriefing> BriefAsync(
-        LlmConnection connection,
-        AppSettings settings,
-        Chapter chapter,
-        WorldState stateBefore,
-        IReadOnlyList<KnowledgeEntry> knowledge,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
         var request = new LlmRequest
         {
             Model = settings.Model,
-            Messages = PromptTemplates.BuildChapterBriefing(chapter, stateBefore, knowledge),
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            Messages = PromptTemplates.BuildChapterSummary(chapter, stateBefore, knowledge),
+            Temperature = settings.TemperatureFor(LlmTask.Summarizer),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -62,66 +44,24 @@ public sealed class ChapterSummarizer : IChapterSummarizer
             progress?.Report(new GenerationProgress("Summarizing", 0));
 
             var content = await _llmClient
-                .CompleteJsonAsync(connection, request, "ChapterBriefing", ChapterBriefingSchema.Build(), cancellationToken)
+                .CompleteJsonAsync(connection, request, "ChapterSummary", ChapterSummarySchema.Build(), cancellationToken)
                 .ConfigureAwait(false);
 
-            if (TryParseBriefing(content, out var briefing))
+            if (TryParse(content, out var summary))
             {
-                return briefing;
-            }
-
-            if (attempt >= MaxStructuredAttempts)
-            {
-                throw new LlmException(LlmErrorKind.InvalidResponse, "The model did not return a valid chapter briefing.");
-            }
-
-            request = request with
-            {
-                Messages =
-                [
-                    .. request.Messages,
-                    LlmMessage.Assistant(content),
-                    LlmMessage.User("That reply was not valid JSON matching the schema, or a required field was empty. Reply again with ONLY the JSON and nothing else."),
-                ],
-            };
-        }
-    }
-
-    private async Task<string> SyncAsync(
-        LlmConnection connection,
-        AppSettings settings,
-        string previousStorySoFar,
-        ChapterBriefing briefing,
-        int chapterNumber,
-        CancellationToken cancellationToken)
-    {
-        var request = new LlmRequest
-        {
-            Model = settings.Model,
-            Messages = PromptTemplates.BuildChapterStorySync(previousStorySoFar, briefing, chapterNumber),
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
-            MaxTokens = settings.MaxTokens,
-        };
-
-        string? last = null;
-        for (var attempt = 1; ; attempt++)
-        {
-            var content = await _llmClient
-                .CompleteJsonAsync(connection, request, "ChapterStorySync", ChapterStorySyncSchema.Build(), cancellationToken)
-                .ConfigureAwait(false);
-
-            if (TryParseStory(content, out var storySoFar))
-            {
-                last = storySoFar;
-                if (previousStorySoFar.Length == 0 || !Equivalent(storySoFar, previousStorySoFar))
+                if (!HasMeta(summary))
                 {
-                    return storySoFar;
+                    return summary;
+                }
+
+                if (attempt >= MaxStructuredAttempts)
+                {
+                    return Sanitize(summary);
                 }
             }
-
-            if (attempt >= MaxStructuredAttempts)
+            else if (attempt >= MaxStructuredAttempts)
             {
-                break;
+                throw new LlmException(LlmErrorKind.InvalidResponse, "The model did not return a valid chapter summary.");
             }
 
             request = request with
@@ -130,17 +70,44 @@ public sealed class ChapterSummarizer : IChapterSummarizer
                 [
                     .. request.Messages,
                     LlmMessage.Assistant(content),
-                    LlmMessage.User("The story so far did not change. Fold this chapter in: it must add what happened here while keeping the opening and the arc. Reply with ONLY the JSON."),
+                    LlmMessage.User("That reply was not valid JSON matching the schema, a required field was empty, or it referenced chapter numbers. Reply again with ONLY the JSON and nothing else; never mention chapter numbers or the story-so-far anywhere."),
                 ],
             };
         }
-
-        return last ?? previousStorySoFar;
     }
 
-    private static bool TryParseBriefing(string content, out ChapterBriefing briefing)
+    private static bool HasMeta(ChapterSummary summary) =>
+        StyleGuard.HasMeta(summary.Logline)
+        || StyleGuard.HasMeta(summary.WorldState.Situation)
+        || summary.KnowledgeChanges.Any(change => StyleGuard.HasMeta(change.Title) || StyleGuard.HasMeta(change.Content));
+
+    private static ChapterSummary Sanitize(ChapterSummary summary) => summary with
     {
-        briefing = null!;
+        Logline = StyleGuard.RemoveMeta(summary.Logline),
+        WorldState = new WorldState
+        {
+            TimeAndPlace = summary.WorldState.TimeAndPlace,
+            Situation = StyleGuard.RemoveMeta(summary.WorldState.Situation),
+        },
+        KnowledgeChanges =
+        [
+            .. summary.KnowledgeChanges.Select(change => new KnowledgeChange
+            {
+                Operation = change.Operation,
+                EntryId = change.EntryId,
+                Status = change.Status,
+                Kind = change.Kind,
+                Title = StyleGuard.RemoveMeta(change.Title),
+                Tags = [.. change.Tags],
+                Content = StyleGuard.RemoveMeta(change.Content),
+                Reason = change.Reason,
+            }),
+        ],
+    };
+
+    private static bool TryParse(string content, out ChapterSummary summary)
+    {
+        summary = null!;
 
         try
         {
@@ -153,15 +120,15 @@ public sealed class ChapterSummarizer : IChapterSummarizer
 
             var logline = ReadString(root, "logline");
             var timeAndPlace = ReadString(root, "timeAndPlace");
-            var description = ReadString(root, "description");
-            if (logline is null || timeAndPlace is null || description is null)
+            var situation = ReadString(root, "situation");
+            if (logline is null || timeAndPlace is null || situation is null)
             {
                 return false;
             }
 
-            briefing = new ChapterBriefing(
+            summary = new ChapterSummary(
                 logline,
-                new WorldState { TimeAndPlace = timeAndPlace, Description = description },
+                new WorldState { TimeAndPlace = timeAndPlace, Situation = situation },
                 ParseChanges(root));
             return true;
         }
@@ -170,40 +137,6 @@ public sealed class ChapterSummarizer : IChapterSummarizer
             return false;
         }
     }
-
-    private static bool TryParseStory(string content, out string story)
-    {
-        story = string.Empty;
-
-        try
-        {
-            using var document = JsonDocument.Parse(GeneratedText.StripCodeFence(content.Trim()));
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-            {
-                return false;
-            }
-
-            var text = RawString(root, "storySoFar")?.Trim();
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return false;
-            }
-
-            story = text;
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
-    private static bool Equivalent(string left, string right) =>
-        Normalize(left).Equals(Normalize(right), StringComparison.OrdinalIgnoreCase);
-
-    private static string Normalize(string text) =>
-        string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static List<KnowledgeChange> ParseChanges(JsonElement root)
     {
@@ -227,11 +160,20 @@ public sealed class ChapterSummarizer : IChapterSummarizer
                 continue;
             }
 
+            var kind = ParseKind(GetString(element, "kind"));
+            var entryId = ParseEntryId(GetString(element, "entryId"));
+            if (operation == KnowledgeChangeOperation.Create && entryId is null)
+            {
+                entryId = Guid.NewGuid();
+            }
+
             changes.Add(new KnowledgeChange
             {
                 Operation = operation,
-                Kind = ParseKind(GetString(element, "kind")),
-                Title = StripKindPrefix(title),
+                EntryId = entryId,
+                Status = kind == KnowledgeKind.Thread ? ParseStatus(GetString(element, "status")) : null,
+                Kind = kind,
+                Title = CleanTitle(title),
                 Tags = ParseTags(element),
                 Content = GetString(element, "content"),
                 Reason = GetString(element, "reason"),
@@ -241,12 +183,24 @@ public sealed class ChapterSummarizer : IChapterSummarizer
         return changes;
     }
 
-    private static string StripKindPrefix(string title)
+    private static Guid? ParseEntryId(string value) =>
+        Guid.TryParse(value?.Trim(), out var id) ? id : null;
+
+    private static KnowledgeStatus? ParseStatus(string value) =>
+        Enum.TryParse<KnowledgeStatus>(value, ignoreCase: true, out var status) ? status : null;
+
+    private static string CleanTitle(string title)
     {
         var trimmed = title.Trim();
+
         if (trimmed.StartsWith('[') && trimmed.IndexOf(']') is var close && close > 0 && close < trimmed.Length - 1)
         {
-            return trimmed[(close + 1)..].Trim();
+            trimmed = trimmed[(close + 1)..].Trim();
+        }
+
+        if (trimmed.EndsWith(']') && trimmed.LastIndexOf('[') is var open && open > 0)
+        {
+            trimmed = trimmed[..open].Trim();
         }
 
         return trimmed;

@@ -32,7 +32,7 @@ public static class GenerationTargets
             [GenerationTarget.InitialWorldState] =
             [
                 new("TimeAndPlace", "timeAndPlace", "Time and place", "When and where the story opens (a short phrase)."),
-                new("Description", "description", "Description", "The situation before chapter 1 in free form: what is happening, who is involved, notable facts, tensions and open questions."),
+                new("Situation", "situation", "Situation", "The situation before chapter 1 in free form: what is happening, who is involved, notable facts, tensions and open questions."),
             ],
             [GenerationTarget.ChapterSettings] =
             [

@@ -172,7 +172,7 @@ public sealed class StoryToolset
     {
         var builder = new StringBuilder();
         Append(builder, "Time and place", state.TimeAndPlace);
-        Append(builder, "Description", state.Description);
+        Append(builder, "Description", state.Situation);
         return builder.Length == 0 ? "No initial world state." : builder.ToString().TrimEnd();
     }
 
@@ -195,8 +195,9 @@ public sealed class StoryToolset
 
         return string.Join('\n', entries.Select(entry =>
         {
-            var tags = entry.Tags.Count > 0 ? $" [{string.Join(", ", entry.Tags)}]" : string.Empty;
-            return $"- [{entry.Kind}] {entry.Title}{tags}";
+            var tags = entry.Tags.Count > 0 ? $" ({string.Join(", ", entry.Tags)})" : string.Empty;
+            var status = entry.Status is { } value ? $" [{value}]" : string.Empty;
+            return $"- [{entry.Kind}] {entry.Title}{status}{tags}";
         }));
     }
 
@@ -210,6 +211,11 @@ public sealed class StoryToolset
         var builder = new StringBuilder();
         Append(builder, "Title", entry.Title);
         Append(builder, "Kind", entry.Kind.ToString());
+        if (entry.Status is { } status)
+        {
+            Append(builder, "Status", status.ToString());
+        }
+
         if (entry.Tags.Count > 0)
         {
             Append(builder, "Tags", string.Join(", ", entry.Tags));

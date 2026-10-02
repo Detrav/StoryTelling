@@ -12,7 +12,7 @@ namespace StoryTelling.Application.Review;
 
 public sealed class ProjectReviewAssistant : IProjectReviewAssistant
 {
-    private const double DeterministicTemperature = 0.2;
+    private static readonly ReviewFocus[] _passes = [ReviewFocus.Numbers, ReviewFocus.Facts];
 
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
@@ -32,12 +32,30 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
 
-        var seed = PromptTemplates.BuildReview(snapshot, brief);
+        var findings = new List<ReviewFinding>();
+        foreach (var focus in _passes)
+        {
+            findings.AddRange(await RunPassAsync(snapshot, brief, settings, connection, focus, progress, cancellationToken).ConfigureAwait(false));
+        }
+
+        return Normalize(findings, snapshot);
+    }
+
+    private async Task<IReadOnlyList<ReviewFinding>> RunPassAsync(
+        Project snapshot,
+        string brief,
+        AppSettings settings,
+        LlmConnection connection,
+        ReviewFocus focus,
+        IProgress<GenerationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var seed = PromptTemplates.BuildReview(snapshot, brief, focus);
         var request = new LlmRequest
         {
             Model = settings.Model,
             Messages = seed,
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            Temperature = settings.TemperatureFor(LlmTask.Review),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -65,47 +83,201 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
         return ParseFindings(content);
     }
 
+    private static IReadOnlyList<ReviewFinding> Normalize(IReadOnlyList<ReviewFinding> findings, Project snapshot)
+    {
+        var result = new List<ReviewFinding>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var finding in findings)
+        {
+            var normalized = finding with { Fix = NormalizeFix(finding.Fix, snapshot) };
+            var key = $"{normalized.Area}|{normalized.Reference?.Trim()}|{normalized.Title.Trim()}";
+            if (seen.Add(key))
+            {
+                result.Add(normalized);
+            }
+        }
+
+        return result;
+    }
+
+    private static ReviewFix? NormalizeFix(ReviewFix? fix, Project snapshot)
+    {
+        if (fix is null || fix.IsEmpty)
+        {
+            return fix;
+        }
+
+        var edits = fix.Edits.Where(edit => !IsNoOp(edit, snapshot)).ToList();
+        return edits.Count == 0 ? null : new ReviewFix(edits);
+    }
+
+    private static bool IsNoOp(ReviewEdit edit, Project snapshot)
+    {
+        if (edit.Target != GenerationTarget.Knowledge)
+        {
+            return false;
+        }
+
+        var entry = snapshot.Knowledge.FirstOrDefault(candidate =>
+            string.Equals(candidate.Title, edit.Reference?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+        {
+            return false;
+        }
+
+        var current = CurrentValue(entry, edit.Field);
+        return current is not null
+            && string.Equals(Collapse(current), Collapse(edit.Value), StringComparison.Ordinal);
+    }
+
+    private static string? CurrentValue(KnowledgeEntry entry, string field) => field.Trim().ToLowerInvariant() switch
+    {
+        "title" => entry.Title,
+        "kind" => entry.Kind.ToString(),
+        "content" => entry.Content,
+        "tags" => string.Join(", ", entry.Tags),
+        _ => null,
+    };
+
+    private static string Collapse(string value) =>
+        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
     private static IReadOnlyList<ReviewFinding> ParseFindings(string content)
     {
-        var findings = new List<ReviewFinding>();
-
         try
         {
             using var document = JsonDocument.Parse(content);
             if (!document.RootElement.TryGetProperty("findings", out var items) || items.ValueKind != JsonValueKind.Array)
             {
-                return findings;
+                return [];
             }
 
+            var findings = new List<ReviewFinding>();
             foreach (var element in items.EnumerateArray())
             {
-                if (element.ValueKind != JsonValueKind.Object)
+                AddFinding(element, findings);
+            }
+
+            return findings;
+        }
+        catch (JsonException)
+        {
+            return SalvageFindings(content);
+        }
+    }
+
+    private static IReadOnlyList<ReviewFinding> SalvageFindings(string content)
+    {
+        var arrayStart = IndexOfFindingsArray(content);
+        if (arrayStart < 0)
+        {
+            return [];
+        }
+
+        var findings = new List<ReviewFinding>();
+        var depth = 0;
+        var start = -1;
+        var inString = false;
+        var escaped = false;
+
+        for (var index = arrayStart; index < content.Length; index++)
+        {
+            var character = content[index];
+            if (inString)
+            {
+                if (escaped)
                 {
-                    continue;
+                    escaped = false;
+                }
+                else if (character == '\\')
+                {
+                    escaped = true;
+                }
+                else if (character == '"')
+                {
+                    inString = false;
                 }
 
-                var title = GetString(element, "title");
-                var detail = GetString(element, "detail");
-                if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(detail))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                findings.Add(new ReviewFinding(
-                    ParseSeverity(GetString(element, "severity")),
-                    ParseArea(GetString(element, "area")),
-                    title.Trim(),
-                    detail.Trim(),
-                    EmptyToNull(GetString(element, "suggestion")),
-                    ParseFix(element),
-                    EmptyToNull(GetString(element, "reference"))));
+            switch (character)
+            {
+                case '"':
+                    inString = true;
+                    break;
+                case '{':
+                    if (depth == 0)
+                    {
+                        start = index;
+                    }
+
+                    depth++;
+                    break;
+                case '}':
+                    if (depth > 0)
+                    {
+                        depth--;
+                        if (depth == 0 && start >= 0)
+                        {
+                            TryAddSalvaged(content[start..(index + 1)], findings);
+                            start = -1;
+                        }
+                    }
+
+                    break;
+                case ']' when depth == 0:
+                    return findings;
+            }
+        }
+
+        return findings;
+    }
+
+    private static int IndexOfFindingsArray(string content)
+    {
+        var marker = content.IndexOf("\"findings\"", StringComparison.Ordinal);
+        return marker < 0 ? -1 : content.IndexOf('[', marker);
+    }
+
+    private static void TryAddSalvaged(string json, List<ReviewFinding> findings)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                AddFinding(document.RootElement, findings);
             }
         }
         catch (JsonException)
         {
         }
+    }
 
-        return findings;
+    private static void AddFinding(JsonElement element, List<ReviewFinding> findings)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var title = GetString(element, "title");
+        var detail = GetString(element, "detail");
+        if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(detail))
+        {
+            return;
+        }
+
+        findings.Add(new ReviewFinding(
+            ParseSeverity(GetString(element, "severity")),
+            ParseArea(GetString(element, "area")),
+            title.Trim(),
+            detail.Trim(),
+            EmptyToNull(GetString(element, "suggestion")),
+            ParseFix(element),
+            EmptyToNull(GetString(element, "reference"))));
     }
 
     private static ReviewFix? ParseFix(JsonElement element)

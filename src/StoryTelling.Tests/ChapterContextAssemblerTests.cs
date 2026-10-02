@@ -38,7 +38,7 @@ public sealed class ChapterContextAssemblerTests
     }
 
     [Fact]
-    public void AssembleWriter_PositionsTheChapterAndCarriesTheStorySoFar()
+    public void AssembleWriter_PositionsTheChapterAndCarriesTheRecap()
     {
         var project = ProjectWithLoglines(4);
         var assembler = new ChapterContextAssembler();
@@ -56,7 +56,7 @@ public sealed class ChapterContextAssemblerTests
     }
 
     [Fact]
-    public void AssembleWriter_RecentLoglineCount_KeepsTheFirstAndTheLatestWithAnOmittedMarker()
+    public void AssembleWriter_Recap_KeepsTheOpeningAndTheLatestWithAnOmittedMarker()
     {
         var project = ProjectWithLoglines(6);
         var assembler = new ChapterContextAssembler();
@@ -71,22 +71,6 @@ public sealed class ChapterContextAssemblerTests
         Assert.DoesNotContain("Log line 2.", user);
         Assert.DoesNotContain("Log line 3.", user);
         Assert.Contains("omitted", user);
-    }
-
-    [Fact]
-    public void AssembleWriter_IncludesTheRunningStorySoFarAlongsideLoglines()
-    {
-        var project = ProjectWithLoglines(3);
-        project.Chapters[0].StorySoFar = "The running retelling.";
-        var assembler = new ChapterContextAssembler();
-
-        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState));
-
-        var user = UserText(context);
-        Assert.Contains("The running retelling.", user);
-        Assert.Contains("Recent chapters:", user);
-        Assert.Contains("Log line 1.", user);
-        Assert.Contains("Log line 2.", user);
     }
 
     [Fact]
@@ -117,51 +101,6 @@ public sealed class ChapterContextAssemblerTests
     }
 
     [Fact]
-    public void AssembleWriter_BothWithRetelling_UsesOnlyTheLatestLoglines()
-    {
-        var project = ProjectWithLoglines(4);
-        project.Chapters[0].StorySoFar = "The running retelling.";
-        var assembler = new ChapterContextAssembler();
-
-        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[3], project.InitialWorldState, RecentLoglineCount: 1));
-
-        var user = UserText(context);
-        Assert.Contains("The running retelling.", user);
-        Assert.Contains("Recent chapters:", user);
-        Assert.Contains("Log line 3.", user);
-        Assert.DoesNotContain("Log line 1.", user);
-    }
-
-    [Fact]
-    public void AssembleWriter_LoglinesMode_OmitsTheRunningRetelling()
-    {
-        var project = ProjectWithLoglines(3);
-        project.Chapters[0].StorySoFar = "The running retelling.";
-        var assembler = new ChapterContextAssembler();
-
-        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState, StorySoFarMode: "Loglines"));
-
-        var user = UserText(context);
-        Assert.Contains("Log line 1.", user);
-        Assert.DoesNotContain("The running retelling.", user);
-    }
-
-    [Fact]
-    public void AssembleWriter_RetellingMode_OmitsTheLoglines()
-    {
-        var project = ProjectWithLoglines(3);
-        project.Chapters[0].StorySoFar = "The running retelling.";
-        var assembler = new ChapterContextAssembler();
-
-        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState, StorySoFarMode: "Retelling"));
-
-        var user = UserText(context);
-        Assert.Contains("The running retelling.", user);
-        Assert.DoesNotContain("Log line 1.", user);
-        Assert.DoesNotContain("Recent chapters:", user);
-    }
-
-    [Fact]
     public void AssembleWriter_ExplicitRole_OverridesTheDerivedPosition()
     {
         var project = ProjectWithLoglines(4);
@@ -189,11 +128,42 @@ public sealed class ChapterContextAssemblerTests
         Assert.DoesNotContain("Log line 4.", user);
     }
 
+    [Fact]
+    public void AssembleWriter_IncludesOnlyOpenThreads()
+    {
+        var project = ProjectWithLoglines(3);
+        project.Knowledge.Add(new KnowledgeEntry { Kind = KnowledgeKind.Thread, Title = "Who is the traitor?", Content = "Unclear.", Status = KnowledgeStatus.Open });
+        project.Knowledge.Add(new KnowledgeEntry { Kind = KnowledgeKind.Thread, Title = "Resolved thread", Status = KnowledgeStatus.Resolved });
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState));
+
+        var user = UserText(context);
+        Assert.Contains("Open threads", user);
+        Assert.Contains("Who is the traitor?", user);
+        Assert.DoesNotContain("Resolved thread", PromptTemplates.OpenThreads(project));
+    }
+
+    [Fact]
+    public void BuildEditorSeed_IncludesTheRecapAndPosition()
+    {
+        var project = ProjectWithLoglines(3);
+
+        var messages = PromptTemplates.BuildEditorSeed(project.Chapters[2], project.InitialWorldState, project);
+
+        Assert.Contains("Log line 1.", messages[1].Content);
+        Assert.Contains("chapter 3 of 3", messages[1].Content);
+        Assert.Contains("Story so far:", messages[1].Content);
+    }
+
+    private static string UserText(ChapterContext context) =>
+        string.Join("\n", context.Messages.Where(message => message.Role == LlmRole.User).Select(message => message.Content));
+
     private static Project ProjectWithLoglines(int chapters) => new()
     {
         Name = "Series",
         World = new World { Tone = "grim" },
-        InitialWorldState = new WorldState { TimeAndPlace = "Start", Description = "Begin." },
+        InitialWorldState = new WorldState { TimeAndPlace = "Start", Situation = "Begin." },
         Chapters = [.. Enumerable.Range(1, chapters).Select(number => new Chapter
         {
             Number = number,
@@ -204,28 +174,12 @@ public sealed class ChapterContextAssemblerTests
         })],
     };
 
-    [Fact]
-    public void BuildEditorSeed_IncludesTheRunningStorySoFarAndPosition()
-    {
-        var project = ProjectWithLoglines(3);
-        project.Chapters[0].StorySoFar = "The running retelling.";
-
-        var messages = PromptTemplates.BuildEditorSeed(project.Chapters[2], project.InitialWorldState, project);
-
-        Assert.Contains("The running retelling.", messages[1].Content);
-        Assert.Contains("chapter 3 of 3", messages[1].Content);
-        Assert.Contains("Recent chapters:", messages[1].Content);
-    }
-
-    private static string UserText(ChapterContext context) =>
-        string.Join("\n", context.Messages.Where(message => message.Role == LlmRole.User).Select(message => message.Content));
-
     private static Project Project() => new()
     {
         Name = "The Ember Crown",
         World = new World { Tone = "grim", Title = "Ashen Reach", Body = "A dying empire." },
         Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["scout"] }],
-        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Description = "Aria crouches in the ruins." },
+        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Situation = "Aria crouches in the ruins." },
         Chapters = [new Chapter { Number = 1, Title = "Embers", Direction = "Open quietly.", ContentOriginal = "Secret previous prose" }],
     };
 }

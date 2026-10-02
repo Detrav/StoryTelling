@@ -99,11 +99,10 @@ public sealed class ChapterRunner : IChapterRunner
         var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
         var finished = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = chapter.ContentOriginal };
         var summary = await _summarizer
-            .SummarizeAsync(finished, stateBefore, knowledge, PromptTemplates.PreviousStorySoFar(project, chapter.Number), progress, cancellationToken)
+            .SummarizeAsync(finished, stateBefore, knowledge, progress, cancellationToken)
             .ConfigureAwait(false);
 
         chapter.Logline = summary.Logline;
-        chapter.StorySoFar = summary.StorySoFar;
         chapter.WorldState = summary.WorldState;
         chapter.KnowledgeChanges = [.. summary.KnowledgeChanges];
         if (chapter.Status == ChapterStatus.Stale)
@@ -132,11 +131,10 @@ public sealed class ChapterRunner : IChapterRunner
             var finished = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = chapter.ContentOriginal };
             var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
             var summary = await _summarizer
-                .SummarizeAsync(finished, stateBefore, knowledge, PromptTemplates.PreviousStorySoFar(project, chapter.Number), progress, cancellationToken)
+                .SummarizeAsync(finished, stateBefore, knowledge, progress, cancellationToken)
                 .ConfigureAwait(false);
 
             chapter.Logline = summary.Logline;
-            chapter.StorySoFar = summary.StorySoFar;
             chapter.WorldState = summary.WorldState;
             chapter.KnowledgeChanges = [.. summary.KnowledgeChanges];
             if (chapter.Status == ChapterStatus.Stale)
@@ -150,7 +148,6 @@ public sealed class ChapterRunner : IChapterRunner
     {
         chapter.ContentOriginal = result.Text;
         chapter.Logline = result.Logline;
-        chapter.StorySoFar = result.StorySoFar;
         chapter.WorldState = result.WorldState;
         chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
         chapter.EditorNotes = [.. result.EditorNotes];

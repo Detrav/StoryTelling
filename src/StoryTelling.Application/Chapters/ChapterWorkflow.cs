@@ -1,6 +1,5 @@
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
-using StoryTelling.Application.Prompts;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
@@ -38,8 +37,7 @@ public sealed class ChapterWorkflow : IChapterWorkflow
             stateBefore,
             settings.ContextTokenBudget,
             settings.RecentLoglineCount,
-            settings.ContextRequiredSectionMaxChars,
-            settings.StorySoFarMode);
+            settings.ContextRequiredSectionMaxChars);
         var draft = await _writer.WriteAsync(writerContext, progress, cancellationToken).ConfigureAwait(false);
 
         var edit = await _editor
@@ -47,11 +45,10 @@ public sealed class ChapterWorkflow : IChapterWorkflow
             .ConfigureAwait(false);
 
         var finished = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = edit.Text };
-        var previousStorySoFar = PromptTemplates.PreviousStorySoFar(project, chapter.Number);
         var summary = await _summarizer
-            .SummarizeAsync(finished, stateBefore, project.Knowledge, previousStorySoFar, progress, cancellationToken)
+            .SummarizeAsync(finished, stateBefore, project.Knowledge, progress, cancellationToken)
             .ConfigureAwait(false);
 
-        return new ChapterResult(edit.Text, summary.Logline, summary.WorldState, summary.KnowledgeChanges, edit.Notes, draft.ToolCalls, summary.StorySoFar);
+        return new ChapterResult(edit.Text, summary.Logline, summary.WorldState, summary.KnowledgeChanges, edit.Notes, draft.ToolCalls);
     }
 }

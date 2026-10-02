@@ -42,6 +42,7 @@ internal static class AppServices
         services.AddSingleton<IGenerationAssistant, GenerationAssistant>();
         services.AddSingleton<IKnowledgeImporter, KnowledgeImporter>();
         services.AddSingleton<IProjectReviewAssistant, ProjectReviewAssistant>();
+        services.AddSingleton<IContinuityReviewer, ContinuityReviewer>();
         services.AddSingleton<IContextAssembler, ChapterContextAssembler>();
         services.AddSingleton<IChapterAgent, ChapterAgent>();
         services.AddSingleton<IChapterEditor, ChapterEditor>();

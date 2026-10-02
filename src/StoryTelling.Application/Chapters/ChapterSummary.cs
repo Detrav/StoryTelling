@@ -5,5 +5,4 @@ namespace StoryTelling.Application.Chapters;
 public sealed record ChapterSummary(
     string Logline,
     WorldState WorldState,
-    IReadOnlyList<KnowledgeChange> KnowledgeChanges,
-    string StorySoFar = "");
+    IReadOnlyList<KnowledgeChange> KnowledgeChanges);

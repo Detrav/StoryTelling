@@ -103,7 +103,7 @@ public sealed class StoryQueryTests
             new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Bran", Tags = ["smith"] },
             new KnowledgeEntry { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "A frozen frontier of ash.", Tags = ["region"] },
         ],
-        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Description = "Aria crouches in the ruins." },
+        InitialWorldState = new WorldState { TimeAndPlace = "Dusk above the keep", Situation = "Aria crouches in the ruins." },
         Chapters =
         [
             new Chapter { Number = 1, Title = "Embers", Logline = "A scout flees." },

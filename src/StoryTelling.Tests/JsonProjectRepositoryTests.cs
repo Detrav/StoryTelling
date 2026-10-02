@@ -73,7 +73,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Contains("\"world\"", json);
         Assert.Contains("\"initialWorldState\"", json);
         Assert.Contains("\"timeAndPlace\"", json);
-        Assert.Contains("\"description\"", json);
+        Assert.Contains("\"situation\"", json);
         Assert.Contains("\"knowledge\"", json);
         Assert.Contains("\"metadataTranslations\"", json);
         Assert.Contains("\"staleMetadataTranslations\"", json);
@@ -81,6 +81,29 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         Assert.Contains("\"Generated\"", json);
         Assert.Contains("Дым поднимался.", json);
         Assert.DoesNotContain(Directory.GetFiles(_directory), file => file.EndsWith(".tmp", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Load_MigratesVersion5Project_RenamesSituationAndDropsStorySoFar()
+    {
+        var repository = new JsonProjectRepository();
+        var path = Path.Combine(_directory, "v5.story.json");
+        await File.WriteAllTextAsync(path, """
+        {
+          "schemaVersion": 5,
+          "name": "Legacy v5",
+          "initialWorldState": { "timeAndPlace": "Dawn", "description": "Before." },
+          "chapters": [
+            { "number": 1, "title": "One", "storySoFar": "Old retelling.", "worldState": { "timeAndPlace": "Noon", "description": "After." } }
+          ]
+        }
+        """);
+
+        var project = await repository.LoadAsync(path);
+
+        Assert.Equal(ProjectSchema.Version, project.SchemaVersion);
+        Assert.Equal("Before.", project.InitialWorldState.Situation);
+        Assert.Equal("After.", Assert.Single(project.Chapters).WorldState!.Situation);
     }
 
     [Fact]
@@ -239,7 +262,7 @@ public sealed class JsonProjectRepositoryTests : IDisposable
         InitialWorldState = new WorldState
         {
             TimeAndPlace = "Dusk, the cliffs above the keep",
-            Description = "Aria crouches in the ruins of the keep with the relic.",
+            Situation = "Aria crouches in the ruins of the keep with the relic.",
         },
         MetadataTranslations = new SortedDictionary<string, MetadataTranslation>
         {

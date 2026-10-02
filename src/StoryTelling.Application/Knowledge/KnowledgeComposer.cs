@@ -45,10 +45,12 @@ public static class KnowledgeComposer
 
         knowledge.Add(new KnowledgeEntry
         {
+            Id = change.EntryId ?? Guid.NewGuid(),
             Kind = change.Kind,
             Title = change.Title.Trim(),
             Tags = [.. change.Tags],
             Content = change.Content,
+            Status = change.Status,
         });
     }
 
@@ -73,11 +75,17 @@ public static class KnowledgeComposer
 
         entry.Tags = [.. change.Tags];
         entry.Content = change.Content;
+        if (change.Status is { } status)
+        {
+            entry.Status = status;
+        }
     }
 
     private static bool Matches(KnowledgeEntry entry, KnowledgeChange change) =>
-        !string.IsNullOrWhiteSpace(change.Title)
-        && string.Equals(Normalize(entry.Title), Normalize(change.Title), StringComparison.Ordinal);
+        change.EntryId is { } id
+            ? entry.Id == id
+            : !string.IsNullOrWhiteSpace(change.Title)
+              && string.Equals(Normalize(entry.Title), Normalize(change.Title), StringComparison.Ordinal);
 
     private static string Normalize(string title)
     {
@@ -117,5 +125,6 @@ public static class KnowledgeComposer
         Title = entry.Title,
         Tags = [.. entry.Tags],
         Content = entry.Content,
+        Status = entry.Status,
     };
 }

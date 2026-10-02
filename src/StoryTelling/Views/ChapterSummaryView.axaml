@@ -9,6 +9,7 @@
         <StackPanel Margin="14" Spacing="8">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button Content="Regenerate summary" Command="{Binding RegenerateSummaryCommand}" IsEnabled="{Binding !IsBusy}" />
+                <Button Content="Check continuity" Command="{Binding RunContinuityCheckCommand}" IsEnabled="{Binding !IsBusy}" />
                 <Button Content="Stop" Command="{Binding StopRegenerateCommand}" IsVisible="{Binding IsBusy}" />
                 <TextBlock Text="{Binding Status}" Opacity="0.7" VerticalAlignment="Center" />
             </StackPanel>
@@ -24,18 +25,11 @@
             <TextBlock Text="Logline" Opacity="0.7" />
             <TextBox Text="{Binding Logline}" LostFocus="OnCommit" />
 
-            <TextBlock Text="Story so far — the running retelling carried into later chapters" Opacity="0.7" />
-            <TextBox Text="{Binding StorySoFar}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     Height="120"
-                     LostFocus="OnCommit" />
-
             <TextBlock Text="World state — time and place" Opacity="0.7" />
             <TextBox Text="{Binding TimeAndPlace}" LostFocus="OnCommit" />
 
-            <TextBlock Text="World state — situation after the chapter" Opacity="0.7" />
-            <TextBox Text="{Binding StateDescription}"
+            <TextBlock Text="Situation after the chapter" Opacity="0.7" />
+            <TextBox Text="{Binding Situation}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
                      Height="120"

@@ -25,6 +25,8 @@ public partial class ChapterSummaryViewModel : ViewModelBase
 
     public Func<IProgress<GenerationProgress>?, CancellationToken, Task>? Regenerate { get; set; }
 
+    public Func<IProgress<GenerationProgress>?, CancellationToken, Task>? CheckContinuity { get; set; }
+
     [ObservableProperty]
     private bool _isBusy;
 
@@ -56,21 +58,6 @@ public partial class ChapterSummaryViewModel : ViewModelBase
         }
     }
 
-    public string StorySoFar
-    {
-        get => _chapter.StorySoFar;
-        set
-        {
-            if (_chapter.StorySoFar == value)
-            {
-                return;
-            }
-
-            _chapter.StorySoFar = value;
-            _debouncer.Trigger();
-        }
-    }
-
     public string TimeAndPlace
     {
         get => _chapter.WorldState?.TimeAndPlace ?? string.Empty;
@@ -87,18 +74,18 @@ public partial class ChapterSummaryViewModel : ViewModelBase
         }
     }
 
-    public string StateDescription
+    public string Situation
     {
-        get => _chapter.WorldState?.Description ?? string.Empty;
+        get => _chapter.WorldState?.Situation ?? string.Empty;
         set
         {
             var state = EnsureState();
-            if (state.Description == value)
+            if (state.Situation == value)
             {
                 return;
             }
 
-            state.Description = value;
+            state.Situation = value;
             _debouncer.Trigger();
         }
     }
@@ -174,6 +161,27 @@ public partial class ChapterSummaryViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task RunContinuityCheck()
+    {
+        if (CheckContinuity is not { } check)
+        {
+            return;
+        }
+
+        Status = "Checking continuity…";
+
+        try
+        {
+            await check(null, CancellationToken.None);
+            Status = "Continuity checked.";
+        }
+        catch (Exception exception)
+        {
+            Status = $"Failed: {exception.Message}";
+        }
+    }
+
+    [RelayCommand]
     private void StopRegenerate() => _cts?.Cancel();
 
     private WorldState EnsureState() => _chapter.WorldState ??= new WorldState();
@@ -208,12 +216,9 @@ public partial class ChapterSummaryViewModel : ViewModelBase
             case nameof(ChapterViewModel.Logline):
                 OnPropertyChanged(nameof(Logline));
                 break;
-            case nameof(ChapterViewModel.StorySoFar):
-                OnPropertyChanged(nameof(StorySoFar));
-                break;
             case nameof(ChapterViewModel.WorldState):
                 OnPropertyChanged(nameof(TimeAndPlace));
-                OnPropertyChanged(nameof(StateDescription));
+                OnPropertyChanged(nameof(Situation));
                 break;
             case nameof(ChapterViewModel.KnowledgeChanges):
                 RefreshChanges();

@@ -145,7 +145,7 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             Rating = Rating,
         },
         Knowledge = [.. Knowledge.Select(entry => entry.ToEntry())],
-        InitialWorldState = new WorldState { TimeAndPlace = InitialStateTimeAndPlace, Description = InitialStateDescription },
+        InitialWorldState = new WorldState { TimeAndPlace = InitialStateTimeAndPlace, Situation = InitialStateDescription },
     };
 
     private Dictionary<string, string> ProjectFields() => new()

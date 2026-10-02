@@ -2,6 +2,7 @@ using System.Text;
 using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
+using StoryTelling.Application.Review;
 using StoryTelling.Application.Translation;
 using StoryTelling.Domain;
 
@@ -137,42 +138,138 @@ public static class PromptTemplates
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
 
-    public static IReadOnlyList<LlmMessage> BuildReview(Project snapshot, string brief)
+    private static readonly string[] _reviewCategories =
+    [
+        "Ages and dates: estimate a birth year for every stated age/year (including ages embedded in Event entries about a relative) and compare across entries; check that the ages of relatives are mutually possible (parent vs child, siblings, spouses). Flag impossible or inconsistent numbers.",
+        "Timeline: event years vs \"N years ago\" vs ages vs tenure (time spent in a job or role), including whether an event can fit before or after another.",
+        "Tags vs content: kind, role, status, age, gender, rank or affiliation that disagrees with the entry body. Check this for every character, not just the most prominent one, and check every tag against the body.",
+        "Setting vs entries: the world's geography, era and technology vs the places and events (for example a fictional setting vs real-world place names).",
+        "Identity mix-ups: an entry whose text names or describes a different entry's character (for example an entry titled with a nickname whose body keeps describing another character by name), or an entry that reuses another entry's wording.",
+        "Dangling references: a person, place, group or object that is referenced but has no entry anywhere.",
+        "Missing entries: a named entity that is central to the story but has no knowledge entry.",
+        "Conflicting facts: the same object, event or location described differently in two or more entries (for example where contraband was hidden, or the name of a group).",
+        "Roles and titles that drift between entries.",
+        "Misplaced content: details that belong to a different entry (for example a character trait inside a Place entry).",
+    ];
+
+    private static readonly int[] _numberCategories = [0, 1, 8];
+    private static readonly int[] _factCategories = [2, 3, 4, 5, 6, 7, 9];
+
+    public static IReadOnlyList<LlmMessage> BuildReview(Project snapshot, string brief, ReviewFocus focus = ReviewFocus.Full)
     {
-        var system = "You are a meticulous story-bible reviewer. Review the knowledge base for internal "
-            + "inconsistencies, contradictions, gaps and unclear points. Do not rewrite anything — only "
-            + "report findings. Use the provided tools to read the details. Reply with ONLY a JSON object "
-            + "that matches the required schema.";
+        var system = "Role: You are a meticulous story-bible continuity editor.\n"
+            + "Objective: Find every internal inconsistency, contradiction, gap and ambiguity in the story bible — the world and the knowledge base.\n"
+            + "Method: Read every knowledge entry with the tools and compare the entries against each other and against the world. Never judge an entry in isolation.\n"
+            + "Constraints: Work in English only. Do not rewrite anything — only report. Base every finding strictly on the given facts.\n"
+            + "Output: Only a JSON object that matches the required schema.";
 
         var user = new StringBuilder();
-        user.AppendLine("Review the knowledge base for consistency and gaps. Read the details with the tools.");
+        user.AppendLine(focus switch
+        {
+            ReviewFocus.Numbers => "Audit the story bible's numbers: every stated age, date, year, duration and rank, across all entries. Read every entry with the tools before deciding.",
+            ReviewFocus.Facts => "Audit the story bible's facts: names, identities, roles, metadata (tags/kind), places, objects and entities, across all entries. Read every entry with the tools before deciding.",
+            _ => "Review the story bible (the world and the knowledge base) for consistency and gaps. Read every entry with the tools before deciding.",
+        });
         user.AppendLine();
-        user.AppendLine("Manifest:");
+        user.AppendLine("Story bible:");
         AppendField(user, "Book name", snapshot.Name);
+        var world = snapshot.World;
+        AppendField(user, "World", world.Title);
+        AppendField(user, "World description", world.Body);
+        AppendField(user, "Genre", world.Genre);
+        AppendField(user, "Tone", world.Tone);
+        AppendField(user, "Point of view", world.PointOfView);
+        AppendField(user, "Tense", world.Tense);
+        AppendField(user, "Rating", world.Rating);
+        AppendField(user, "Opens at", snapshot.InitialWorldState.TimeAndPlace);
+        AppendField(user, "Opening situation", snapshot.InitialWorldState.Situation);
 
         if (snapshot.Knowledge.Count > 0)
         {
-            user.AppendLine($"- Knowledge: {string.Join(", ", snapshot.Knowledge.Select(entry => $"{entry.Title} [{entry.Kind}]"))}");
+            user.AppendLine($"- Knowledge ({snapshot.Knowledge.Count} entries): {string.Join(", ", snapshot.Knowledge.Select(entry => $"{entry.Title} [{entry.Kind}]"))}");
         }
 
         user.AppendLine();
-        user.AppendLine("Report each problem as a finding: a severity (Info, Warning or Error), the area "
-            + "(Knowledge or General), a short title, a concrete detail (what is inconsistent or missing, "
-            + "and where), and an optional suggestion. If the knowledge base is consistent, return an empty "
-            + "list of findings.");
+        if (focus is ReviewFocus.Full or ReviewFocus.Numbers)
+        {
+            user.AppendLine("Reconcile the numbers: for every person collect EVERY age, year, duration and rank stated in EVERY entry (even entries about other topics), then compare them with each other. Most contradictions hide across two different entries, so never check an entry only against itself.");
+            user.AppendLine("Worked example of the required arithmetic: if one entry says \"Elena is 26\" (present day) and another says \"her son was 20 in 2019\", then Elena was 21 in 2019 and would have given birth at age 1 — that is impossible; report it as an Error. Compute the birth year of each relative from each statement and compare.");
+            user.AppendLine("Hard rules: a biological parent must be at least 12 years older than their child; a person's age plus the years elapsed between two events must equal their stated age at the later event; a person cannot be the same age as their parent. Report every violation.");
+            user.AppendLine();
+            user.AppendLine("Fill the 'reconciliation' array first: one entry per person, listing each age/date statement with its source entry and the birth year it implies (for example \"Elena Volkov: 26 years old now (2024) -> born ~1998; The Neon Alley Raid (2019): 'her son Dmitri, age 20' -> if she is the mother she was 1 in 2019 -> born ~2018\"). Use the reconciliation to spot the conflicts before writing findings.");
+            user.AppendLine();
+        }
+
+        user.AppendLine("Check every category below and report a separate finding for each violation you find:");
+        foreach (var index in Categories(focus))
+        {
+            user.AppendLine($"{index + 1}. {_reviewCategories[index]}");
+        }
+
         user.AppendLine();
-        user.AppendLine("Set reference to the exact title of the knowledge entry a finding is about. Always "
-            + "fill it for knowledge findings; leave it empty for whole-project issues.");
-        user.AppendLine("Prefer providing a fix whenever the problem is corrected by replacing one or more "
-            + "field values: add an edit for each changed field with target Knowledge, reference (the entry "
-            + "title) and the corrected value. Use the exact field names below. Only omit the fix when no "
-            + "field-level correction makes sense. Fields per target:");
+        user.AppendLine("Report at most 12 findings, ordered from the most to the least severe. Merge findings that describe the same underlying problem into one; do not restate the same issue under several titles. Keep each detail to one or two sentences — reporting the most serious problems matters more than listing everything. Ignore pure style or terminology preferences unless they create a real contradiction.");
+        user.AppendLine();
+        user.AppendLine("Report a problem as a finding: a severity (Info, Warning or Error), the area (Knowledge or General), a short title, a concrete detail (what is inconsistent or missing, and where), and an optional suggestion.");
+        user.AppendLine("If the bible is consistent, return an empty list of findings.");
+        user.AppendLine();
+        user.AppendLine("Set reference to the exact title of the knowledge entry a finding is about. Always fill it for knowledge findings; leave it empty for whole-project issues.");
+        user.AppendLine("Provide a fix only when replacing field values corrects the problem. Add one edit per changed field with target Knowledge, reference (the entry title) and the corrected value. The corrected value MUST differ from the current value — never return the current text unchanged. When a tag conflicts with the content, edit the field that is wrong (for example Tags). If the correct value is unknown, omit the fix. Fields per target:");
         user.AppendLine("- Knowledge: Kind, Title, Tags, Content");
 
         if (!string.IsNullOrWhiteSpace(brief))
         {
             user.AppendLine($"Focus: {brief.Trim()}");
         }
+
+        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
+
+    private static IReadOnlyList<int> Categories(ReviewFocus focus) => focus switch
+    {
+        ReviewFocus.Numbers => _numberCategories,
+        ReviewFocus.Facts => _factCategories,
+        _ => [.. Enumerable.Range(0, _reviewCategories.Length)],
+    };
+
+    public static IReadOnlyList<LlmMessage> BuildContinuityReview(Chapter chapter, IReadOnlyList<KnowledgeEntry> knowledge)
+    {
+        var system = "Role: You are a strict story-continuity checker.\n"
+            + "Objective: Compare one chapter's plan against the established facts and report contradictions.\n"
+            + "Constraints: Work in English only. Do not rewrite anything — only report. Base findings strictly on the facts given.\n"
+            + "Output: Only a JSON object that matches the required schema.";
+
+        var user = new StringBuilder();
+        user.AppendLine($"Chapter {chapter.Number}"
+            + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
+            + " plan:");
+        user.AppendLine(string.IsNullOrWhiteSpace(chapter.Direction) ? "- (no direction)" : $"- Direction: {chapter.Direction.Trim()}");
+        if (!string.IsNullOrWhiteSpace(chapter.Notes))
+        {
+            user.AppendLine($"- Notes: {chapter.Notes.Trim()}");
+        }
+
+        user.AppendLine();
+        user.AppendLine("Established facts:");
+        const int total = 12000;
+        var used = 0;
+        foreach (var entry in knowledge)
+        {
+            var line = $"- [{entry.Kind}] {entry.Title}: {entry.Content?.Trim()}";
+            var room = Math.Min(line.Length, total - used);
+            if (room <= 0)
+            {
+                break;
+            }
+
+            user.AppendLine(line[..room]);
+            used += room;
+        }
+
+        user.AppendLine();
+        user.AppendLine("Report findings where the plan contradicts the facts (wrong relationships, impossible "
+            + "ages, alias mismatches, a dead character acting, a resolved fact reappearing). Severity is Info, "
+            + "Warning or Error; set reference to the exact entry title involved. Return an empty list when "
+            + "the plan is consistent.");
 
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
@@ -202,9 +299,9 @@ public static class PromptTemplates
         user.AppendLine();
         user.AppendLine("Situation after the previous chapter:");
         AppendField(user, "Time and place", state.TimeAndPlace);
-        if (!string.IsNullOrWhiteSpace(state.Description))
+        if (!string.IsNullOrWhiteSpace(state.Situation))
         {
-            user.AppendLine(state.Description.Trim());
+            user.AppendLine(state.Situation.Trim());
         }
     }
 
@@ -311,9 +408,9 @@ public static class PromptTemplates
     {
         var lines = new List<string>();
         AddLine(lines, "Time and place", state.TimeAndPlace);
-        if (!string.IsNullOrWhiteSpace(state.Description))
+        if (!string.IsNullOrWhiteSpace(state.Situation))
         {
-            lines.Add(state.Description.Trim());
+            lines.Add(state.Situation.Trim());
         }
 
         return lines.Count == 0 ? string.Empty : "World state before this chapter:\n" + string.Join("\n", lines);
@@ -353,35 +450,7 @@ public static class PromptTemplates
     private static ChapterRole DeriveRole(int number, int total) =>
         number <= 1 ? ChapterRole.Opening : number >= total ? ChapterRole.Finale : ChapterRole.Middle;
 
-    public static string PreviousStorySoFar(Project project, int number) =>
-        project.Chapters
-            .Where(candidate => candidate.Number < number && !string.IsNullOrWhiteSpace(candidate.StorySoFar))
-            .OrderByDescending(candidate => candidate.Number)
-            .Select(candidate => candidate.StorySoFar.Trim())
-            .FirstOrDefault() ?? string.Empty;
-
-    public static string WriterStorySoFar(Project project, Chapter chapter, int recentCount, string mode = "Both")
-    {
-        var running = PreviousStorySoFar(project, chapter.Number);
-
-        if (mode == "Loglines" || running.Length == 0)
-        {
-            var loglines = RecentLoglines(project, chapter, recentCount, includeFirst: true);
-            return loglines.Length == 0 ? string.Empty : "Story so far:\n" + loglines;
-        }
-
-        if (mode == "Retelling")
-        {
-            return "Story so far:\n" + running;
-        }
-
-        var recent = RecentLoglines(project, chapter, recentCount, includeFirst: false);
-        return recent.Length == 0
-            ? "Story so far:\n" + running
-            : "Story so far:\n" + running + "\n\nRecent chapters:\n" + recent;
-    }
-
-    private static string RecentLoglines(Project project, Chapter chapter, int recentCount, bool includeFirst)
+    public static string WriterRecap(Project project, Chapter chapter, int recentCount)
     {
         var prior = project.Chapters
             .Where(candidate => candidate.Number < chapter.Number && !string.IsNullOrWhiteSpace(candidate.Logline))
@@ -393,12 +462,7 @@ public static class PromptTemplates
             return string.Empty;
         }
 
-        var selected = new List<Chapter>();
-        if (includeFirst)
-        {
-            selected.Add(prior[0]);
-        }
-
+        var selected = new List<Chapter> { prior[0] };
         if (recentCount > 0)
         {
             foreach (var recent in prior.Skip(Math.Max(0, prior.Count - recentCount)))
@@ -411,22 +475,18 @@ public static class PromptTemplates
         }
 
         selected = [.. selected.OrderBy(candidate => candidate.Number)];
-        if (selected.Count == 0)
-        {
-            return string.Empty;
-        }
 
-        var lines = new List<string> { DescribeLogline(selected[0]) };
-
-        var omitted = prior.Count - selected.Count;
-        if (omitted > 0)
+        var lines = new List<string> { "Story so far:" };
+        var previous = 0;
+        foreach (var item in selected)
         {
-            lines.Add($"- …({omitted} chapter{(omitted == 1 ? string.Empty : "s")} omitted)…");
-        }
+            if (item.Number > previous + 1)
+            {
+                lines.Add($"- [Chapters {previous + 1}-{item.Number - 1} omitted — use the recent_loglines tool]");
+            }
 
-        for (var index = 1; index < selected.Count; index++)
-        {
-            lines.Add(DescribeLogline(selected[index]));
+            lines.Add(DescribeLogline(item));
+            previous = item.Number;
         }
 
         return string.Join("\n", lines);
@@ -436,6 +496,35 @@ public static class PromptTemplates
         $"- Chapter {chapter.Number}"
         + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
         + $": {chapter.Logline.Trim()}";
+
+    public static string OpenThreads(Project project, int cap = 10)
+    {
+        var threads = project.Knowledge
+            .Where(entry => entry.Kind == KnowledgeKind.Thread && entry.Status == KnowledgeStatus.Open)
+            .ToList();
+
+        if (threads.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var pinned = threads.Where(thread => thread.Tags.Contains("pinned", StringComparer.OrdinalIgnoreCase)).ToList();
+        var selected = pinned.Concat(threads.Where(thread => !pinned.Contains(thread))).Take(cap).ToList();
+
+        var lines = new List<string> { "Open threads (unresolved):" };
+        foreach (var thread in selected)
+        {
+            var detail = string.IsNullOrWhiteSpace(thread.Content) ? string.Empty : $": {thread.Content.Trim()}";
+            lines.Add($"- {thread.Title.Trim()}{detail}");
+        }
+
+        if (threads.Count > selected.Count)
+        {
+            lines.Add($"- …and {threads.Count - selected.Count} more (use the list_entries tool with kind Thread)");
+        }
+
+        return string.Join("\n", lines);
+    }
 
     public static string WriterWorldLore(World world)
     {
@@ -501,9 +590,9 @@ public static class PromptTemplates
         user.AppendLine();
         user.AppendLine("Situation before this chapter:");
         AppendField(user, "Time and place", situationBefore.TimeAndPlace);
-        if (!string.IsNullOrWhiteSpace(situationBefore.Description))
+        if (!string.IsNullOrWhiteSpace(situationBefore.Situation))
         {
-            user.AppendLine($"- Situation: {situationBefore.Description.Trim()}");
+            user.AppendLine($"- Situation: {situationBefore.Situation.Trim()}");
         }
 
         user.AppendLine();
@@ -538,9 +627,9 @@ public static class PromptTemplates
         user.AppendLine();
         user.AppendLine("Situation before this chapter:");
         AppendField(user, "Time and place", situationBefore.TimeAndPlace);
-        if (!string.IsNullOrWhiteSpace(situationBefore.Description))
+        if (!string.IsNullOrWhiteSpace(situationBefore.Situation))
         {
-            user.AppendLine($"- Situation: {situationBefore.Description.Trim()}");
+            user.AppendLine($"- Situation: {situationBefore.Situation.Trim()}");
         }
 
         user.AppendLine();
@@ -557,39 +646,52 @@ public static class PromptTemplates
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
 
-    public static IReadOnlyList<LlmMessage> BuildChapterBriefing(
+    public static IReadOnlyList<LlmMessage> BuildChapterSummary(
         Chapter chapter,
         WorldState stateBefore,
         IReadOnlyList<KnowledgeEntry> knowledge)
     {
-        var system = "Role: You analyze one finished chapter of an ongoing book and brief the story bible.\n"
-            + "Objective: Extract what happened, the situation it leaves behind, and any knowledge changes.\n"
-            + "Constraints: Work in English only. Base everything strictly on the chapter text.\n"
+        var system = "Role: You maintain the story bible for one finished chapter of an ongoing book.\n"
+            + "Objective: Record what happened, the situation it leaves behind, and the changes to the knowledge base.\n"
+            + "Constraints: Work in English only. Base everything strictly on the chapter text. Never invent facts.\n"
             + "Output: Only a JSON object that matches the required schema.";
 
         var user = new StringBuilder();
-        user.AppendLine($"Brief chapter {chapter.Number}"
+        user.AppendLine($"Summarize chapter {chapter.Number}"
             + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
             + ".");
         user.AppendLine();
         user.AppendLine("World state before this chapter:");
         AppendField(user, "Time and place", stateBefore.TimeAndPlace);
-        if (!string.IsNullOrWhiteSpace(stateBefore.Description))
+        if (!string.IsNullOrWhiteSpace(stateBefore.Situation))
         {
-            user.AppendLine($"- Situation: {stateBefore.Description.Trim()}");
+            user.AppendLine($"- Situation: {stateBefore.Situation.Trim()}");
+        }
+
+        var openThreads = knowledge
+            .Where(entry => entry.Kind == KnowledgeKind.Thread && entry.Status == KnowledgeStatus.Open)
+            .ToList();
+        if (openThreads.Count > 0)
+        {
+            user.AppendLine();
+            user.AppendLine("Open threads — update these by entryId; do NOT create a duplicate thread:");
+            foreach (var thread in openThreads)
+            {
+                user.AppendLine($"- {thread.Title.Trim()} (entryId: {thread.Id})");
+            }
         }
 
         if (knowledge.Count > 0)
         {
             user.AppendLine();
-            user.AppendLine("Current knowledge base (use the exact title to update or delete an entry):");
+            user.AppendLine("Current knowledge base (update/delete by entry id; keep every detail the chapter does not contradict):");
             const int perEntry = 2000;
             const int total = 16000;
             var used = 0;
             foreach (var entry in knowledge)
             {
                 var tags = entry.Tags.Count > 0 ? $" [{string.Join(", ", entry.Tags)}]" : string.Empty;
-                user.AppendLine($"- [{entry.Kind}] {entry.Title}{tags}");
+                user.AppendLine($"- [{entry.Kind}] {entry.Title}{tags} (entryId: {entry.Id})");
                 if (string.IsNullOrWhiteSpace(entry.Content))
                 {
                     continue;
@@ -614,57 +716,25 @@ public static class PromptTemplates
         user.AppendLine("Reply with:");
         user.AppendLine("- logline: 1-2 sentences on what actually happened in this chapter.");
         user.AppendLine("- timeAndPlace: a short when/where line for the situation immediately after this chapter.");
-        user.AppendLine("- description: the situation after this chapter, in this order: where we are; what changed; what is still unresolved; what this sets up next. Always write it.");
+        user.AppendLine("- situation: the situation after this chapter, in this order: where we are; what changed; what is still unresolved; what this sets up next. Always write it.");
         user.AppendLine("- knowledgeChanges: the entries this chapter changed.");
         user.AppendLine("Base everything strictly on the chapter text.");
         user.AppendLine();
-        user.AppendLine("When you update an entry, output its full updated content and keep every detail "
-            + "from its current content that the chapter does not contradict.");
-        user.AppendLine();
         user.AppendLine("knowledgeChanges lists only entries that actually changed: operation (Create, "
-            + "Update or Delete), the title (for Update/Delete use the exact existing title), kind, tags, "
-            + "the full new content, and a short reason. Return an empty array when nothing changed — do "
-            + "not restate unchanged entries.");
-
-        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
-    }
-
-    public static IReadOnlyList<LlmMessage> BuildChapterStorySync(
-        string previousStorySoFar,
-        ChapterBriefing briefing,
-        int chapterNumber)
-    {
-        var system = "Role: You maintain the running retelling ('story so far') of an ongoing book.\n"
-            + "Objective: Fold the newest chapter's briefing into the retelling so the next chapter knows what has happened.\n"
-            + "Constraints: Work in English only. Keep it at most about 120 words, present tense, and keep "
-            + "every name consistent. Preserve the opening (the inciting incident) and the main arc. Never "
-            + "restart from scratch.\n"
-            + "Output: Only a JSON object that matches the required schema.";
-
-        var user = new StringBuilder();
-        user.AppendLine($"Chapter {chapterNumber} briefing:");
-        user.AppendLine($"- logline: {briefing.Logline.Trim()}");
-        if (!string.IsNullOrWhiteSpace(briefing.WorldState.Description))
-        {
-            user.AppendLine($"- situation: {briefing.WorldState.Description.Trim()}");
-        }
-
+            + "Update or Delete), the entryId (required for Update/Delete — use the id shown above), the "
+            + "title, kind, tags, the full new content, and a short reason. Leave entryId empty when "
+            + "creating a new entry. Return an empty array when nothing changed.");
         user.AppendLine();
-        if (!string.IsNullOrWhiteSpace(previousStorySoFar))
-        {
-            user.AppendLine("Story so far before this chapter (rewrite it to include this chapter):");
-            user.AppendLine(previousStorySoFar.Trim());
-        }
-        else
-        {
-            user.AppendLine("This is the first chapter, so the retelling starts here.");
-        }
-
+        user.AppendLine("Status rules: only kind Thread carries a status. For every non-thread change set "
+            + "status to None. For a Thread keep status Open while it is unresolved and use Resolved only "
+            + "when this chapter actually resolves it.");
         user.AppendLine();
-        user.AppendLine("Return the updated 'story so far': a tight running retelling of the whole story up "
-            + "to and including this chapter, at most about 120 words. Keep the opening and the main arc, "
-            + "fold in what happened here, drop minor detail, present tense. Do not start over; rewrite the "
-            + "existing retelling so it stays the same length or shorter.");
+        user.AppendLine("Threads: if this chapter opens an unresolved question, goal or mystery, create a "
+            + "Thread entry (kind Thread, status Open) whose title is the open question. If a similar "
+            + "thread is already listed under 'Open threads' above, update THAT entry by its entryId "
+            + "instead of creating another. If a question is opened and closed within this same chapter, "
+            + "do not create a Thread.");
+
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
 
@@ -750,8 +820,7 @@ public static class PromptTemplates
         Chapter chapter,
         WorldState stateBefore,
         Project project,
-        int recentLoglineCount = 2,
-        string storySoFarMode = "Both")
+        int recentLoglineCount = 5)
     {
         var user = new StringBuilder();
         user.AppendLine(WriterBrief(chapter));
@@ -773,11 +842,18 @@ public static class PromptTemplates
             user.AppendLine(state);
         }
 
-        var story = WriterStorySoFar(project, chapter, recentLoglineCount, storySoFarMode);
+        var story = WriterRecap(project, chapter, recentLoglineCount);
         if (story.Length > 0)
         {
             user.AppendLine();
             user.AppendLine(story);
+        }
+
+        var threads = OpenThreads(project);
+        if (threads.Length > 0)
+        {
+            user.AppendLine();
+            user.AppendLine(threads);
         }
 
         var lore = WriterWorldLore(project.World);
@@ -807,6 +883,34 @@ public static class PromptTemplates
         user.AppendLine();
         user.AppendLine("Return the full revised chapter text.");
         return [LlmMessage.User(user.ToString())];
+    }
+
+    public static IReadOnlyList<LlmMessage> BuildEditorRepair(
+        string text,
+        IReadOnlyList<string> violations,
+        bool tenseDrift = false,
+        string declaredTense = "")
+    {
+        var user = new StringBuilder();
+        user.AppendLine("The chapter below breaks the style contract. Fix ONLY the listed problems in place; "
+            + "keep every story beat, the voice, the point of view and the full length. Do not add or remove "
+            + "events.");
+        foreach (var violation in violations)
+        {
+            user.AppendLine($"- Remove this meta reference from the prose: \"{violation}\".");
+        }
+
+        if (tenseDrift)
+        {
+            user.AppendLine($"- The narration drifts away from the declared tense (\"{declaredTense}\"). Rewrite the whole chapter in that tense.");
+        }
+
+        user.AppendLine();
+        user.AppendLine("Chapter:");
+        user.AppendLine(text);
+        user.AppendLine();
+        user.AppendLine("Output only the corrected chapter text.");
+        return [LlmMessage.System(EditorSystem()), LlmMessage.User(user.ToString())];
     }
 
     public static IReadOnlyList<LlmMessage> BuildEditorNotes(string changes)

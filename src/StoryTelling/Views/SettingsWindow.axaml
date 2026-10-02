@@ -70,6 +70,36 @@
                 </StackPanel>
             </TabItem>
 
+            <TabItem Header="Roles">
+                <StackPanel Margin="18" Spacing="12">
+                    <TextBlock Text="Temperature per task. Lower is more deterministic; raise it for creative work. Prefer values above 0.1."
+                               Opacity="0.7"
+                               TextWrapping="Wrap" />
+
+                    <ItemsControl ItemsSource="{Binding RoleTemperatures}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RoleTemperatureViewModel">
+                                <Grid ColumnDefinitions="*,170,Auto" Margin="0,0,0,8">
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" />
+                                    <NumericUpDown Grid.Column="1"
+                                                   Value="{Binding Value}"
+                                                   Minimum="0"
+                                                   Maximum="2"
+                                                   Increment="0.1"
+                                                   LostFocus="OnCommit" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="Value too low"
+                                               Foreground="#B00020"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsLow}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </TabItem>
+
             <TabItem Header="Context">
                 <StackPanel Margin="18" Spacing="12">
                     <TextBlock Text="How much of the project is sent to the model when a chapter is written. Larger budgets add continuity but cost more tokens and can dilute focus."
@@ -95,13 +125,6 @@
                         <StackPanel Grid.Column="0" Margin="0,0,6,0">
                             <TextBlock Text="Tool result budget (chars)" Opacity="0.7" />
                             <NumericUpDown Value="{Binding ToolResultMaxChars}" Minimum="1000" Maximum="200000" Increment="1000" LostFocus="OnCommit" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="6,0">
-                            <TextBlock Text="Story-so-far in seed" Opacity="0.7" />
-                            <ComboBox ItemsSource="{Binding StorySoFarModes}"
-                                      SelectedItem="{Binding StorySoFarMode}"
-                                      HorizontalAlignment="Stretch"
-                                      LostFocus="OnCommit" />
                         </StackPanel>
                     </Grid>
                 </StackPanel>

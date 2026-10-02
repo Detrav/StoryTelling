@@ -24,11 +24,12 @@ public partial class WorkspaceViewModel : ViewModelBase
     private readonly IGenerationAssistant _assistant;
     private readonly ITranslationService _translationService;
     private readonly IMetadataTranslator _metadataTranslator;
+    private readonly IContinuityReviewer? _continuityReviewer;
     private IUndoRedoHost? _undoRedo;
     private ObservableObject? _undoRedoHost;
     private bool _suppressMutation;
 
-    public WorkspaceViewModel(Project project, IClock clock, IChapterRunner chapterRunner, IGenerationAssistant assistant, ITranslationService translationService, IMetadataTranslator metadataTranslator)
+    public WorkspaceViewModel(Project project, IClock clock, IChapterRunner chapterRunner, IGenerationAssistant assistant, ITranslationService translationService, IMetadataTranslator metadataTranslator, IContinuityReviewer? continuityReviewer = null)
     {
         _project = project;
         _clock = clock;
@@ -36,6 +37,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         _assistant = assistant;
         _translationService = translationService;
         _metadataTranslator = metadataTranslator;
+        _continuityReviewer = continuityReviewer;
         _projectName = project.Name;
 
         Chapters.CollectionChanged += (_, _) => Renumber();
@@ -647,7 +649,6 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         chapter.ContentOriginal = result.Text;
         chapter.Logline = result.Logline;
-        chapter.StorySoFar = result.StorySoFar;
         chapter.WorldState = result.WorldState;
         chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
         chapter.EditorNotes = [.. result.EditorNotes];
@@ -705,7 +706,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             .FirstOrDefault()?.WorldState;
 
         var state = prior ?? _project.InitialWorldState;
-        return string.IsNullOrWhiteSpace(state.TimeAndPlace) && string.IsNullOrWhiteSpace(state.Description);
+        return string.IsNullOrWhiteSpace(state.TimeAndPlace) && string.IsNullOrWhiteSpace(state.Situation);
     }
 
     private void MarkLaterStale(int number)
@@ -819,12 +820,39 @@ public partial class WorkspaceViewModel : ViewModelBase
         await _chapterRunner.RegenerateSummaryAsync(project, target, progress, cancellationToken);
 
         chapter.Logline = target.Logline;
-        chapter.StorySoFar = target.StorySoFar;
         chapter.WorldState = target.WorldState;
         chapter.KnowledgeChanges = [.. target.KnowledgeChanges];
         MarkLaterStale(chapter.Number);
         IsDirty = true;
         RaiseMutation($"Regenerate summary of chapter {chapter.Number}");
+    }
+
+    private async Task CheckContinuityAsync(ChapterViewModel chapter, CancellationToken cancellationToken)
+    {
+        if (_continuityReviewer is null)
+        {
+            WarningRequested?.Invoke("Continuity check unavailable", "The continuity checker is not configured.");
+            return;
+        }
+
+        var project = ToProject();
+        var target = project.Chapters.First(candidate => candidate.Number == chapter.Number);
+        var findings = await _continuityReviewer.ReviewAsync(project, target, cancellationToken);
+
+        if (findings.Count == 0)
+        {
+            WarningRequested?.Invoke(
+                $"Continuity check — chapter {chapter.Number}",
+                "No contradictions found between this chapter's direction and the established facts.");
+            return;
+        }
+
+        var message = string.Join("\n\n", findings.Select(finding =>
+        {
+            var reference = string.IsNullOrWhiteSpace(finding.Reference) ? string.Empty : $" ({finding.Reference})";
+            return $"• [{finding.Severity}] {finding.Title}{reference}\n    {finding.Detail}";
+        }));
+        WarningRequested?.Invoke($"Continuity check — chapter {chapter.Number}", message);
     }
 
     private async Task<string> TranslateLanguageAsync(ChapterViewModel chapter, string languageCode, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
@@ -899,7 +927,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             Tense = _project.World.Tense,
             Rating = _project.World.Rating,
             InitialStateTimeAndPlace = _project.InitialWorldState.TimeAndPlace,
-            InitialStateDescription = _project.InitialWorldState.Description,
+            InitialStateDescription = _project.InitialWorldState.Situation,
         };
 
         foreach (var entry in _project.Knowledge)
@@ -930,7 +958,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         _project.World.Rating = setup.Rating;
         _project.Knowledge = [.. setup.Knowledge.Select(entry => entry.ToEntry())];
         _project.InitialWorldState.TimeAndPlace = setup.InitialStateTimeAndPlace;
-        _project.InitialWorldState.Description = setup.InitialStateDescription;
+        _project.InitialWorldState.Situation = setup.InitialStateDescription;
 
         UpdateLanguages(setup.SelectedLanguageCodes);
 
@@ -981,7 +1009,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         builder.Append(world.Title).Append('|').Append(world.Body).Append('|').Append(world.Genre).Append('|')
             .Append(world.Tone).Append('|').Append(world.Style).Append('|').Append(world.PointOfView).Append('|')
             .Append(world.Tense).Append('|').Append(world.Rating).Append('|');
-        builder.Append(project.InitialWorldState.TimeAndPlace).Append('|').Append(project.InitialWorldState.Description).Append('|');
+        builder.Append(project.InitialWorldState.TimeAndPlace).Append('|').Append(project.InitialWorldState.Situation).Append('|');
         foreach (var entry in project.Knowledge.OrderBy(entry => entry.Title, StringComparer.OrdinalIgnoreCase))
         {
             builder.Append(entry.Kind).Append(':').Append(entry.Title).Append(':').Append(entry.Content).Append(':')
@@ -1173,6 +1201,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             RaiseMutation($"Edit summary of chapter {chapter.Number}");
         });
         summary.Regenerate = (progress, cancellationToken) => RegenerateSummaryAsync(chapter, progress, cancellationToken);
+        summary.CheckContinuity = (_, cancellationToken) => CheckContinuityAsync(chapter, cancellationToken);
         chapter.Tabs.Add(new ChapterTabViewModel("Summary", summary));
         var committedTitle = chapter.Title;
         var settings = new ChapterSettingsViewModel(chapter, () =>
@@ -1259,7 +1288,6 @@ public partial class WorkspaceViewModel : ViewModelBase
             Direction = chapter.Direction,
             Notes = chapter.Notes,
             Logline = chapter.Logline,
-            StorySoFar = chapter.StorySoFar,
             CreatedUtc = chapter.CreatedUtc,
             WorldState = chapter.WorldState,
             KnowledgeChanges = [.. chapter.KnowledgeChanges],
@@ -1287,7 +1315,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         Direction = viewModel.Direction,
         Notes = viewModel.Notes,
         Logline = viewModel.Logline,
-        StorySoFar = viewModel.StorySoFar,
         CreatedUtc = viewModel.CreatedUtc,
         WorldState = viewModel.WorldState,
         KnowledgeChanges = [.. viewModel.KnowledgeChanges],

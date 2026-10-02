@@ -22,8 +22,6 @@ public sealed class Chapter
 
     public string Logline { get; set; } = string.Empty;
 
-    public string StorySoFar { get; set; } = string.Empty;
-
     public WorldState? WorldState { get; set; }
 
     public List<KnowledgeChange> KnowledgeChanges { get; set; } = [];

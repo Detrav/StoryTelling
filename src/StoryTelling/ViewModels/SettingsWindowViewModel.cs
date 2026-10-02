@@ -31,22 +31,19 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         _recentLoglineCount = settings.RecentLoglineCount;
         _contextRequiredSectionMaxChars = settings.ContextRequiredSectionMaxChars;
         _toolResultMaxChars = settings.ToolResultMaxChars;
-        _storySoFarMode = settings.StorySoFarMode;
         _temperature = settings.Temperature;
         _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
+
+        RoleTemperatures = new ObservableCollection<RoleTemperatureViewModel>(
+            LlmTasks.All.Select(task => new RoleTemperatureViewModel(task.Id(), task.Label(), settings.TemperatureFor(task))));
 
         InitializeUndo();
     }
 
     public ObservableCollection<LanguageData> Languages { get; }
 
-    public ObservableCollection<string> StorySoFarModes { get; } =
-    [
-        "Both",
-        "Retelling",
-        "Loglines",
-    ];
+    public ObservableCollection<RoleTemperatureViewModel> RoleTemperatures { get; }
 
     public ObservableCollection<string> Providers { get; } =
     [
@@ -88,9 +85,6 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
 
     [ObservableProperty]
     private int _toolResultMaxChars;
-
-    [ObservableProperty]
-    private string _storySoFarMode;
 
     [ObservableProperty]
     private double _temperature;
@@ -198,8 +192,8 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         RecentLoglineCount = RecentLoglineCount,
         ContextRequiredSectionMaxChars = ContextRequiredSectionMaxChars,
         ToolResultMaxChars = ToolResultMaxChars,
-        StorySoFarMode = StorySoFarMode,
         Temperature = Temperature,
+        RoleTemperatures = RoleTemperatures.ToDictionary(item => item.Id, item => item.Value),
         DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
         Languages = Languages.ToList(),
         RecentProjects = _original.RecentProjects.ToList(),
@@ -219,8 +213,8 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             RecentLoglineCount,
             ContextRequiredSectionMaxChars,
             ToolResultMaxChars,
-            StorySoFarMode,
             Temperature,
+            RoleTemperatures.ToDictionary(item => item.Id, item => item.Value),
             SelectedDefault?.Code ?? _original.DefaultLanguageCode,
             [.. Languages]);
 
@@ -246,8 +240,15 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         RecentLoglineCount = snapshot.RecentLoglineCount;
         ContextRequiredSectionMaxChars = snapshot.ContextRequiredSectionMaxChars;
         ToolResultMaxChars = snapshot.ToolResultMaxChars;
-        StorySoFarMode = snapshot.StorySoFarMode;
         Temperature = snapshot.Temperature;
+
+        foreach (var item in RoleTemperatures)
+        {
+            if (snapshot.RoleTemperatures.TryGetValue(item.Id, out var value))
+            {
+                item.Value = value;
+            }
+        }
 
         Languages.Clear();
         foreach (var language in snapshot.Languages)
@@ -271,8 +272,8 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         int RecentLoglineCount,
         int ContextRequiredSectionMaxChars,
         int ToolResultMaxChars,
-        string StorySoFarMode,
         double Temperature,
+        Dictionary<string, double> RoleTemperatures,
         string DefaultLanguageCode,
         List<LanguageData> Languages);
 }

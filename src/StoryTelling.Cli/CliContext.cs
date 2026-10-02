@@ -14,13 +14,25 @@ internal sealed class CliContext : IDisposable
         SettingsService = settingsService;
     }
 
-    public AppSettings Settings { get; }
+    public AppSettings Settings
+    {
+        get;
+    }
 
-    public HttpClient HttpClient { get; }
+    public HttpClient HttpClient
+    {
+        get;
+    }
 
-    public ILlmClient LlmClient { get; }
+    public ILlmClient LlmClient
+    {
+        get;
+    }
 
-    public ISettingsService SettingsService { get; }
+    public ISettingsService SettingsService
+    {
+        get;
+    }
 
     public LlmConnection Connection => LlmConnection.From(Settings.BaseUrl, Settings.ApiKey, Settings.TimeoutSeconds);
 

@@ -35,7 +35,7 @@ internal static class ChapterToolLoop
         {
             Model = settings.Model,
             Messages = [.. seed, LlmMessage.User(gatherInstruction)],
-            Temperature = settings.Temperature,
+            Temperature = settings.TemperatureFor(LlmTask.Writer),
             MaxTokens = settings.MaxTokens,
         };
 

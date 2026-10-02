@@ -8,8 +8,6 @@ namespace StoryTelling.Application.Translation;
 
 public sealed class TranslationService : ITranslationService
 {
-    private const double DeterministicTemperature = 0.2;
-
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -39,7 +37,7 @@ public sealed class TranslationService : ITranslationService
         {
             Model = settings.Model,
             Messages = PromptTemplates.BuildTranslation(text, languageCode),
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            Temperature = settings.TemperatureFor(LlmTask.Translation),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -130,7 +128,7 @@ public sealed class TranslationService : ITranslationService
         {
             Model = settings.Model,
             Messages = PromptTemplates.BuildTranslation(paragraph, languageCode),
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            Temperature = settings.TemperatureFor(LlmTask.Translation),
             MaxTokens = settings.MaxTokens,
         };
 

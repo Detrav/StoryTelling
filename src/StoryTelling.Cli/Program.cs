@@ -8,6 +8,7 @@ using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
+using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Application.Translation;
 using StoryTelling.Domain;
@@ -38,8 +39,6 @@ internal static class Program
             return command switch
             {
                 "ping" => await PingAsync(rest, token),
-                "raw" => await RawAsync(rest, token),
-                "probe" => await ProbeAsync(rest, token),
                 "gen" => await GenAsync(rest, token),
                 "setup" => await SetupAsync(rest, token),
                 "write" => await WriteAsync(rest, token),
@@ -48,13 +47,13 @@ internal static class Program
                 "design" => await DesignAsync(rest, token),
                 "export" => await ExportAsync(rest, token),
                 "recompute" => await RecomputeAsync(rest, token),
-                "edit" => await EditAsync(rest, token),
-                "draft" => await DraftAsync(rest, token),
                 "context" => await ContextAsync(rest, token),
                 "regenerate" => await RegenerateAsync(rest, token),
                 "judge" => await JudgeAsync(rest, token),
                 "compare" => await CompareAsync(rest, token),
                 "experiment" => await ExperimentAsync(rest, token),
+                "continuity" => await ContinuityAsync(rest, token),
+                "review" => await ReviewAsync(rest, token),
                 "create" => await CreateAsync(rest, token),
                 _ => Help(),
             };
@@ -100,7 +99,6 @@ internal static class Program
         settings.RecentLoglineCount = ArgReader.Int(args, "--recent-loglines", settings.RecentLoglineCount);
         settings.ContextRequiredSectionMaxChars = ArgReader.Int(args, "--required-cap", settings.ContextRequiredSectionMaxChars);
         settings.ToolResultMaxChars = ArgReader.Int(args, "--tool-result-max-chars", settings.ToolResultMaxChars);
-        settings.StorySoFarMode = ArgReader.String(args, "--story-so-far-mode", settings.StorySoFarMode);
         settings.Temperature = ArgReader.Double(args, "--temperature", settings.Temperature);
         settings.TimeoutSeconds = ArgReader.Int(args, "--timeout", settings.TimeoutSeconds);
         return settings;
@@ -124,92 +122,6 @@ internal static class Program
         }, cancellationToken);
 
         Console.WriteLine($"completion: {completion.Content.Trim()}");
-        return 0;
-    }
-
-    private static async Task<int> RawAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
-    {
-        var prompt = ArgReader.Value(args, "--prompt");
-        if (string.IsNullOrWhiteSpace(prompt))
-        {
-            Console.Error.WriteLine("usage: storydev raw --prompt <text> [--system <text>]");
-            return 2;
-        }
-
-        using var context = await BuildAsync(args, cancellationToken);
-        var messages = new List<LlmMessage>();
-        if (ArgReader.Value(args, "--system") is { } system)
-        {
-            messages.Add(LlmMessage.System(system));
-        }
-
-        messages.Add(LlmMessage.User(prompt));
-
-        var completion = await context.LlmClient.CompleteAsync(context.Connection, new LlmRequest
-        {
-            Model = context.Settings.Model,
-            Messages = messages,
-            Temperature = ArgReader.Double(args, "--temperature", context.Settings.Temperature),
-            MaxTokens = ArgReader.Int(args, "--max-tokens", context.Settings.MaxTokens),
-        }, cancellationToken);
-
-        Console.WriteLine(completion.Content);
-        return 0;
-    }
-
-    private static async Task<int> ProbeAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
-    {
-        var targetName = ArgReader.Value(args, "--target");
-        if (targetName is null || !Enum.TryParse<GenerationTarget>(targetName, ignoreCase: true, out var target))
-        {
-            Console.Error.WriteLine("usage: storydev probe --target <Target> [--variants N] [--file <path>] [--brief ...] [--out <path>]");
-            return 2;
-        }
-
-        var variants = ArgReader.Int(args, "--variants", 1);
-        var brief = ArgReader.String(args, "--brief", string.Empty);
-        var file = ArgReader.Value(args, "--file");
-
-        using var context = await BuildAsync(args, cancellationToken);
-        var project = file is null
-            ? new Project { Name = "Probe" }
-            : await new JsonProjectRepository().LoadAsync(file, cancellationToken);
-
-        var request = new GenerationRequest
-        {
-            Target = target,
-            Brief = brief,
-            Variants = variants,
-            Context = BookBuilder.BuildContext(project),
-        };
-
-        var llmRequest = new LlmRequest
-        {
-            Model = context.Settings.Model,
-            Messages = PromptTemplates.Build(request, useTools: false),
-            Temperature = context.Settings.Temperature,
-            MaxTokens = context.Settings.MaxTokens,
-        };
-
-        var raw = await context.LlmClient.CompleteJsonAsync(
-            context.Connection,
-            llmRequest,
-            GenerationTargets.SchemaName(target),
-            GenerationTargets.BuildSchema(target, variants),
-            cancellationToken);
-
-        var output = ArgReader.String(args, "--out", $"examples/probe-{target}.json");
-        var directory = Path.GetDirectoryName(Path.GetFullPath(output));
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await File.WriteAllTextAsync(output, raw, cancellationToken);
-
-        Console.WriteLine(raw);
-        Console.WriteLine();
-        Console.WriteLine($"Saved raw response: {Path.GetFullPath(output)}");
         return 0;
     }
 
@@ -307,11 +219,9 @@ internal static class Program
             var index = project.Chapters.IndexOf(chapter);
             var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
             var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
-            var previousStorySoFar = PromptTemplates.PreviousStorySoFar(project, chapter.Number);
             Console.WriteLine($"  Summarizing chapter {chapter.Number}…");
-            var summary = await summarizer.SummarizeAsync(chapter, stateBefore, knowledge, previousStorySoFar, new ConsoleProgress($"chapter {chapter.Number}"), cancellationToken);
+            var summary = await summarizer.SummarizeAsync(chapter, stateBefore, knowledge, new ConsoleProgress($"chapter {chapter.Number}"), cancellationToken);
             chapter.Logline = summary.Logline;
-            chapter.StorySoFar = summary.StorySoFar;
             chapter.WorldState = summary.WorldState;
             chapter.KnowledgeChanges = [.. summary.KnowledgeChanges];
             Console.WriteLine($"  chapter {chapter.Number} logline: {summary.Logline}");
@@ -409,41 +319,6 @@ internal static class Program
         return 0;
     }
 
-    private static async Task<int> EditAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
-    {
-        var file = ArgReader.Value(args, "--file");
-        if (string.IsNullOrWhiteSpace(file))
-        {
-            Console.Error.WriteLine("usage: storydev edit --file <path> --number N [--in <draft.txt>] [--out <edited.txt>]");
-            return 2;
-        }
-
-        var number = ArgReader.Int(args, "--number", 1);
-        var input = ArgReader.Value(args, "--in");
-        var output = ArgReader.String(args, "--out", $"examples/dbg/ch{number}-edited.txt");
-
-        using var context = await BuildAsync(args, cancellationToken);
-        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
-        var chapter = project.Chapters.FirstOrDefault(candidate => candidate.Number == number);
-        if (chapter is null)
-        {
-            Console.Error.WriteLine($"chapter {number} not found");
-            return 2;
-        }
-
-        var draft = input is not null ? await File.ReadAllTextAsync(input, cancellationToken) : chapter.ContentOriginal;
-        var index = project.Chapters.IndexOf(chapter);
-        var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
-
-        Console.WriteLine($"  Editing chapter {number} (draft {draft.Length} chars)…");
-        var edited = await new ChapterEditor(context.LlmClient, context.SettingsService, new DiffPlexTextDiff())
-            .EditAsync(project, chapter, draft, stateBefore, new ConsoleProgress("edit"), cancellationToken);
-
-        await WriteAndReportAsync(output, edited.Text, cancellationToken);
-        Console.WriteLine($"  editor notes: {edited.Notes.Count}");
-        return 0;
-    }
-
     private static async Task<int> ContextAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
         var file = ArgReader.Value(args, "--file");
@@ -472,8 +347,7 @@ internal static class Program
             stateBefore,
             settings.ContextTokenBudget,
             settings.RecentLoglineCount,
-            settings.ContextRequiredSectionMaxChars,
-            settings.StorySoFarMode);
+            settings.ContextRequiredSectionMaxChars);
         var assembled = new ChapterContextAssembler().AssembleWriter(writerContext);
 
         Console.WriteLine($"  estimated tokens: ~{assembled.EstimatedTokens}");
@@ -485,59 +359,6 @@ internal static class Program
         }
 
         return 0;
-    }
-
-    private static async Task<int> DraftAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
-    {
-        var file = ArgReader.Value(args, "--file");
-        if (string.IsNullOrWhiteSpace(file))
-        {
-            Console.Error.WriteLine("usage: storydev draft --file <path> --number N [--out <draft.txt>]");
-            return 2;
-        }
-
-        var number = ArgReader.Int(args, "--number", 1);
-        var output = ArgReader.String(args, "--out", $"examples/dbg/ch{number}-draft.txt");
-
-        using var context = await BuildAsync(args, cancellationToken);
-        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
-        var chapter = project.Chapters.FirstOrDefault(candidate => candidate.Number == number);
-        if (chapter is null)
-        {
-            Console.Error.WriteLine($"chapter {number} not found");
-            return 2;
-        }
-
-        var index = project.Chapters.IndexOf(chapter);
-        var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
-        var settings = await context.SettingsService.LoadAsync(cancellationToken);
-        Console.WriteLine($"  Drafting chapter {number}…");
-        var writerContext = new WriterContext(
-            project,
-            chapter,
-            stateBefore,
-            settings.ContextTokenBudget,
-            settings.RecentLoglineCount,
-            settings.ContextRequiredSectionMaxChars,
-            settings.StorySoFarMode);
-        var draft = await new ChapterAgent(context.LlmClient, context.SettingsService, new ChapterContextAssembler())
-            .WriteAsync(writerContext, new ConsoleProgress("draft"), cancellationToken);
-
-        await WriteAndReportAsync(output, draft.Text, cancellationToken);
-        return 0;
-    }
-
-    private static async Task WriteAndReportAsync(string path, string text, CancellationToken cancellationToken)
-    {
-        var directory = Path.GetDirectoryName(Path.GetFullPath(path));
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await File.WriteAllTextAsync(path, text, cancellationToken);
-        Console.WriteLine($"  result: {text.Length} chars -> {Path.GetFullPath(path)}");
-        Console.WriteLine("  tail: " + text[Math.Max(0, text.Length - 160)..].Replace('\n', ' '));
     }
 
     private static async Task<int> RegenerateAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
@@ -592,7 +413,7 @@ internal static class Program
         var index = project.Chapters.IndexOf(chapter);
         var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
         var settings = await context.SettingsService.LoadAsync(cancellationToken);
-        var storySoFar = PromptTemplates.WriterStorySoFar(project, chapter, settings.RecentLoglineCount, settings.StorySoFarMode);
+        var storySoFar = PromptTemplates.WriterRecap(project, chapter, settings.RecentLoglineCount);
         var request = new LlmRequest
         {
             Model = settings.Model,
@@ -642,7 +463,7 @@ internal static class Program
         var index = projectA.Chapters.IndexOf(chapterA);
         var stateBefore = index > 0 ? projectA.Chapters[index - 1].WorldState ?? projectA.InitialWorldState : projectA.InitialWorldState;
         var settings = await context.SettingsService.LoadAsync(cancellationToken);
-        var storySoFar = PromptTemplates.WriterStorySoFar(projectA, chapterA, settings.RecentLoglineCount, settings.StorySoFarMode);
+        var storySoFar = PromptTemplates.WriterRecap(projectA, chapterA, settings.RecentLoglineCount);
         var request = new LlmRequest
         {
             Model = settings.Model,
@@ -758,7 +579,6 @@ internal static class Program
             Directory.CreateDirectory(promptDirectory);
 
             var settings = CloneSettings(baseSettings);
-            settings.StorySoFarMode = hypothesis;
             var settingsService = new CliSettingsService(settings);
             var tracing = new TracingLlmClient(new OpenAiCompatibleLlmClient(httpClient), promptDirectory);
             var runner = CreateRunner(tracing, settingsService);
@@ -777,7 +597,7 @@ internal static class Program
 
                 Console.WriteLine($"  [{hypothesis}] chapter {number}…");
                 await runner.GenerateAsync(project, chapter, new ConsoleProgress($"ch{number}"), cancellationToken);
-                log.Add($"chapter {number}: {chapter.StorySoFar}");
+                log.Add($"chapter {number}: {chapter.Logline}");
             }
 
             await SaveAsync(project, Path.Combine(directory, "book.story.json"), cancellationToken);
@@ -788,7 +608,6 @@ internal static class Program
                 ["hypothesis"] = hypothesis,
                 ["from"] = from,
                 ["to"] = to,
-                ["storySoFarMode"] = settings.StorySoFarMode,
                 ["contextTokenBudget"] = settings.ContextTokenBudget,
                 ["recentLoglineCount"] = settings.RecentLoglineCount,
                 ["contextRequiredSectionMaxChars"] = settings.ContextRequiredSectionMaxChars,
@@ -817,7 +636,6 @@ internal static class Program
         RecentLoglineCount = source.RecentLoglineCount,
         ContextRequiredSectionMaxChars = source.ContextRequiredSectionMaxChars,
         ToolResultMaxChars = source.ToolResultMaxChars,
-        StorySoFarMode = source.StorySoFarMode,
         Temperature = source.Temperature,
         DefaultLanguageCode = source.DefaultLanguageCode,
         Languages = source.Languages,
@@ -826,6 +644,133 @@ internal static class Program
 
     private static string SanitizeName(string value) =>
         string.Concat(value.Select(character => char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '_'));
+
+    private static async Task<int> ReviewAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    {
+        var file = ArgReader.Value(args, "--file");
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            Console.Error.WriteLine("usage: storydev review --file <path> [--brief <text>] [--trace <dir>] [--out <path.json>]");
+            return 2;
+        }
+
+        var brief = ArgReader.String(args, "--brief", string.Empty);
+        var trace = ArgReader.Value(args, "--trace");
+        var output = ArgReader.Value(args, "--out");
+
+        using var context = await BuildAsync(args, cancellationToken);
+        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
+
+        ILlmClient client = context.LlmClient;
+        if (!string.IsNullOrWhiteSpace(trace))
+        {
+            client = new TracingLlmClient(client, trace);
+        }
+
+        var reviewer = new ProjectReviewAssistant(client, context.SettingsService);
+        var findings = await reviewer.ReviewAsync(project, brief, new ConsoleProgress("review"), cancellationToken);
+
+        foreach (var finding in findings)
+        {
+            Console.WriteLine($"  [{finding.Severity}] ({finding.Area}) {finding.Title}");
+            Console.WriteLine($"      {finding.Detail}");
+            if (!string.IsNullOrWhiteSpace(finding.Reference))
+            {
+                Console.WriteLine($"      reference: {finding.Reference}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(finding.Suggestion))
+            {
+                Console.WriteLine($"      suggestion: {finding.Suggestion}");
+            }
+
+            if (finding.Fix is { IsEmpty: false } fix)
+            {
+                foreach (var edit in fix.Edits)
+                {
+                    Console.WriteLine($"      fix: {edit.Target}.{edit.Field} [{edit.Reference}] = {edit.Value}");
+                }
+            }
+        }
+
+        Console.WriteLine($"  {findings.Count} finding(s)");
+
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            await File.WriteAllTextAsync(
+                output,
+                FindingsToJson(findings).ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+                cancellationToken);
+            Console.WriteLine($"  written: {Path.GetFullPath(output)}");
+        }
+
+        return 0;
+    }
+
+    private static JsonArray FindingsToJson(IReadOnlyList<ReviewFinding> findings) =>
+        new([.. findings.Select(finding => (JsonNode)new JsonObject
+        {
+            ["severity"] = finding.Severity.ToString(),
+            ["area"] = finding.Area.ToString(),
+            ["title"] = finding.Title,
+            ["detail"] = finding.Detail,
+            ["suggestion"] = finding.Suggestion,
+            ["reference"] = finding.Reference,
+            ["fix"] = finding.Fix is null
+                ? null
+                : new JsonObject
+                {
+                    ["edits"] = new JsonArray([.. finding.Fix.Edits.Select(edit => (JsonNode)new JsonObject
+                    {
+                        ["target"] = edit.Target.ToString(),
+                        ["reference"] = edit.Reference,
+                        ["field"] = edit.Field,
+                        ["value"] = edit.Value,
+                    })]),
+                },
+        })]);
+
+    private static async Task<int> ContinuityAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    {
+        var file = ArgReader.Value(args, "--file");
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            Console.Error.WriteLine("usage: storydev continuity --file <path> [--chapter N | --all]");
+            return 2;
+        }
+
+        var all = args.Contains("--all");
+        var number = ArgReader.Int(args, "--chapter", 1);
+
+        using var context = await BuildAsync(args, cancellationToken);
+        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
+        var reviewer = new ContinuityReviewer(context.LlmClient, context.SettingsService);
+
+        var chapters = all
+            ? project.Chapters.Where(chapter => !string.IsNullOrWhiteSpace(chapter.Direction)).ToList()
+            : project.Chapters.Where(chapter => chapter.Number == number).ToList();
+
+        var total = 0;
+        foreach (var chapter in chapters)
+        {
+            Console.WriteLine($"  Chapter {chapter.Number}…");
+            var findings = await reviewer.ReviewAsync(project, chapter, cancellationToken);
+            foreach (var finding in findings)
+            {
+                total++;
+                Console.WriteLine($"    [{finding.Severity}] {finding.Title} ({finding.Reference})");
+                Console.WriteLine($"        {finding.Detail}");
+            }
+
+            if (findings.Count == 0)
+            {
+                Console.WriteLine("    no contradictions found");
+            }
+        }
+
+        Console.WriteLine($"  {total} finding(s)");
+        return 0;
+    }
 
     private static async Task<int> RecomputeAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
@@ -864,30 +809,28 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  ping      Check provider connectivity and structured-output support");
-        Console.WriteLine("  raw       Send a raw prompt: --prompt <text> [--system <text>]");
-        Console.WriteLine("  probe     Raw schema output for one target: --target <Target> [--variants N] [--file <path>]");
         Console.WriteLine("  gen       Generate one target into a project: --target <Target> --file <path> [--variants N] [--replace]");
         Console.WriteLine("  setup     Generate project setup: --out <path> [--brief ...] [--characters N]");
         Console.WriteLine("  write     Write chapters into an existing project: --file <path> [--chapters N]");
+        Console.WriteLine("  create    Full run (setup + chapters): --out <path> [--chapters N] [--brief ...] [--characters N]");
         Console.WriteLine("  summarize Summarize chapters into loglines + world state: --file <path> [--chapter N | --all]");
+        Console.WriteLine("  recompute Refresh summaries/world state from a chapter onward: --file <path> [--from N]");
         Console.WriteLine("  translate Translate chapters into a language: --file <path> --language <code>");
         Console.WriteLine("  design    Build knowledge from a description: --file <path> --prompt <text>");
-        Console.WriteLine("  recompute Refresh summaries/world state from a chapter onward: --file <path> [--from N]");
-        Console.WriteLine("  edit      Run the editor on one chapter (debug): --file <path> --number N [--in <draft.txt>] [--out <edited.txt>]");
-        Console.WriteLine("  draft     Run the writer on one chapter (debug): --file <path> --number N [--out <draft.txt>]");
+        Console.WriteLine("  export    Write an FB2: --file <path> [--language <code>] [--out <path.fb2>] (no provider needed)");
         Console.WriteLine("  context   Print the assembled writer prompt for one chapter (no provider): --file <path> --number N");
         Console.WriteLine("  regenerate Rewrite one chapter in place with the current seed: --file <path> --chapter N [--out <path>]");
-        Console.WriteLine("  judge     Score whether a chapter continues the story (continuity judge): --file <path> --chapter N");
-        Console.WriteLine("  compare   Pick which of two chapter drafts continues the story better: --a <pathA> --b <pathB> --chapter N");
-        Console.WriteLine("  experiment Run full-book passes per hypothesis with full prompt traces: --file <base> [--hypotheses Both,Retelling,Loglines]");
-        Console.WriteLine("  create    Full run (setup + chapters): --out <path> [--chapters N] [--brief ...] [--characters N]");
-        Console.WriteLine("  export    Write an FB2: --file <path> [--language <code>] [--out <path.fb2>] (no provider needed)");
+        Console.WriteLine("  continuity Check a chapter's direction against the established facts: --file <path> [--chapter N | --all]");
+        Console.WriteLine("  review    AI-review the knowledge base for contradictions: --file <path> [--brief <text>] [--trace <dir>] [--out <path.json>]");
+        Console.WriteLine("  judge     Score whether a chapter continues the story: --file <path> --chapter N");
+        Console.WriteLine("  compare   Pick which of two chapter drafts continues better: --a <pathA> --b <pathB> --chapter N");
+        Console.WriteLine("  experiment Run full-book passes with full prompt traces: --file <base> [--out <dir>] [--from N] [--to M]");
         Console.WriteLine();
         Console.WriteLine("Common options:");
         Console.WriteLine("  --base-url --model --api-key --max-tokens --max-tool-calls --temperature --timeout");
         Console.WriteLine("  --context-token-budget --recent-loglines --required-cap --tool-result-max-chars");
-        Console.WriteLine("  --story-so-far-mode <Both|Retelling|Loglines>   seed composition for the chapter seed");
         Console.WriteLine("  --log <path>   Append judge/compare verdicts as JSON lines (experiment results)");
         return 0;
     }
 }
+

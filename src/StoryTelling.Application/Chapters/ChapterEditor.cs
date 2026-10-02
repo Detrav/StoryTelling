@@ -11,8 +11,6 @@ namespace StoryTelling.Application.Chapters;
 
 public sealed class ChapterEditor : IChapterEditor
 {
-    private const double DeterministicTemperature = 0.3;
-
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
     private readonly ITextDiff _textDiff;
@@ -40,7 +38,7 @@ public sealed class ChapterEditor : IChapterEditor
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
 
-        var seed = PromptTemplates.BuildEditorSeed(chapter, stateBefore, project, settings.RecentLoglineCount, settings.StorySoFarMode);
+        var seed = PromptTemplates.BuildEditorSeed(chapter, stateBefore, project, settings.RecentLoglineCount);
         var gathered = await ChapterToolLoop
             .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, progress, cancellationToken, chapter.Number)
             .ConfigureAwait(false);
@@ -51,7 +49,7 @@ public sealed class ChapterEditor : IChapterEditor
         {
             Model = settings.Model,
             Messages = [.. gathered.Messages, .. PromptTemplates.BuildEditorWrite(draft)],
-            Temperature = settings.Temperature,
+            Temperature = settings.TemperatureFor(LlmTask.Editor),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -82,8 +80,61 @@ public sealed class ChapterEditor : IChapterEditor
 
         revised = ChapterTextCleaner.StripLeadingTitle(revised, chapter);
 
+        var styleNotes = await RepairStyleAsync(connection, settings, chapter, revised, project.World.Tense, cancellationToken).ConfigureAwait(false);
+        if (styleNotes.Revised is { } corrected)
+        {
+            revised = corrected;
+        }
+
         var notes = await ExtractNotesAsync(connection, settings, draft, revised, cancellationToken).ConfigureAwait(false);
-        return new ChapterEdit(revised, notes);
+        return new ChapterEdit(revised, [.. styleNotes.Notes, .. notes]);
+    }
+
+    private async Task<(string? Revised, IReadOnlyList<EditorNote> Notes)> RepairStyleAsync(
+        LlmConnection connection,
+        AppSettings settings,
+        Chapter chapter,
+        string revised,
+        string declaredTense,
+        CancellationToken cancellationToken)
+    {
+        var violations = StyleGuard.FindViolations(revised);
+        var drifts = StyleGuard.DriftsFromTense(revised, declaredTense);
+        if (violations.Count == 0 && !drifts)
+        {
+            return (null, []);
+        }
+
+        var request = new LlmRequest
+        {
+            Model = settings.Model,
+            Messages = PromptTemplates.BuildEditorRepair(revised, violations, drifts, declaredTense),
+            Temperature = settings.TemperatureFor(LlmTask.StyleRepair),
+            MaxTokens = settings.MaxTokens,
+        };
+
+        var repaired = await StreamTextAsync(connection, request, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(repaired))
+        {
+            repaired = revised;
+        }
+
+        repaired = ChapterTextCleaner.StripLeadingTitle(repaired, chapter);
+
+        var remaining = StyleGuard.FindViolations(repaired);
+        var stillDrifts = StyleGuard.DriftsFromTense(repaired, declaredTense);
+        var notes = new List<EditorNote>();
+        if (remaining.Count > 0)
+        {
+            notes.Add(new EditorNote { Kind = EditorNoteKind.Other, Text = $"Style violation left in the prose: {string.Join(", ", remaining)}." });
+        }
+
+        if (stillDrifts)
+        {
+            notes.Add(new EditorNote { Kind = EditorNoteKind.Style, Text = $"Tense drift left in the prose (declared: {declaredTense})." });
+        }
+
+        return (repaired, notes);
     }
 
     private async Task<IReadOnlyList<EditorNote>> ExtractNotesAsync(
@@ -103,7 +154,7 @@ public sealed class ChapterEditor : IChapterEditor
         {
             Model = settings.Model,
             Messages = PromptTemplates.BuildEditorNotes(digest),
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            Temperature = settings.TemperatureFor(LlmTask.StyleRepair),
             MaxTokens = settings.MaxTokens,
         };
 

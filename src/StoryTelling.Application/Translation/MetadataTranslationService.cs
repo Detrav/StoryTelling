@@ -9,8 +9,6 @@ namespace StoryTelling.Application.Translation;
 
 public sealed class MetadataTranslationService : IMetadataTranslator
 {
-    private const double DeterministicTemperature = 0.2;
-
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -38,7 +36,7 @@ public sealed class MetadataTranslationService : IMetadataTranslator
                 request.BookName,
                 request.Annotation,
                 request.ChapterTitles),
-            Temperature = Math.Min(settings.Temperature, DeterministicTemperature),
+            Temperature = settings.TemperatureFor(LlmTask.Translation),
             MaxTokens = settings.MaxTokens,
         };
 

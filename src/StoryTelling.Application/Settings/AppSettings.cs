@@ -1,3 +1,5 @@
+using StoryTelling.Application.Llm;
+
 namespace StoryTelling.Application.Settings;
 
 public sealed class AppSettings
@@ -22,21 +24,26 @@ public sealed class AppSettings
 
     public int ContextTokenBudget { get; set; } = 4000;
 
-    public int RecentLoglineCount { get; set; } = 2;
+    public int RecentLoglineCount { get; set; } = 5;
 
     public int ContextRequiredSectionMaxChars { get; set; } = 6000;
 
     public int ToolResultMaxChars { get; set; } = 24000;
 
-    public string StorySoFarMode { get; set; } = "Both";
-
     public double Temperature { get; set; } = 0.8;
+
+    public Dictionary<string, double> RoleTemperatures { get; set; } = [];
 
     public string DefaultLanguageCode { get; set; } = "ru";
 
     public List<LanguageData> Languages { get; set; } = [];
 
     public List<string> RecentProjects { get; set; } = [];
+
+    public double TemperatureFor(LlmTask task) =>
+        RoleTemperatures.TryGetValue(task.Id(), out var value)
+            ? value
+            : task.FollowsGlobalTemperature() ? Temperature : task.DefaultTemperature();
 
     public static AppSettings CreateDefault() => new()
     {
