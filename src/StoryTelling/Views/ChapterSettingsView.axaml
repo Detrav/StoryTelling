@@ -10,6 +10,12 @@
                     Click="OnGenerateClick"
                     HorizontalAlignment="Left" />
 
+            <TextBlock Text="Role in the story (Auto infers from the chapter position)" Opacity="0.7" />
+            <ComboBox ItemsSource="{Binding Roles}"
+                      SelectedItem="{Binding Role}"
+                      HorizontalAlignment="Stretch"
+                      LostFocus="OnCommit" />
+
             <TextBlock Text="Title" Opacity="0.7" />
             <TextBox Text="{Binding Title}" LostFocus="OnCommit" />
 

@@ -15,6 +15,7 @@ public sealed class SettingsWindowViewModelTests
         viewModel.RecentLoglineCount = 4;
         viewModel.ContextRequiredSectionMaxChars = 9000;
         viewModel.ToolResultMaxChars = 48000;
+        viewModel.StorySoFarMode = "Loglines";
 
         var built = viewModel.BuildSettings();
 
@@ -22,6 +23,7 @@ public sealed class SettingsWindowViewModelTests
         Assert.Equal(4, built.RecentLoglineCount);
         Assert.Equal(9000, built.ContextRequiredSectionMaxChars);
         Assert.Equal(48000, built.ToolResultMaxChars);
+        Assert.Equal("Loglines", built.StorySoFarMode);
     }
 
     [Fact]

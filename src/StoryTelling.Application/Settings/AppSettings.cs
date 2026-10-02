@@ -22,11 +22,13 @@ public sealed class AppSettings
 
     public int ContextTokenBudget { get; set; } = 4000;
 
-    public int RecentLoglineCount { get; set; } = 3;
+    public int RecentLoglineCount { get; set; } = 2;
 
     public int ContextRequiredSectionMaxChars { get; set; } = 6000;
 
     public int ToolResultMaxChars { get; set; } = 24000;
+
+    public string StorySoFarMode { get; set; } = "Both";
 
     public double Temperature { get; set; } = 0.8;
 

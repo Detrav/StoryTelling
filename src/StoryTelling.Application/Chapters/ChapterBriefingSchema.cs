@@ -3,7 +3,7 @@ using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
 
-public static class ChapterSummarySchema
+public static class ChapterBriefingSchema
 {
     public static JsonObject Build()
     {

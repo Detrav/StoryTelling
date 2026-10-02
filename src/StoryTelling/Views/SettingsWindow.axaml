@@ -96,6 +96,13 @@
                             <TextBlock Text="Tool result budget (chars)" Opacity="0.7" />
                             <NumericUpDown Value="{Binding ToolResultMaxChars}" Minimum="1000" Maximum="200000" Increment="1000" LostFocus="OnCommit" />
                         </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="6,0">
+                            <TextBlock Text="Story-so-far in seed" Opacity="0.7" />
+                            <ComboBox ItemsSource="{Binding StorySoFarModes}"
+                                      SelectedItem="{Binding StorySoFarMode}"
+                                      HorizontalAlignment="Stretch"
+                                      LostFocus="OnCommit" />
+                        </StackPanel>
                     </Grid>
                 </StackPanel>
             </TabItem>

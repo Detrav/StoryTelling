@@ -42,7 +42,7 @@ public sealed class ChapterEditor : IChapterEditor
 
         var seed = PromptTemplates.BuildEditorSeed(chapter, stateBefore, project);
         var gathered = await ChapterToolLoop
-            .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, progress, cancellationToken)
+            .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, progress, cancellationToken, chapter.Number)
             .ConfigureAwait(false);
 
         progress?.Report(new GenerationProgress("Editing", gathered.ToolCalls));

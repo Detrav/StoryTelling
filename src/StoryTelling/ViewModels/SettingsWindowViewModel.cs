@@ -31,6 +31,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         _recentLoglineCount = settings.RecentLoglineCount;
         _contextRequiredSectionMaxChars = settings.ContextRequiredSectionMaxChars;
         _toolResultMaxChars = settings.ToolResultMaxChars;
+        _storySoFarMode = settings.StorySoFarMode;
         _temperature = settings.Temperature;
         _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
@@ -39,6 +40,13 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
     }
 
     public ObservableCollection<LanguageData> Languages { get; }
+
+    public ObservableCollection<string> StorySoFarModes { get; } =
+    [
+        "Both",
+        "Retelling",
+        "Loglines",
+    ];
 
     public ObservableCollection<string> Providers { get; } =
     [
@@ -80,6 +88,9 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
 
     [ObservableProperty]
     private int _toolResultMaxChars;
+
+    [ObservableProperty]
+    private string _storySoFarMode;
 
     [ObservableProperty]
     private double _temperature;
@@ -187,6 +198,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         RecentLoglineCount = RecentLoglineCount,
         ContextRequiredSectionMaxChars = ContextRequiredSectionMaxChars,
         ToolResultMaxChars = ToolResultMaxChars,
+        StorySoFarMode = StorySoFarMode,
         Temperature = Temperature,
         DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
         Languages = Languages.ToList(),
@@ -207,6 +219,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             RecentLoglineCount,
             ContextRequiredSectionMaxChars,
             ToolResultMaxChars,
+            StorySoFarMode,
             Temperature,
             SelectedDefault?.Code ?? _original.DefaultLanguageCode,
             [.. Languages]);
@@ -233,6 +246,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         RecentLoglineCount = snapshot.RecentLoglineCount;
         ContextRequiredSectionMaxChars = snapshot.ContextRequiredSectionMaxChars;
         ToolResultMaxChars = snapshot.ToolResultMaxChars;
+        StorySoFarMode = snapshot.StorySoFarMode;
         Temperature = snapshot.Temperature;
 
         Languages.Clear();
@@ -257,6 +271,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         int RecentLoglineCount,
         int ContextRequiredSectionMaxChars,
         int ToolResultMaxChars,
+        string StorySoFarMode,
         double Temperature,
         string DefaultLanguageCode,
         List<LanguageData> Languages);

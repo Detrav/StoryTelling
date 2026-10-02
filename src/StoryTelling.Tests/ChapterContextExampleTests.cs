@@ -1,4 +1,5 @@
 using StoryTelling.Application.Chapters;
+using StoryTelling.Application.Llm;
 using StoryTelling.Infrastructure;
 
 namespace StoryTelling.Tests;
@@ -14,9 +15,9 @@ public sealed class ChapterContextExampleTests
         var stateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
         var assembler = new ChapterContextAssembler();
 
-        var context = assembler.AssembleWriter(new WriterContext(project, chapter, stateBefore));
+        var context = assembler.AssembleWriter(new WriterContext(project, chapter, stateBefore, RecentLoglineCount: 3));
 
-        var user = context.Messages[1].Content;
+        var user = UserText(context);
         Assert.Contains($"chapter {chapter.Number} of {project.Chapters.Count}", user);
         Assert.Contains("Story so far:", user);
         Assert.Contains("The Reflection That Did", user);
@@ -37,6 +38,9 @@ public sealed class ChapterContextExampleTests
 
         Assert.InRange(context.EstimatedTokens, 1, ChapterContextAssembler.DefaultTokenBudget * 2);
     }
+
+    private static string UserText(ChapterContext context) =>
+        string.Join("\n", context.Messages.Where(message => message.Role == LlmRole.User).Select(message => message.Content));
 
     private static string ExamplePath(string name) =>
         Path.Combine(AppContext.BaseDirectory, "examples", name);

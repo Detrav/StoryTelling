@@ -53,6 +53,18 @@ public sealed class StoryQueryTests
     }
 
     [Fact]
+    public void RecentLoglines_BeforeNumber_ExcludesLaterChapters()
+    {
+        var project = Project();
+        project.Chapters.Add(new Chapter { Number = 3, Title = "Ember", Logline = "A new dawn." });
+
+        var loglines = new StoryQuery(project, beforeNumber: 2).RecentLoglines(3);
+
+        var logline = Assert.Single(loglines);
+        Assert.Equal(1, logline.Number);
+    }
+
+    [Fact]
     public void ListEntries_FiltersByKind()
     {
         var places = new StoryQuery(Project()).ListEntries(KnowledgeKind.Place);

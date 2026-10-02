@@ -18,14 +18,15 @@ internal static class ChapterToolLoop
         string gatherInstruction,
         Project snapshot,
         IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? beforeNumber = null)
     {
         if (settings.MaxToolCalls <= 0)
         {
             return new ToolAgentOutcome(seed, 0);
         }
 
-        var toolset = new StoryToolset(new StoryQuery(snapshot));
+        var toolset = new StoryToolset(new StoryQuery(snapshot, beforeNumber));
         var tools = toolset.Definitions
             .Select(definition => new LlmTool(definition.Name, definition.Description, definition.Parameters))
             .ToList();

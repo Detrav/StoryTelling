@@ -7,5 +7,6 @@ public sealed record WriterContext(
     Chapter Chapter,
     WorldState StateBefore,
     int TokenBudget = ChapterContextAssembler.DefaultTokenBudget,
-    int RecentLoglineCount = 3,
-    int RequiredSectionMaxChars = ChapterContextAssembler.DefaultRequiredSectionMaxChars);
+    int RecentLoglineCount = 2,
+    int RequiredSectionMaxChars = ChapterContextAssembler.DefaultRequiredSectionMaxChars,
+    string StorySoFarMode = "Both");

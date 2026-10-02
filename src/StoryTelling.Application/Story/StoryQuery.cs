@@ -7,11 +7,13 @@ public sealed class StoryQuery
 {
     private readonly Project _project;
     private readonly IKnowledgeRetriever _retriever;
+    private readonly int? _beforeNumber;
 
-    public StoryQuery(Project project)
+    public StoryQuery(Project project, int? beforeNumber = null)
     {
         _project = project;
         _retriever = new Bm25KnowledgeRetriever(project.Knowledge);
+        _beforeNumber = beforeNumber;
     }
 
     public StoryOverview Story()
@@ -48,6 +50,7 @@ public sealed class StoryQuery
 
         return _project.Chapters
             .Where(chapter => !string.IsNullOrWhiteSpace(chapter.Logline))
+            .Where(chapter => _beforeNumber is null || chapter.Number < _beforeNumber)
             .OrderBy(chapter => chapter.Number)
             .TakeLast(count)
             .Select(chapter => new ChapterLogline(chapter.Number, chapter.Title, chapter.Logline))

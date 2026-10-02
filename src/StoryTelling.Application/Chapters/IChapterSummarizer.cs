@@ -9,6 +9,7 @@ public interface IChapterSummarizer
         Chapter chapter,
         WorldState stateBefore,
         IReadOnlyList<KnowledgeEntry> knowledge,
+        string previousStorySoFar = "",
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }

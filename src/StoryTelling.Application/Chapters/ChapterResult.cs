@@ -8,4 +8,5 @@ public sealed record ChapterResult(
     WorldState WorldState,
     IReadOnlyList<KnowledgeChange> KnowledgeChanges,
     IReadOnlyList<EditorNote> EditorNotes,
-    int ToolCalls);
+    int ToolCalls,
+    string StorySoFar = "");

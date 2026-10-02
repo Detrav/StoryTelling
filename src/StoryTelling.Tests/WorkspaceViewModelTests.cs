@@ -658,6 +658,18 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
+    public async Task GenerateChapterAsync_CopiesTheStorySoFarBackToTheChapter()
+    {
+        var runner = new FakeChapterRunner { StorySoFar = "The running retelling." };
+        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
+        var chapter = workspace.SelectedChapter;
+
+        await workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None);
+
+        Assert.Equal("The running retelling.", chapter.StorySoFar);
+    }
+
+    [Fact]
     public void ValidateGeneration_FailsWhenRequiredFieldsAreMissing()
     {
         var project = SampleProject();

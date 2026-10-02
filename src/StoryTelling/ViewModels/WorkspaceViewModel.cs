@@ -647,6 +647,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         chapter.ContentOriginal = result.Text;
         chapter.Logline = result.Logline;
+        chapter.StorySoFar = result.StorySoFar;
         chapter.WorldState = result.WorldState;
         chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
         chapter.EditorNotes = [.. result.EditorNotes];
@@ -818,6 +819,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         await _chapterRunner.RegenerateSummaryAsync(project, target, progress, cancellationToken);
 
         chapter.Logline = target.Logline;
+        chapter.StorySoFar = target.StorySoFar;
         chapter.WorldState = target.WorldState;
         chapter.KnowledgeChanges = [.. target.KnowledgeChanges];
         MarkLaterStale(chapter.Number);
@@ -1254,11 +1256,13 @@ public partial class WorkspaceViewModel : ViewModelBase
         {
             Number = chapter.Number,
             Title = chapter.Title,
+            Role = chapter.Role,
             Status = chapter.Status,
             ContentOriginal = chapter.ContentOriginal,
             Direction = chapter.Direction,
             Notes = chapter.Notes,
             Logline = chapter.Logline,
+            StorySoFar = chapter.StorySoFar,
             CreatedUtc = chapter.CreatedUtc,
             WorldState = chapter.WorldState,
             KnowledgeChanges = [.. chapter.KnowledgeChanges],
@@ -1280,11 +1284,13 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         Number = viewModel.Number,
         Title = viewModel.Title,
+        Role = viewModel.Role,
         Status = viewModel.Status,
         ContentOriginal = viewModel.ContentOriginal,
         Direction = viewModel.Direction,
         Notes = viewModel.Notes,
         Logline = viewModel.Logline,
+        StorySoFar = viewModel.StorySoFar,
         CreatedUtc = viewModel.CreatedUtc,
         WorldState = viewModel.WorldState,
         KnowledgeChanges = [.. viewModel.KnowledgeChanges],

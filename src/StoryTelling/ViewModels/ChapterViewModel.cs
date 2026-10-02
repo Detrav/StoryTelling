@@ -13,6 +13,9 @@ public partial class ChapterViewModel : ObservableObject
     private string _title = string.Empty;
 
     [ObservableProperty]
+    private ChapterRole _role;
+
+    [ObservableProperty]
     private ChapterStatus _status;
 
     [ObservableProperty]
@@ -26,6 +29,9 @@ public partial class ChapterViewModel : ObservableObject
 
     [ObservableProperty]
     private string _logline = string.Empty;
+
+    [ObservableProperty]
+    private string _storySoFar = string.Empty;
 
     [ObservableProperty]
     private DateTimeOffset _createdUtc;

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using StoryTelling.Application.Generation;
+using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
 
@@ -16,6 +17,23 @@ public partial class ChapterSettingsViewModel : ViewModelBase
     }
 
     public Func<string, int, GenerationSession, IProgress<GenerationProgress>?, CancellationToken, Task<IReadOnlyList<GenerationOption>>>? GenerateOptions { get; set; }
+
+    public IReadOnlyList<ChapterRole> Roles { get; } = Enum.GetValues<ChapterRole>();
+
+    public ChapterRole Role
+    {
+        get => _chapter.Role;
+        set
+        {
+            if (_chapter.Role == value)
+            {
+                return;
+            }
+
+            _chapter.Role = value;
+            _debouncer.Trigger();
+        }
+    }
 
     public string Title
     {
@@ -102,6 +120,9 @@ public partial class ChapterSettingsViewModel : ViewModelBase
         {
             case nameof(ChapterViewModel.Title):
                 OnPropertyChanged(nameof(Title));
+                break;
+            case nameof(ChapterViewModel.Role):
+                OnPropertyChanged(nameof(Role));
                 break;
             case nameof(ChapterViewModel.Direction):
                 OnPropertyChanged(nameof(Direction));

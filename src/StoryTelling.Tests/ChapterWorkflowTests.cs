@@ -25,6 +25,27 @@ public sealed class ChapterWorkflowTests
     }
 
     [Fact]
+    public async Task RunAsync_PassesTheRunningStorySoFarToTheSummarizer()
+    {
+        var writer = new FakeChapterAgent();
+        var editor = new FakeChapterEditor();
+        var summarizer = new FakeChapterSummarizer();
+        var workflow = new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService());
+        var project = new Project
+        {
+            Chapters =
+            [
+                new Chapter { Number = 1, StorySoFar = "The running retelling." },
+                new Chapter { Number = 2, Title = "Two" },
+            ],
+        };
+
+        await workflow.RunAsync(project, project.Chapters[1], new WorldState());
+
+        Assert.Equal("The running retelling.", summarizer.LastPreviousStorySoFar);
+    }
+
+    [Fact]
     public async Task RunAsync_UsesTheConfiguredContextBudgets()
     {
         var writer = new FakeChapterAgent();

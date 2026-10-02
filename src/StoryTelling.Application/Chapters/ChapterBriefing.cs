@@ -2,8 +2,7 @@ using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
 
-public sealed record ChapterSummary(
+public sealed record ChapterBriefing(
     string Logline,
     WorldState WorldState,
-    IReadOnlyList<KnowledgeChange> KnowledgeChanges,
-    string StorySoFar = "");
+    IReadOnlyList<KnowledgeChange> KnowledgeChanges);

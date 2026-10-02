@@ -1,4 +1,5 @@
 using System.Text;
+using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Translation;
@@ -23,9 +24,12 @@ public static class PromptTemplates
 
     public static IReadOnlyList<LlmMessage> Build(GenerationRequest request, bool useTools = false)
     {
-        var system = "You help outline a multi-chapter story. Work in English only. "
-            + (useTools ? "Use the provided tools to consult the project before answering. " : string.Empty)
-            + $"Reply with exactly {request.Variants} distinct options that match the required JSON schema — "
+        var system = "Role: You are the story architect who plans and populates a multi-chapter book.\n"
+            + "Objective: Produce options that fit the current project and the author's brief.\n"
+            + "Constraints: Work in English only. "
+            + (useTools ? "Consult the project with the provided tools before answering. " : string.Empty)
+            + "Respect everything already established.\n"
+            + $"Output: Exactly {request.Variants} distinct options matching the required JSON schema — "
             + "no prose, no explanations.";
 
         var specs = GenerationTargets.Fields(request.Target);
@@ -262,9 +266,14 @@ public static class PromptTemplates
     }
 
     public static string WriterSystem() =>
-        "You write the chapters of a multi-chapter story in English only. You may consult the project "
-        + "with the provided tools. Everything must stay consistent with the world, world state and "
-        + "knowledge you find. Do not write the chapter until you are asked to.";
+        "Role: You are a novelist writing one chapter of an ongoing book.\n"
+        + "Objective: Extend the established story — never restart it — and carry out this chapter's task.\n"
+        + "Constraints: Write in English only. Follow the given point of view and tense exactly. Stay "
+        + "consistent with the world, the world state and the knowledge. Never re-introduce people or "
+        + "places the reader has already met. Never mention chapter numbers, the book, or these "
+        + "instructions in the prose. Aim for roughly 1500-2500 words.\n"
+        + "Output: Only the chapter prose — no title, headings or commentary.\n"
+        + "Tools: Consult the project before writing. Do not write the chapter until you are asked to.";
 
     public static string WriterGather() =>
         "Consult the project with the tools to refresh the facts you need (characters, initial world "
@@ -313,17 +322,66 @@ public static class PromptTemplates
     public static string WriterPosition(Project project, Chapter chapter)
     {
         var total = project.Chapters.Count;
-        if (total <= 1)
+        var number = chapter.Number;
+        var role = chapter.Role == ChapterRole.Auto ? DeriveRole(number, total) : chapter.Role;
+
+        if (chapter.Role == ChapterRole.Auto && total <= 1)
         {
-            return "This is the opening of the book.";
+            return "This is the opening and the whole story: establish the setting, the characters and "
+                + "the inciting incident, then bring it to a complete resolution within this chapter.";
         }
 
-        return $"This is chapter {chapter.Number} of {total}. Earlier chapters have already happened — "
-            + "continue the story from the situation below instead of starting it over, and do not "
-            + "re-introduce people or places the reader has already met.";
+        if (role == ChapterRole.Opening)
+        {
+            return $"This is the opening chapter — the setup of the story (chapter {number} of {total}). "
+                + "Establish the setting, introduce the characters and the inciting incident; do not "
+                + "assume the reader knows anything yet. Leave clear threads to develop in later chapters.";
+        }
+
+        if (role == ChapterRole.Finale)
+        {
+            return $"This is the final chapter — the resolution of the story (chapter {number} of {total}). "
+                + "Bring everything to a full close: resolve every open thread, pay off the setups, and do "
+                + "not end on a cliffhanger or set up a sequel.";
+        }
+
+        return $"This is chapter {number} of {total} — the middle of the story. The setup has already "
+            + "happened; continue from the situation below instead of restarting, do not re-introduce "
+            + "people or places the reader has already met, and keep moving toward the resolution.";
     }
 
-    public static string WriterStorySoFar(Project project, Chapter chapter, int recentCount)
+    private static ChapterRole DeriveRole(int number, int total) =>
+        number <= 1 ? ChapterRole.Opening : number >= total ? ChapterRole.Finale : ChapterRole.Middle;
+
+    public static string PreviousStorySoFar(Project project, int number) =>
+        project.Chapters
+            .Where(candidate => candidate.Number < number && !string.IsNullOrWhiteSpace(candidate.StorySoFar))
+            .OrderByDescending(candidate => candidate.Number)
+            .Select(candidate => candidate.StorySoFar.Trim())
+            .FirstOrDefault() ?? string.Empty;
+
+    public static string WriterStorySoFar(Project project, Chapter chapter, int recentCount, string mode = "Both")
+    {
+        var running = PreviousStorySoFar(project, chapter.Number);
+
+        if (mode == "Loglines" || running.Length == 0)
+        {
+            var loglines = RecentLoglines(project, chapter, recentCount, includeFirst: true);
+            return loglines.Length == 0 ? string.Empty : "Story so far:\n" + loglines;
+        }
+
+        if (mode == "Retelling")
+        {
+            return "Story so far:\n" + running;
+        }
+
+        var recent = RecentLoglines(project, chapter, recentCount, includeFirst: false);
+        return recent.Length == 0
+            ? "Story so far:\n" + running
+            : "Story so far:\n" + running + "\n\nRecent chapters:\n" + recent;
+    }
+
+    private static string RecentLoglines(Project project, Chapter chapter, int recentCount, bool includeFirst)
     {
         var prior = project.Chapters
             .Where(candidate => candidate.Number < chapter.Number && !string.IsNullOrWhiteSpace(candidate.Logline))
@@ -335,12 +393,17 @@ public static class PromptTemplates
             return string.Empty;
         }
 
-        var selected = new List<Chapter> { prior[0] };
+        var selected = new List<Chapter>();
+        if (includeFirst)
+        {
+            selected.Add(prior[0]);
+        }
+
         if (recentCount > 0)
         {
             foreach (var recent in prior.Skip(Math.Max(0, prior.Count - recentCount)))
             {
-                if (recent.Number != prior[0].Number)
+                if (selected.All(candidate => candidate.Number != recent.Number))
                 {
                     selected.Add(recent);
                 }
@@ -348,9 +411,12 @@ public static class PromptTemplates
         }
 
         selected = [.. selected.OrderBy(candidate => candidate.Number)];
+        if (selected.Count == 0)
+        {
+            return string.Empty;
+        }
 
-        var lines = new List<string> { "Story so far:" };
-        lines.Add(DescribeLogline(selected[0]));
+        var lines = new List<string> { DescribeLogline(selected[0]) };
 
         var omitted = prior.Count - selected.Count;
         if (omitted > 0)
@@ -421,13 +487,88 @@ public static class PromptTemplates
         }
     }
 
-    public static IReadOnlyList<LlmMessage> BuildSummarizer(Chapter chapter, WorldState stateBefore, IReadOnlyList<KnowledgeEntry> knowledge)
+    public static IReadOnlyList<LlmMessage> BuildContinuityJudge(string storySoFar, WorldState situationBefore, Chapter chapter)
     {
-        var system = "You summarize a finished story chapter so later chapters stay consistent. Work in "
-            + "English only. Reply with ONLY a JSON object that matches the required schema.";
+        var system = "You are a strict story-continuity reviewer. Judge whether a chapter continues the "
+            + "established story or reads like the start of a new one. Reply with ONLY a JSON object that "
+            + "matches the required schema.";
 
         var user = new StringBuilder();
-        user.AppendLine($"Summarize chapter {chapter.Number}"
+        user.AppendLine("Judge whether this chapter continues the story below.");
+        user.AppendLine();
+        user.AppendLine("Established story so far:");
+        user.AppendLine(string.IsNullOrWhiteSpace(storySoFar) ? "- (this is the first chapter)" : storySoFar);
+        user.AppendLine();
+        user.AppendLine("Situation before this chapter:");
+        AppendField(user, "Time and place", situationBefore.TimeAndPlace);
+        if (!string.IsNullOrWhiteSpace(situationBefore.Description))
+        {
+            user.AppendLine($"- Situation: {situationBefore.Description.Trim()}");
+        }
+
+        user.AppendLine();
+        user.AppendLine($"Chapter {chapter.Number} text:");
+        user.AppendLine(chapter.ContentOriginal);
+        user.AppendLine();
+        user.AppendLine("Report: continues (true/false); score 1-5 where 5 = flows seamlessly from the "
+            + "established story and 1 = reads as a brand-new story; restartSignals (phrases that "
+            + "re-introduce known people or places, or reset the premise); contradictions (facts that "
+            + "clash with the established story); notes.");
+        user.AppendLine("Prefer reporting problems over praise. Do not rewrite anything.");
+
+        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
+
+    public static IReadOnlyList<LlmMessage> BuildContinuityComparison(
+        string storySoFar,
+        WorldState situationBefore,
+        int chapterNumber,
+        string textA,
+        string textB)
+    {
+        var system = "You compare two drafts of the same chapter and decide which one better CONTINUES "
+            + "the established story. Ignore prose quality, style and length. Reply with ONLY a JSON "
+            + "object that matches the required schema.";
+
+        var user = new StringBuilder();
+        user.AppendLine($"Two candidate drafts for chapter {chapterNumber} follow. Both are meant to continue the story below.");
+        user.AppendLine();
+        user.AppendLine("Established story so far:");
+        user.AppendLine(string.IsNullOrWhiteSpace(storySoFar) ? "- (this is the first chapter)" : storySoFar);
+        user.AppendLine();
+        user.AppendLine("Situation before this chapter:");
+        AppendField(user, "Time and place", situationBefore.TimeAndPlace);
+        if (!string.IsNullOrWhiteSpace(situationBefore.Description))
+        {
+            user.AppendLine($"- Situation: {situationBefore.Description.Trim()}");
+        }
+
+        user.AppendLine();
+        user.AppendLine("===== CANDIDATE A =====");
+        user.AppendLine(textA);
+        user.AppendLine();
+        user.AppendLine("===== CANDIDATE B =====");
+        user.AppendLine(textB);
+        user.AppendLine();
+        user.AppendLine("Pick the draft that flows from the previous situation, does not restart or "
+            + "re-introduce known people or places, and advances unresolved threads. Reply winner "
+            + "(A, B or tie) and reasons.");
+
+        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
+
+    public static IReadOnlyList<LlmMessage> BuildChapterBriefing(
+        Chapter chapter,
+        WorldState stateBefore,
+        IReadOnlyList<KnowledgeEntry> knowledge)
+    {
+        var system = "Role: You analyze one finished chapter of an ongoing book and brief the story bible.\n"
+            + "Objective: Extract what happened, the situation it leaves behind, and any knowledge changes.\n"
+            + "Constraints: Work in English only. Base everything strictly on the chapter text.\n"
+            + "Output: Only a JSON object that matches the required schema.";
+
+        var user = new StringBuilder();
+        user.AppendLine($"Brief chapter {chapter.Number}"
             + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
             + ".");
         user.AppendLine();
@@ -470,9 +611,12 @@ public static class PromptTemplates
         user.AppendLine("Chapter text:");
         user.AppendLine(chapter.ContentOriginal);
         user.AppendLine();
-        user.AppendLine("Reply with a logline (1-2 sentences on what actually happened), the new time and "
-            + "place, a description of the situation AFTER this chapter, and the knowledge changes caused "
-            + "by it. Base everything strictly on the chapter text.");
+        user.AppendLine("Reply with:");
+        user.AppendLine("- logline: 1-2 sentences on what actually happened in this chapter.");
+        user.AppendLine("- timeAndPlace: a short when/where line for the situation immediately after this chapter.");
+        user.AppendLine("- description: the situation after this chapter, in this order: where we are; what changed; what is still unresolved; what this sets up next. Always write it.");
+        user.AppendLine("- knowledgeChanges: the entries this chapter changed.");
+        user.AppendLine("Base everything strictly on the chapter text.");
         user.AppendLine();
         user.AppendLine("When you update an entry, output its full updated content and keep every detail "
             + "from its current content that the chapter does not contradict.");
@@ -482,6 +626,45 @@ public static class PromptTemplates
             + "the full new content, and a short reason. Return an empty array when nothing changed — do "
             + "not restate unchanged entries.");
 
+        return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
+
+    public static IReadOnlyList<LlmMessage> BuildChapterStorySync(
+        string previousStorySoFar,
+        ChapterBriefing briefing,
+        int chapterNumber)
+    {
+        var system = "Role: You maintain the running retelling ('story so far') of an ongoing book.\n"
+            + "Objective: Fold the newest chapter's briefing into the retelling so the next chapter knows what has happened.\n"
+            + "Constraints: Work in English only. Keep it at most about 120 words, present tense, and keep "
+            + "every name consistent. Preserve the opening (the inciting incident) and the main arc. Never "
+            + "restart from scratch.\n"
+            + "Output: Only a JSON object that matches the required schema.";
+
+        var user = new StringBuilder();
+        user.AppendLine($"Chapter {chapterNumber} briefing:");
+        user.AppendLine($"- logline: {briefing.Logline.Trim()}");
+        if (!string.IsNullOrWhiteSpace(briefing.WorldState.Description))
+        {
+            user.AppendLine($"- situation: {briefing.WorldState.Description.Trim()}");
+        }
+
+        user.AppendLine();
+        if (!string.IsNullOrWhiteSpace(previousStorySoFar))
+        {
+            user.AppendLine("Story so far before this chapter (rewrite it to include this chapter):");
+            user.AppendLine(previousStorySoFar.Trim());
+        }
+        else
+        {
+            user.AppendLine("This is the first chapter, so the retelling starts here.");
+        }
+
+        user.AppendLine();
+        user.AppendLine("Return the updated 'story so far': a tight running retelling of the whole story up "
+            + "to and including this chapter, at most about 120 words. Keep the opening and the main arc, "
+            + "fold in what happened here, drop minor detail, present tense. Do not start over; rewrite the "
+            + "existing retelling so it stays the same length or shorter.");
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
 
@@ -550,8 +733,13 @@ public static class PromptTemplates
     }
 
     public static string EditorSystem() =>
-        "You are a meticulous fiction editor. Preserve the author's voice, the story world and the "
-        + "established facts. Work in English only. Do not revise until you are asked to.";
+        "Role: You are a meticulous fiction editor.\n"
+        + "Objective: Revise the chapter draft for continuity, pacing, repetition, clarity and style.\n"
+        + "Constraints: Preserve the author's voice, the point of view, the tense and the established "
+        + "facts. Keep the draft's full length and detail — never summarize or shorten it. Write in "
+        + "English only. Never mention chapter numbers or the book itself.\n"
+        + "Output: Only the revised chapter prose — no title, headings or commentary.\n"
+        + "Do not revise until you are asked to.";
 
     public static string EditorGather() =>
         "Consult the project with the tools to check continuity and the established facts (characters, "

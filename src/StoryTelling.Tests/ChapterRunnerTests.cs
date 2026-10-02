@@ -25,6 +25,18 @@ public sealed class ChapterRunnerTests
     }
 
     [Fact]
+    public async Task GenerateAsync_StoresTheRunningStorySoFar()
+    {
+        var runner = Runner(out _, out var summarizer);
+        summarizer.Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, [], "A running retelling.");
+        var project = Project();
+
+        await runner.GenerateAsync(project, project.Chapters[0]);
+
+        Assert.Equal("A running retelling.", project.Chapters[0].StorySoFar);
+    }
+
+    [Fact]
     public async Task GenerateAsync_StoresKnowledgeChangesWithoutMutatingProject()
     {
         var runner = Runner(out _, out var summarizer);

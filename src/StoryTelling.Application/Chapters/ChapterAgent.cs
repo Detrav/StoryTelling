@@ -30,7 +30,7 @@ public sealed class ChapterAgent : IChapterAgent
         var assembled = _assembler.AssembleWriter(context);
 
         var gathered = await ChapterToolLoop
-            .GatherAsync(_llmClient, connection, settings, assembled.Messages, PromptTemplates.WriterGather(), context.Snapshot, progress, cancellationToken)
+            .GatherAsync(_llmClient, connection, settings, assembled.Messages, PromptTemplates.WriterGather(), context.Snapshot, progress, cancellationToken, context.Chapter.Number)
             .ConfigureAwait(false);
 
         var messages = gathered.Messages;

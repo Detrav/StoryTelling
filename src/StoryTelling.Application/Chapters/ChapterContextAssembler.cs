@@ -50,18 +50,23 @@ public sealed class ChapterContextAssembler : IContextAssembler
             used += text.Length;
         }
 
-        AddRequired(PromptTemplates.WriterBrief(context.Chapter));
         AddRequired(PromptTemplates.WriterWorldStyle(context.Snapshot.World));
         AddRequired(PromptTemplates.WriterPosition(context.Snapshot, context.Chapter));
         AddRequired(Truncate(PromptTemplates.WriterState(context.StateBefore), context.RequiredSectionMaxChars));
-        AddRequired(PromptTemplates.WriterStorySoFar(context.Snapshot, context.Chapter, context.RecentLoglineCount));
+        AddRequired(PromptTemplates.WriterStorySoFar(context.Snapshot, context.Chapter, context.RecentLoglineCount, context.StorySoFarMode));
         AddOptional(PromptTemplates.WriterWorldLore(context.Snapshot.World));
         AddOptional(PromptTemplates.WriterManifest(context.Snapshot, context.Chapter));
 
         var system = PromptTemplates.WriterSystem();
-        var user = string.Join("\n\n", sections);
-        var messages = new List<LlmMessage> { LlmMessage.System(system), LlmMessage.User(user) };
-        var estimatedTokens = (system.Length + user.Length) / CharsPerToken;
+        var storyContext = "STORY CONTEXT\n\n" + string.Join("\n\n", sections);
+        var task = "TASK\n\n" + PromptTemplates.WriterBrief(context.Chapter);
+        var messages = new List<LlmMessage>
+        {
+            LlmMessage.System(system),
+            LlmMessage.User(storyContext),
+            LlmMessage.User(task),
+        };
+        var estimatedTokens = (system.Length + storyContext.Length + task.Length) / CharsPerToken;
         return new ChapterContext(messages, estimatedTokens);
     }
 

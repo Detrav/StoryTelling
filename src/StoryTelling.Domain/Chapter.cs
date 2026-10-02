@@ -6,6 +6,8 @@ public sealed class Chapter
 
     public string Title { get; set; } = string.Empty;
 
+    public ChapterRole Role { get; set; } = ChapterRole.Auto;
+
     public string Direction { get; set; } = string.Empty;
 
     public string Notes { get; set; } = string.Empty;
@@ -19,6 +21,8 @@ public sealed class Chapter
     public List<string> StaleTranslations { get; set; } = [];
 
     public string Logline { get; set; } = string.Empty;
+
+    public string StorySoFar { get; set; } = string.Empty;
 
     public WorldState? WorldState { get; set; }
 

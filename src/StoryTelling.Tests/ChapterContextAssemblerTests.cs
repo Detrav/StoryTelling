@@ -1,4 +1,5 @@
 using StoryTelling.Application.Chapters;
+using StoryTelling.Application.Llm;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Tests;
@@ -13,7 +14,7 @@ public sealed class ChapterContextAssemblerTests
 
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.InitialWorldState, ChapterContextAssembler.DefaultTokenBudget));
 
-        var user = context.Messages[1].Content;
+        var user = UserText(context);
         Assert.Contains("Chapter 1", user);
         Assert.Contains("grim", user);
         Assert.Contains("Dusk above the keep", user);
@@ -32,7 +33,7 @@ public sealed class ChapterContextAssemblerTests
 
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.InitialWorldState, 200));
 
-        Assert.Contains("[truncated]", context.Messages[1].Content);
+        Assert.Contains("[truncated]", UserText(context));
     }
 
     [Fact]
@@ -43,7 +44,7 @@ public sealed class ChapterContextAssemblerTests
 
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[3], project.InitialWorldState, RecentLoglineCount: 3));
 
-        var user = context.Messages[1].Content;
+        var user = UserText(context);
         Assert.Contains("chapter 4 of 4", user);
         Assert.Contains("Story so far:", user);
         Assert.Contains("Log line 1.", user);
@@ -61,7 +62,7 @@ public sealed class ChapterContextAssemblerTests
 
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[5], project.InitialWorldState, RecentLoglineCount: 2));
 
-        var user = context.Messages[1].Content;
+        var user = UserText(context);
         Assert.Contains("chapter 6 of 6", user);
         Assert.Contains("Log line 1.", user);
         Assert.Contains("Log line 4.", user);
@@ -72,6 +73,107 @@ public sealed class ChapterContextAssemblerTests
     }
 
     [Fact]
+    public void AssembleWriter_IncludesTheRunningStorySoFarAlongsideLoglines()
+    {
+        var project = ProjectWithLoglines(3);
+        project.Chapters[0].StorySoFar = "The running retelling.";
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState));
+
+        var user = UserText(context);
+        Assert.Contains("The running retelling.", user);
+        Assert.Contains("Recent chapters:", user);
+        Assert.Contains("Log line 1.", user);
+        Assert.Contains("Log line 2.", user);
+    }
+
+    [Fact]
+    public void AssembleWriter_FirstChapter_FramesItAsTheSetup()
+    {
+        var project = ProjectWithLoglines(4);
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[0], project.InitialWorldState));
+
+        var user = UserText(context);
+        Assert.Contains("opening chapter", user);
+        Assert.Contains("setup of the story", user);
+    }
+
+    [Fact]
+    public void AssembleWriter_FinalChapter_FramesItAsTheResolution()
+    {
+        var project = ProjectWithLoglines(4);
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[3], project.InitialWorldState));
+
+        var user = UserText(context);
+        Assert.Contains("final chapter", user);
+        Assert.Contains("resolution", user);
+        Assert.Contains("cliffhanger", user);
+    }
+
+    [Fact]
+    public void AssembleWriter_BothWithRetelling_UsesOnlyTheLatestLoglines()
+    {
+        var project = ProjectWithLoglines(4);
+        project.Chapters[0].StorySoFar = "The running retelling.";
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[3], project.InitialWorldState, RecentLoglineCount: 1));
+
+        var user = UserText(context);
+        Assert.Contains("The running retelling.", user);
+        Assert.Contains("Recent chapters:", user);
+        Assert.Contains("Log line 3.", user);
+        Assert.DoesNotContain("Log line 1.", user);
+    }
+
+    [Fact]
+    public void AssembleWriter_LoglinesMode_OmitsTheRunningRetelling()
+    {
+        var project = ProjectWithLoglines(3);
+        project.Chapters[0].StorySoFar = "The running retelling.";
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState, StorySoFarMode: "Loglines"));
+
+        var user = UserText(context);
+        Assert.Contains("Log line 1.", user);
+        Assert.DoesNotContain("The running retelling.", user);
+    }
+
+    [Fact]
+    public void AssembleWriter_RetellingMode_OmitsTheLoglines()
+    {
+        var project = ProjectWithLoglines(3);
+        project.Chapters[0].StorySoFar = "The running retelling.";
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[2], project.InitialWorldState, StorySoFarMode: "Retelling"));
+
+        var user = UserText(context);
+        Assert.Contains("The running retelling.", user);
+        Assert.DoesNotContain("Log line 1.", user);
+        Assert.DoesNotContain("Recent chapters:", user);
+    }
+
+    [Fact]
+    public void AssembleWriter_ExplicitRole_OverridesTheDerivedPosition()
+    {
+        var project = ProjectWithLoglines(4);
+        project.Chapters[1].Role = ChapterRole.Finale;
+        var assembler = new ChapterContextAssembler();
+
+        var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[1], project.InitialWorldState));
+
+        Assert.Contains("final chapter", UserText(context));
+        Assert.Contains("chapter 2 of 4", UserText(context));
+    }
+
+    [Fact]
     public void AssembleWriter_IgnoresLoglinesOfLaterChapters()
     {
         var project = ProjectWithLoglines(4);
@@ -79,7 +181,7 @@ public sealed class ChapterContextAssemblerTests
 
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[1], project.InitialWorldState));
 
-        var user = context.Messages[1].Content;
+        var user = UserText(context);
         Assert.Contains("chapter 2 of 4", user);
         Assert.Contains("Log line 1.", user);
         Assert.DoesNotContain("Log line 3.", user);
@@ -100,6 +202,9 @@ public sealed class ChapterContextAssemblerTests
             Logline = $"Log line {number}.",
         })],
     };
+
+    private static string UserText(ChapterContext context) =>
+        string.Join("\n", context.Messages.Where(message => message.Role == LlmRole.User).Select(message => message.Content));
 
     private static Project Project() => new()
     {

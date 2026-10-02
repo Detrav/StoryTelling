@@ -87,7 +87,8 @@ the menu and the toolbar.
     list what the editor changed (continuity / style / pacing / …). There is no free-form recap:
     the chapter carries structured, RAG-like information forward, and the project knowledge base
     itself is never edited by a chapter.
-  - *Settings* — the chapter's own settings: title, direction (what should happen), notes and the
+  - *Settings* — the chapter's own settings: **role in the story** (Auto, Opening, Middle, Finale;
+    Auto infers from the chapter's position), title, direction (what should happen), notes and the
     generation status. A *Generate with AI* button proposes the title and direction from the world,
     the previous chapters and the knowledge base (tool-backed). Before writing, the app checks the
     required fields and shows a warning listing what is missing (the world, the story frame, the

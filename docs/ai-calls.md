@@ -12,7 +12,7 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | Tool-result budget | 24000 chars | `AppSettings.ToolResultMaxChars` |
 | Writer seed budget | 4000 tokens (~16000 chars) | `AppSettings.ContextTokenBudget` |
 | Required seed section cap | 6000 chars (state) | `AppSettings.ContextRequiredSectionMaxChars` |
-| Recent loglines in seed | 3 | `AppSettings.RecentLoglineCount` |
+| Recent loglines in seed | 2 | `AppSettings.RecentLoglineCount` |
 | Knowledge manifest cap (seed) | 120 entries | `PromptTemplates.Build` |
 | Summary knowledge digest | 2000 chars/entry, 16000 total | `PromptTemplates.BuildSummarizer` |
 | Import chunk | 3000 chars | `KnowledgeChunker.ImportMaxChars` |
@@ -35,7 +35,8 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Writer** | Generate | yes | streamed prose (collected, no UI streaming) | `Chapter.ContentOriginal` |
 | **Editor** | same run (after writer) | yes | streamed revised prose | `Chapter.ContentOriginal` (replaces draft) |
 | **Editor notes** | same run (after edit) | no | JSON (`changes[]`: kind + note) from the local diff hunks | `Chapter.EditorNotes` |
-| **Summarizer** | chapter run / *Regenerate summary* / recompute | no | JSON (logline/timeAndPlace/description/knowledgeChanges) | `Chapter.Logline`, `WorldState`, `KnowledgeChanges` |
+| **Summarizer — briefing** | chapter run / *Regenerate summary* / recompute | no | JSON (logline/timeAndPlace/description/knowledgeChanges) | `Chapter.Logline`, `WorldState`, `KnowledgeChanges` |
+| **Summarizer — story sync** | immediately after the briefing | no | JSON (`storySoFar`) folded into the previous retelling | `Chapter.StorySoFar` |
 | **Knowledge review** | Setup *Knowledge review* | yes | JSON (findings + optional fix) | shown in review window |
 | **Knowledge import (extract)** | Setup *Import…* (`.md`) | no | JSON (`entries[]`) per chunk | reviewed → Setup |
 | **Knowledge design (prompt)** | Setup *From prompt…* | no | JSON (`entries[]`) — one request for the whole prompt | reviewed → Setup |
