@@ -40,7 +40,7 @@ public sealed class ChapterEditor : IChapterEditor
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
 
-        var seed = PromptTemplates.BuildEditorSeed(chapter, stateBefore, project);
+        var seed = PromptTemplates.BuildEditorSeed(chapter, stateBefore, project, settings.RecentLoglineCount, settings.StorySoFarMode);
         var gathered = await ChapterToolLoop
             .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, progress, cancellationToken, chapter.Number)
             .ConfigureAwait(false);

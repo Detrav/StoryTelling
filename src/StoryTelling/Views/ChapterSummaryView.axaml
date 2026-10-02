@@ -24,6 +24,13 @@
             <TextBlock Text="Logline" Opacity="0.7" />
             <TextBox Text="{Binding Logline}" LostFocus="OnCommit" />
 
+            <TextBlock Text="Story so far — the running retelling carried into later chapters" Opacity="0.7" />
+            <TextBox Text="{Binding StorySoFar}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Height="120"
+                     LostFocus="OnCommit" />
+
             <TextBlock Text="World state — time and place" Opacity="0.7" />
             <TextBox Text="{Binding TimeAndPlace}" LostFocus="OnCommit" />
 

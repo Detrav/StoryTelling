@@ -82,12 +82,17 @@ public partial class ChapterSettingsViewModel : ViewModelBase
 
     public string Status => _chapter.StatusText;
 
-    public string LabelFor(string field) => field switch
-    {
-        "Title" => "Chapter title",
-        "Direction" => "Chapter direction",
-        _ => field,
-    };
+    public IReadOnlyList<TranslatedTitleViewModel> TranslatedTitles =>
+        _chapter.TranslatedTitles
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
+            .Select(pair => new TranslatedTitleViewModel(pair.Key.ToUpperInvariant(), pair.Value))
+            .ToList();
+
+    public bool HasTranslatedTitles => TranslatedTitles.Count > 0;
+
+    public string Created => _chapter.CreatedUtc == default
+        ? "—"
+        : _chapter.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     public void Commit() => _debouncer.CommitNow();
 

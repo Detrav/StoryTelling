@@ -33,9 +33,26 @@
                      Height="100"
                      LostFocus="OnCommit" />
 
+            <TextBlock Text="Translated titles (from Translate book metadata)" Opacity="0.7" />
+            <ItemsControl ItemsSource="{Binding TranslatedTitles}" IsVisible="{Binding HasTranslatedTitles}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TranslatedTitleViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                            <TextBlock Text="{Binding LanguageCode}" FontWeight="SemiBold" Width="34" />
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Status:" Opacity="0.7" />
                 <TextBlock Text="{Binding Status}" FontWeight="SemiBold" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Created:" Opacity="0.7" />
+                <TextBlock Text="{Binding Created}" Opacity="0.7" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

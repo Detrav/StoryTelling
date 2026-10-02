@@ -56,6 +56,21 @@ public partial class ChapterSummaryViewModel : ViewModelBase
         }
     }
 
+    public string StorySoFar
+    {
+        get => _chapter.StorySoFar;
+        set
+        {
+            if (_chapter.StorySoFar == value)
+            {
+                return;
+            }
+
+            _chapter.StorySoFar = value;
+            _debouncer.Trigger();
+        }
+    }
+
     public string TimeAndPlace
     {
         get => _chapter.WorldState?.TimeAndPlace ?? string.Empty;
@@ -192,6 +207,9 @@ public partial class ChapterSummaryViewModel : ViewModelBase
         {
             case nameof(ChapterViewModel.Logline):
                 OnPropertyChanged(nameof(Logline));
+                break;
+            case nameof(ChapterViewModel.StorySoFar):
+                OnPropertyChanged(nameof(StorySoFar));
                 break;
             case nameof(ChapterViewModel.WorldState):
                 OnPropertyChanged(nameof(TimeAndPlace));

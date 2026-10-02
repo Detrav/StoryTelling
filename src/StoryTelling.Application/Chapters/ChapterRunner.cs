@@ -40,9 +40,11 @@ public sealed class ChapterRunner : IChapterRunner
         CancellationToken cancellationToken = default)
     {
         var number = project.Chapters.Count + 1;
-        var stateBefore = project.Chapters.Count > 0
-            ? project.Chapters[^1].WorldState ?? project.InitialWorldState
-            : project.InitialWorldState;
+        var stateBefore = project.Chapters
+            .OrderByDescending(chapter => chapter.Number)
+            .Select(chapter => chapter.WorldState)
+            .FirstOrDefault(state => state is not null)
+            ?? project.InitialWorldState;
 
         var chapter = new Chapter
         {

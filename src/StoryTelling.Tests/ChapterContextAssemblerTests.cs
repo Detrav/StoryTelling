@@ -1,5 +1,6 @@
 using StoryTelling.Application.Chapters;
 using StoryTelling.Application.Llm;
+using StoryTelling.Application.Prompts;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Tests;
@@ -202,6 +203,19 @@ public sealed class ChapterContextAssemblerTests
             Logline = $"Log line {number}.",
         })],
     };
+
+    [Fact]
+    public void BuildEditorSeed_IncludesTheRunningStorySoFarAndPosition()
+    {
+        var project = ProjectWithLoglines(3);
+        project.Chapters[0].StorySoFar = "The running retelling.";
+
+        var messages = PromptTemplates.BuildEditorSeed(project.Chapters[2], project.InitialWorldState, project);
+
+        Assert.Contains("The running retelling.", messages[1].Content);
+        Assert.Contains("chapter 3 of 3", messages[1].Content);
+        Assert.Contains("Recent chapters:", messages[1].Content);
+    }
 
     private static string UserText(ChapterContext context) =>
         string.Join("\n", context.Messages.Where(message => message.Role == LlmRole.User).Select(message => message.Content));

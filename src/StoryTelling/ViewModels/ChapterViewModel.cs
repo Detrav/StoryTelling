@@ -67,6 +67,8 @@ public partial class ChapterViewModel : ObservableObject
 
     public string StatusText => Status.ToString();
 
+    public bool HasStaleTranslations => StaleTranslations.Count > 0;
+
     public bool IsDraft => Status == ChapterStatus.Draft;
 
     public bool IsGenerated => Status == ChapterStatus.Generated;
@@ -80,6 +82,8 @@ public partial class ChapterViewModel : ObservableObject
         ChapterStatus.Stale => "Out of date — an earlier chapter or the setup changed. Regenerate it, or set it to Generated if the text is still fine.",
         _ => "The text is up to date.",
     };
+
+    partial void OnStaleTranslationsChanged(List<string> value) => OnPropertyChanged(nameof(HasStaleTranslations));
 
     partial void OnStatusChanged(ChapterStatus value)
     {

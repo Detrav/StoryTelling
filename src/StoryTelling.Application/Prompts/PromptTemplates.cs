@@ -746,7 +746,12 @@ public static class PromptTemplates
         + "knowledge, world state, recent loglines) before revising. When you have what you need, reply "
         + "with one short line; do not revise yet.";
 
-    public static IReadOnlyList<LlmMessage> BuildEditorSeed(Chapter chapter, WorldState stateBefore, Project project)
+    public static IReadOnlyList<LlmMessage> BuildEditorSeed(
+        Chapter chapter,
+        WorldState stateBefore,
+        Project project,
+        int recentLoglineCount = 2,
+        string storySoFarMode = "Both")
     {
         var user = new StringBuilder();
         user.AppendLine(WriterBrief(chapter));
@@ -758,11 +763,28 @@ public static class PromptTemplates
             user.AppendLine(frame);
         }
 
+        user.AppendLine();
+        user.AppendLine(WriterPosition(project, chapter));
+
         var state = WriterState(stateBefore);
         if (state.Length > 0)
         {
             user.AppendLine();
             user.AppendLine(state);
+        }
+
+        var story = WriterStorySoFar(project, chapter, recentLoglineCount, storySoFarMode);
+        if (story.Length > 0)
+        {
+            user.AppendLine();
+            user.AppendLine(story);
+        }
+
+        var lore = WriterWorldLore(project.World);
+        if (lore.Length > 0)
+        {
+            user.AppendLine();
+            user.AppendLine(lore);
         }
 
         user.AppendLine();

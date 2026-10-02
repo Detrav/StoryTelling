@@ -858,9 +858,8 @@ public partial class WorkspaceViewModel : ViewModelBase
     private static void ApplyTranslation(ChapterViewModel chapter, TranslationViewModel translation, string text)
     {
         var tab = chapter.Tabs
-            .Select(candidate => candidate.Content)
-            .OfType<ChapterTextViewModel>()
-            .FirstOrDefault(candidate => candidate.Header == translation.Header);
+            .FirstOrDefault(candidate => candidate.Header == translation.Header)?
+            .Content as ChapterTextViewModel;
 
         if (tab is not null && !tab.IsBusy)
         {
@@ -1140,7 +1139,6 @@ public partial class WorkspaceViewModel : ViewModelBase
     {
         chapter.Tabs.Clear();
         var text = new ChapterTextViewModel(
-            "Chapter (EN)",
             chapter.ContentOriginal,
             isTranslation: false,
             value => chapter.ContentOriginal = value,
@@ -1158,7 +1156,6 @@ public partial class WorkspaceViewModel : ViewModelBase
             var captured = translation;
             var name = $"Edit chapter {chapter.Number} ({captured.LanguageCode.ToUpperInvariant()})";
             var translationTab = new ChapterTextViewModel(
-                captured.Header,
                 captured.Text,
                 isTranslation: true,
                 value => captured.Text = value,

@@ -137,7 +137,8 @@ public sealed class GenerationAssistant : IGenerationAssistant
             return seed;
         }
 
-        var toolset = new StoryToolset(new StoryQuery(snapshot));
+        var chapterScoped = request.Target is GenerationTarget.ChapterSettings or GenerationTarget.Finale;
+        var toolset = new StoryToolset(new StoryQuery(snapshot, chapterScoped ? null : 1));
         var tools = toolset.Definitions
             .Select(definition => new LlmTool(definition.Name, definition.Description, definition.Parameters))
             .ToList();

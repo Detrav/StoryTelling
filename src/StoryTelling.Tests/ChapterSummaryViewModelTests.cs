@@ -37,6 +37,21 @@ public sealed class ChapterSummaryViewModelTests
     }
 
     [Fact]
+    public void StorySoFar_IsExposedAndWritesThroughToTheChapter()
+    {
+        var chapter = new ChapterViewModel { StorySoFar = "Initially." };
+        var viewModel = new ChapterSummaryViewModel(chapter, () => { });
+
+        Assert.Equal("Initially.", viewModel.StorySoFar);
+
+        viewModel.StorySoFar = "Updated retelling.";
+        Assert.Equal("Updated retelling.", chapter.StorySoFar);
+
+        chapter.StorySoFar = "Changed elsewhere.";
+        Assert.Equal("Changed elsewhere.", viewModel.StorySoFar);
+    }
+
+    [Fact]
     public void ChapterKnowledgeChanges_RefreshCollection()
     {
         var chapter = new ChapterViewModel();

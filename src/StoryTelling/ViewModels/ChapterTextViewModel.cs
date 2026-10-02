@@ -12,16 +12,13 @@ public partial class ChapterTextViewModel : ViewModelBase
     private bool _applying;
     private CancellationTokenSource? _cts;
 
-    public ChapterTextViewModel(string header, string text, bool isTranslation, Action<string> apply, Action commit)
+    public ChapterTextViewModel(string text, bool isTranslation, Action<string> apply, Action commit)
     {
-        Header = header;
         IsTranslation = isTranslation;
         _text = text;
         _apply = apply;
         _debouncer = new CommitDebouncer(commit, TimeSpan.FromMilliseconds(700));
     }
-
-    public string Header { get; }
 
     public bool IsTranslation { get; }
 
