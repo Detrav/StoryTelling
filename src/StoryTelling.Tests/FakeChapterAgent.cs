@@ -11,12 +11,19 @@ internal sealed class FakeChapterAgent : IChapterAgent
 
     public WriterContext? LastContext { get; private set; }
 
+    public IReadOnlyList<EditorIssue>? LastKnownIssues { get; private set; }
+
+    public int CallCount { get; private set; }
+
     public Task<ChapterDraft> WriteAsync(
         WriterContext context,
+        IReadOnlyList<EditorIssue>? knownIssues = null,
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         LastContext = context;
+        LastKnownIssues = knownIssues;
+        CallCount++;
         return Task.FromResult(new ChapterDraft(Text, ToolCalls));
     }
 }

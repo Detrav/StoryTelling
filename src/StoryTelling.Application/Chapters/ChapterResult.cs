@@ -8,4 +8,9 @@ public sealed record ChapterResult(
     WorldState WorldState,
     IReadOnlyList<KnowledgeChange> KnowledgeChanges,
     IReadOnlyList<EditorNote> EditorNotes,
-    int ToolCalls);
+    IReadOnlyList<ContinuityIssue> ContinuityIssues,
+    IReadOnlyList<DirectionRewrite> DirectionRewrites,
+    int ToolCalls)
+{
+    public EditorVerdict Verdict { get; init; } = EditorVerdict.Ok;
+}

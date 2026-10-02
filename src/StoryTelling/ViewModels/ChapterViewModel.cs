@@ -43,6 +43,9 @@ public partial class ChapterViewModel : ObservableObject
     private List<EditorNote> _editorNotes = [];
 
     [ObservableProperty]
+    private List<string> _directionSuggestions = [];
+
+    [ObservableProperty]
     private List<string> _staleTranslations = [];
 
     [ObservableProperty]
@@ -79,6 +82,10 @@ public partial class ChapterViewModel : ObservableObject
         ChapterStatus.Stale => "Out of date — an earlier chapter or the setup changed. Regenerate it, or set it to Generated if the text is still fine.",
         _ => "The text is up to date.",
     };
+
+    public bool HasDirectionSuggestions => DirectionSuggestions.Count > 0;
+
+    partial void OnDirectionSuggestionsChanged(List<string> value) => OnPropertyChanged(nameof(HasDirectionSuggestions));
 
     partial void OnStaleTranslationsChanged(List<string> value) => OnPropertyChanged(nameof(HasStaleTranslations));
 

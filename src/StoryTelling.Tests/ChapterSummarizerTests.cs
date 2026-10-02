@@ -39,6 +39,30 @@ public sealed class ChapterSummarizerTests
     }
 
     [Fact]
+    public async Task SummarizeAsync_ParsesContinuityNotes()
+    {
+        const string json = """{"logline":"l","timeAndPlace":"t","situation":"s","knowledgeChanges":[],"continuityNotes":[{"severity":"Error","detail":"Silas is alive in the bible but dies in the prose.","reference":"Silas Marek"},{"severity":"Info","detail":"Minor naming drift.","reference":""},{"severity":"Bogus","detail":"ignored","reference":"x"}]}""";
+        var summarizer = new ChapterSummarizer(new FakeLlmClient(json), new FakeSettingsService());
+
+        var summary = await summarizer.SummarizeAsync(new Chapter { Number = 3, ContentOriginal = "text" }, new WorldState(), []);
+
+        Assert.Equal(2, summary.ContinuityIssues.Count);
+        Assert.Equal(StoryTelling.Application.Review.ReviewSeverity.Error, summary.ContinuityIssues[0].Severity);
+        Assert.Equal("Silas Marek", summary.ContinuityIssues[0].Reference);
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_WithoutContinuityNotes_ReturnsEmpty()
+    {
+        const string json = """{"logline":"l","timeAndPlace":"t","situation":"s","knowledgeChanges":[]}""";
+        var summarizer = new ChapterSummarizer(new FakeLlmClient(json), new FakeSettingsService());
+
+        var summary = await summarizer.SummarizeAsync(new Chapter { Number = 1, ContentOriginal = "text" }, new WorldState(), []);
+
+        Assert.Empty(summary.ContinuityIssues);
+    }
+
+    [Fact]
     public async Task SummarizeAsync_ParsesThreadIdAndStatus()
     {
         const string id = "11111111-1111-1111-1111-111111111111";

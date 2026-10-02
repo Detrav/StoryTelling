@@ -6,7 +6,7 @@ namespace StoryTelling.Tests;
 
 internal sealed class FakeChapterSummarizer : IChapterSummarizer
 {
-    public ChapterSummary Summary { get; set; } = new("Logline.", new WorldState(), []);
+    public ChapterSummary Summary { get; set; } = new("Logline.", new WorldState(), [], [], []);
 
     public Func<Chapter, ChapterSummary>? SummaryFactory { get; set; }
 
@@ -29,3 +29,6 @@ internal sealed class FakeChapterSummarizer : IChapterSummarizer
         return Task.FromResult(SummaryFactory?.Invoke(chapter) ?? Summary);
     }
 }
+
+
+

@@ -33,9 +33,10 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Generate — Chapter plan** | toolbar *Plan chapters* | yes | JSON array of N chapters (title/direction, in reading order) | replaces the chapter list (with confirmation) |
 | **Generate — Final chapter** | toolbar *Finish* | yes | JSON (title/direction) resolving the story | appends a chapter |
 | **Writer** | Generate | yes | streamed prose (collected, no UI streaming) | `Chapter.ContentOriginal` |
-| **Editor** | same run (after writer) | yes | streamed revised prose | `Chapter.ContentOriginal` (replaces draft) |
-| **Editor notes** | same run (after edit) | no | JSON (`changes[]`: kind + note) from the local diff hunks | `Chapter.EditorNotes` |
-| **Summarizer — briefing** | chapter run / *Regenerate summary* / recompute | no | JSON (logline/timeAndPlace/description/knowledgeChanges) | `Chapter.Logline`, `WorldState`, `KnowledgeChanges` |
+| **Editor #1 (integrity)** | same run (after writer) | yes | streamed revised prose **+ JSON verdict** (`issues[]`: severity/detail/reference) | `Chapter.ContentOriginal`; an `Error` triggers one writer retry with the issues injected |
+| **Editor #2..N (cosmetic)** | same run (after integrity) | yes | streamed revised prose | `Chapter.ContentOriginal` (replaces the previous revision) |
+| **Editor notes** | same run (after editing) | no | JSON (`changes[]`: kind + note) from the local diff hunks | `Chapter.EditorNotes` |
+| **Summarizer — briefing** | chapter run / *Regenerate summary* / recompute | no | JSON (logline/timeAndPlace/situation/knowledgeChanges/**continuityNotes**/**directionRewrites**) | `Chapter.Logline`, `WorldState`, `KnowledgeChanges`; continuity notes and direction rewrites surface to the runner |
 | **Summarizer — story sync** | immediately after the briefing | no | JSON (`storySoFar`) folded into the previous retelling | `Chapter.StorySoFar` |
 | **Knowledge review** | Setup *Knowledge review* | yes | JSON (findings + optional fix) | shown in review window |
 | **Knowledge import (extract)** | Setup *Import…* (`.md`) | no | JSON (`entries[]`) per chunk | reviewed → Setup |
@@ -55,10 +56,11 @@ Legend: `yes` always · `opt` included but truncated/optional · `-` not include
 | Generate — Chapter settings | generic | yes (world) | yes (composed) | yes (≤5 loglines + previous state) | yes | yes | yes (other chapter titles) | yes |
 | Generate — Chapter plan | generic | yes (world) | yes (base) | - | - | yes | - | yes |
 | Generate — Final chapter | generic | yes (world) | yes (composed) | yes (≤5 loglines + previous state) | - | yes | yes (other chapter titles) | - |
-| Writer | WriterSystem | - | opt (manifest, budgeted) | state yes; loglines via tool | - | WriterWrite | - | yes |
-| Editor | EditorSystem | - | yes (manifest) | state yes; loglines via tool | draft (write step) | via write step | - | yes |
+| Writer | WriterSystem | - | opt (manifest, budgeted) | cast bios; state; loglines via tool | - | WriterWrite (+ corrections on retry) | - | yes |
+| Editor #1 (integrity) | IntegritySystem | world + initial state + cast bios + threads (inviolable) | yes (composed) | state yes | draft (write step) | via write step | - | yes |
+| Editor #2..N (cosmetic) | EditorSystem | - | yes (manifest) | state yes; loglines via tool | draft (write step) | via write step | - | yes |
 | Editor notes | notes system | - | - | - | local diff hunks | yes | - | - |
-| Summarizer | summary system | - | - | previous state yes | - | yes | - | - |
+| Summarizer | summary system | world + initial state | composed knowledge (2000/entry, 16000 total) | previous state yes | - | yes (+ continuity check + direction rewrites) | - | - |
 | Knowledge review | reviewer system | book name | yes | - | - | yes | - | optional |
 | Import (extract) | importer system | - | - | - | source chunk | yes | - | optional |
 | Design (prompt) | designer system | - | - | - | description chunk | yes | - | optional |
@@ -102,6 +104,13 @@ demand from the base plus the previous chapters' diffs (`KnowledgeComposer`).
   3 times, then surfaced (never parsed leniently).
 - The editor streams text and then runs a separate structured call for change notes over the
   **local diff hunks** (best-effort: parse failure yields no notes; no notes when nothing changed).
+- Editor #1 returns a structured verdict after revising; an `Error` issue makes the runner rewrite the
+  chapter once with the issues injected into the writer task. Editor stages are `EditorStageCount`
+  (default 2): one integrity editor plus cosmetic passes.
+- The summarizer's `continuityNotes` are a machine verdict (severity/detail/reference) about the chapter
+  versus world/initial state/knowledge; `directionRewrites` propose replacement directions for **later**
+  chapters. In the CLI these are logged and applied only with `--auto`; the app shows an apply/dismiss
+  banner on the target chapter.
 - Generation options are de-duplicated and filtered against the **avoid list** before being shown.
 - The writer and editor are told not to start with the chapter title or a heading; a deterministic
   cleanup also strips a leading line that repeats the chapter title (or a `Chapter N` heading).

@@ -18,6 +18,8 @@ internal sealed class FakeChapterRunner : IChapterRunner
 
     public List<EditorNote> EditorNotes { get; set; } = [];
 
+    public List<ContinuityIssue> ContinuityIssues { get; set; } = [];
+
     public WorldState? LastStateBefore { get; private set; }
 
     public Exception? Throws { get; set; }
@@ -35,7 +37,7 @@ internal sealed class FakeChapterRunner : IChapterRunner
 
         var index = project.Chapters.IndexOf(chapter);
         LastStateBefore = index > 0 ? project.Chapters[index - 1].WorldState ?? project.InitialWorldState : project.InitialWorldState;
-        return Task.FromResult(new ChapterResult(Text, Logline, WorldState, KnowledgeChanges, EditorNotes, ToolCalls));
+        return Task.FromResult(new ChapterResult(Text, Logline, WorldState, KnowledgeChanges, EditorNotes, ContinuityIssues, [], ToolCalls));
     }
 
     public Task<ChapterResult> GenerateNextAsync(
@@ -55,7 +57,7 @@ internal sealed class FakeChapterRunner : IChapterRunner
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    public ChapterSummary Summary { get; set; } = new("Regenerated logline.", new WorldState { TimeAndPlace = "Elsewhere" }, []);
+    public ChapterSummary Summary { get; set; } = new("Regenerated logline.", new WorldState { TimeAndPlace = "Elsewhere" }, [], [], []);
 
     public Task<ChapterSummary> RegenerateSummaryAsync(
         Project project,
@@ -69,3 +71,7 @@ internal sealed class FakeChapterRunner : IChapterRunner
         return Task.FromResult(Summary);
     }
 }
+
+
+
+

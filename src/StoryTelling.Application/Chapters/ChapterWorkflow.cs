@@ -30,6 +30,17 @@ public sealed class ChapterWorkflow : IChapterWorkflow
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        return await RunAsync(project, chapter, stateBefore, [], progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<ChapterResult> RunAsync(
+        Project project,
+        Chapter chapter,
+        WorldState stateBefore,
+        IReadOnlyList<EditorIssue> knownIssues,
+        IProgress<GenerationProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var writerContext = new WriterContext(
             project,
@@ -38,17 +49,29 @@ public sealed class ChapterWorkflow : IChapterWorkflow
             settings.ContextTokenBudget,
             settings.RecentLoglineCount,
             settings.ContextRequiredSectionMaxChars);
-        var draft = await _writer.WriteAsync(writerContext, progress, cancellationToken).ConfigureAwait(false);
 
-        var edit = await _editor
-            .EditAsync(project, chapter, draft.Text, stateBefore, progress, cancellationToken)
+        var draft = await _writer.WriteAsync(writerContext, knownIssues, progress, cancellationToken).ConfigureAwait(false);
+        var integrity = await _editor
+            .EditAsync(project, chapter, draft.Text, stateBefore, EditorStage.Integrity, knownIssues, progress, cancellationToken)
             .ConfigureAwait(false);
 
-        var finished = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = edit.Text };
+        var text = integrity.Text;
+        for (var stage = 1; stage < Math.Max(1, settings.EditorStageCount); stage++)
+        {
+            var cosmetic = await _editor
+                .EditAsync(project, chapter, text, stateBefore, EditorStage.Cosmetic, null, progress, cancellationToken)
+                .ConfigureAwait(false);
+            text = cosmetic.Text;
+        }
+
+        var finished = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
         var summary = await _summarizer
             .SummarizeAsync(finished, stateBefore, project.Knowledge, progress, cancellationToken)
             .ConfigureAwait(false);
 
-        return new ChapterResult(edit.Text, summary.Logline, summary.WorldState, summary.KnowledgeChanges, edit.Notes, draft.ToolCalls);
+        return new ChapterResult(text, summary.Logline, summary.WorldState, summary.KnowledgeChanges, integrity.Notes, summary.ContinuityIssues, summary.DirectionRewrites, draft.ToolCalls)
+        {
+            Verdict = integrity.Verdict,
+        };
     }
 }

@@ -32,6 +32,10 @@ public partial class ChapterSettingsView : UserControl
         }
     }
 
+    private void OnApplyDirectionSuggestionClick(object? sender, RoutedEventArgs e) => (DataContext as ChapterSettingsViewModel)?.ApplyDirectionSuggestion();
+
+    private void OnDismissDirectionSuggestionClick(object? sender, RoutedEventArgs e) => (DataContext as ChapterSettingsViewModel)?.DismissDirectionSuggestion();
+
     private void OnCommit(object? sender, FocusChangedEventArgs e) => (DataContext as ChapterSettingsViewModel)?.Commit();
 
     private Window GetWindow() => (Window)TopLevel.GetTopLevel(this)!;

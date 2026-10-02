@@ -34,6 +34,8 @@ public sealed class AppSettings
 
     public Dictionary<string, double> RoleTemperatures { get; set; } = [];
 
+    public int EditorStageCount { get; set; } = 2;
+
     public string DefaultLanguageCode { get; set; } = "ru";
 
     public List<LanguageData> Languages { get; set; } = [];

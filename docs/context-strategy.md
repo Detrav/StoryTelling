@@ -30,15 +30,14 @@ to fit a smaller window at the cost of continuity.
 
 - **Setup** seeds the situation *before chapter 1* on the project (`Project.InitialWorldState`):
   when and where the story opens, plus a free-form description.
-- After a chapter is written, a **two-stage summarizer** runs. Stage A (*briefing*) reads the chapter
-  and returns a logline, a short `TimeAndPlace` and a structured `Description` (where we are / what
-  changed / still unresolved / what this sets up) plus the knowledge changes; stage B (*story sync*)
-  folds that briefing into the previous **running retelling** and returns the updated
-  `storySoFar`, capped at about 120 words and keeping the opening. The state is stored on
-  `Chapter.WorldState`, the retelling on `Chapter.StorySoFar`; the retelling is only ever rewritten
-  from the previous one, so it never restarts. Chapter N is written from the state and retelling
-  after chapter N-1. An unchanged retelling is retried and, if it persists, the briefing is dropped
-  rather than freezing the state.
+- After a chapter is written, the **summarizer** runs once. It reads the chapter and returns a logline,
+  a short `TimeAndPlace` and a structured `Situation` (where we are / what changed / still unresolved /
+  what follows) plus the knowledge changes. It also returns **continuity notes** (a machine verdict on
+  the chapter versus world/initial state/knowledge) and optional **direction rewrites** for later
+  chapters. The state is stored on `Chapter.WorldState`; there is no stored retelling — the recap is
+  derived from loglines on demand. Chapter N is written from the state and recap after chapter N-1.
+  The `Situation` string is retried when it contains meta ("chapter N", "the story so far") and
+  sanitized if it persists.
 - The static background (geography, customs) and the narrative frame live in `World`, not in the
   state; they never change and are sent every time.
 - The initial state stops being sent once a later chapter has a snapshot.
@@ -51,12 +50,12 @@ Always sent (deliberately small):
 2. the current chapter brief (title / direction / notes);
 3. the chapter's **position** (*chapter N of M*, continue rather than restart);
 4. the current world state;
-5. the **story so far** — the summarizer's running retelling of the whole story up to the previous
-   chapter (`Chapter.StorySoFar`) as the spine, followed by the most recent `RecentLoglineCount`
-   loglines for concrete detail. When no retelling exists yet (older projects), it falls back to the
-   first chapter's logline plus the most recent ones;
-6. a cheap **manifest** (character names from `Kind = Character`, knowledge-entry titles + kinds,
-   chapter count).
+5. the **recap** — a deterministic view over the previous chapters' loglines (pinned chapter 1 plus
+   the most recent `RecentLoglineCount`); there is no stored retelling;
+6. the **cast** — the full content of every `Kind = Character` entry (names, tags and bios), so the
+   writer cannot invent relationships that contradict the bible;
+7. the **open threads** — unresolved `Kind = Thread` entries;
+8. a cheap **manifest** (book, chapter count, entry titles + kinds, chapter count).
 
 Pulled on demand by the model through read-only **tools** (`design.md` §6):
 
@@ -73,19 +72,24 @@ are removed.
 
 The writer seed is built by `ChapterContextAssembler` under a budget. The budget and the number of
 recent loglines are user settings — `ContextTokenBudget` (default 4000 tokens, roughly 16000
-characters), `RecentLoglineCount` (default 2) and `ContextRequiredSectionMaxChars` (default 6000,
+characters), `RecentLoglineCount` (default 5) and `ContextRequiredSectionMaxChars` (default 6000,
 the cap for the world state). Sections are added in priority order; the **required** ones (frame,
-position, state, story so far) are always included, and the **optional** ones (the world's
-title + body, then the manifest) are added only while budget remains and are truncated when they do
-not fit. The chapter brief travels as a separate **task** message after the context:
+position, state, recap, open threads, cast) are always included, and the **optional** ones (the
+world's title + body, then the manifest) are added only while budget remains and are truncated when they
+do not fit. The chapter brief travels as a separate **task** message after the context:
 
 1. story frame from `World` (genre, tone, style, point of view, tense, rating);
 2. chapter position (*chapter N of M*; continue, do not restart) — from the chapter's
    `ChapterRole` (Auto infers opening / middle / finale from its number);
 3. current world state (capped by `ContextRequiredSectionMaxChars`);
-4. story so far (the summarizer's running retelling + the latest loglines, or the logline fallback);
-5. the world itself (title + body) — optional, truncated;
-6. cheap manifest (book, chapter count, cast, entry titles + kinds) — optional, truncated.
+4. recap (deterministic logline view);
+5. open threads;
+6. the full cast bios;
+7. the world itself (title + body) — optional, truncated;
+8. cheap manifest (book, chapter count, cast, entry titles + kinds) — optional, truncated.
+
+The **integrity editor** receives the same canon (world, initial state, full cast, threads) with an
+explicit "these facts are inviolable" instruction.
 
 Tool results are appended after the seed and are themselves bounded (`ToolResultMaxChars`, default
 24000 characters).

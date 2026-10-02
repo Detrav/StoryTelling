@@ -31,7 +31,7 @@ public sealed class FinaleGuardTests
             new WorldState { Situation = "Unresolved: the mechanism remains. Sets Up Next: she resumes keeping the light, with potential for further interaction." },
             [],
             [],
-            0);
+            [], [], 0);
 
         Assert.True(FinaleGuard.IsUnresolved(result, []));
     }
@@ -56,7 +56,7 @@ public sealed class FinaleGuardTests
             new WorldState { Situation = "This sets up future interactions with the living signal." },
             [],
             [],
-            0);
+            [], [], 0);
 
         Assert.True(FinaleGuard.IsUnresolved(result, []));
     }
@@ -102,7 +102,7 @@ public sealed class FinaleGuardTests
             new WorldState { Situation = "The reef is quiet. Sets Up Next: she keeps the light, with potential for more." },
             [],
             [],
-            0);
+            [], [], 0);
 
         var closed = FinaleCloser.Close(result, []);
 
@@ -111,7 +111,9 @@ public sealed class FinaleGuardTests
     }
 
     private static ChapterResult Result(string text, IReadOnlyList<KnowledgeChange> changes) =>
-        new(text, "Logline.", new WorldState { TimeAndPlace = "Here" }, changes, [], 0);
+        new(text, "Logline.", new WorldState { TimeAndPlace = "Here" }, changes, [], [], [], 0);
 }
+
+
 
 

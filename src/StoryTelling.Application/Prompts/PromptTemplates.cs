@@ -440,6 +440,20 @@ public static class PromptTemplates
         + "Output: Only the chapter prose — no title, headings or commentary.\n"
         + "Tools: Consult the project before writing. Do not write the chapter until you are asked to.";
 
+    public static string WriterCorrections(IReadOnlyList<EditorIssue> issues)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("The previous attempt broke established canon. The facts are inviolable; rewrite the "
+            + "chapter so that none of the following remain true, while keeping the same scene and direction:");
+        foreach (var issue in issues)
+        {
+            builder.AppendLine($"- {issue.Detail}"
+                + (string.IsNullOrWhiteSpace(issue.Reference) ? string.Empty : $" (reference: {issue.Reference})"));
+        }
+
+        return builder.ToString().Trim();
+    }
+
     public static string WriterGather() =>
         "Consult the project with the tools to refresh the facts you need (characters, initial world "
         + "state, recent loglines, knowledge, search). When you have what you need, reply with exactly "
@@ -833,6 +847,16 @@ public static class PromptTemplates
         user.AppendLine("- timeAndPlace: a short when/where line for the situation immediately after this chapter.");
         user.AppendLine("- situation: the situation after this chapter, in this order: where we are; what changed; what is still unresolved; what follows from this. Do not say \"this sets up next\" and never name chapters. Always write it.");
         user.AppendLine("- knowledgeChanges: the entries this chapter changed.");
+        user.AppendLine("- continuityNotes: check the chapter against the world, the initial state and the "
+            + "knowledge base above and list any contradictions (a dead character acting, an age or "
+            + "relationship that conflicts with an entry, a fixed world rule broken, a fact stated "
+            + "differently from an entry). Severity is Info, Warning or Error; reference the exact entry "
+            + "title involved. Return an empty array when the chapter contradicts nothing.");
+        user.AppendLine("- directionRewrites: only when this chapter changed the story in a way that makes a later "
+            + "chapter's planned direction impossible or false, return that chapter's number and a replacement "
+            + "direction (2-4 sentences) consistent with what actually happened. Never rewrite the current or "
+            + "past chapters, never rewrite a chapter whose direction still holds, and return an empty array "
+            + "otherwise.");
         user.AppendLine("Base everything strictly on the chapter text.");
         user.AppendLine();
         user.AppendLine("knowledgeChanges lists only entries that actually changed: operation (Create, "

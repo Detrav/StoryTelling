@@ -652,10 +652,29 @@ public partial class WorkspaceViewModel : ViewModelBase
         chapter.WorldState = result.WorldState;
         chapter.KnowledgeChanges = [.. result.KnowledgeChanges];
         chapter.EditorNotes = [.. result.EditorNotes];
+        ApplyDirectionSuggestions(result.DirectionRewrites);
         MarkTranslationsStale(chapter);
         chapter.Status = ChapterStatus.Generated;
         MarkLaterStale(chapter.Number);
         return result;
+
+    }
+
+    private void ApplyDirectionSuggestions(IReadOnlyList<DirectionRewrite> rewrites)
+    {
+        foreach (var rewrite in rewrites)
+        {
+            var target = Chapters.FirstOrDefault(candidate => candidate.Number == rewrite.ChapterNumber);
+            if (target is null || string.Equals(target.Direction, rewrite.Direction, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!target.DirectionSuggestions.Contains(rewrite.Direction))
+            {
+                target.DirectionSuggestions = [.. target.DirectionSuggestions, rewrite.Direction];
+            }
+        }
     }
 
     private static string DescribeStage(GenerationProgress report) =>

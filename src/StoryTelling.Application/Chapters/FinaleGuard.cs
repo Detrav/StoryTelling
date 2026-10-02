@@ -40,6 +40,14 @@ public static class FinaleGuard
         "more to come",
     ];
 
+    private static readonly string[] _softContinuationMarkers =
+    [
+        "unresolved",
+        "continues ",
+        "still to be",
+        "remains to be",
+    ];
+
     public static bool IsUnresolved(ChapterResult result, IReadOnlyList<KnowledgeEntry> composedKnowledge) =>
         result.KnowledgeChanges.Any(change => change.Kind == KnowledgeKind.Thread && change.Status == KnowledgeStatus.Open)
         || composedKnowledge.Any(entry => entry.Kind == KnowledgeKind.Thread && entry.Status == KnowledgeStatus.Open)
@@ -60,8 +68,14 @@ public static class FinaleGuard
         }
 
         var sentences = System.Text.RegularExpressions.Regex.Split(text, @"(?<=[.!?])\s+");
-        var kept = sentences.Where(sentence => !HasCliffhanger(sentence)).ToList();
+        var kept = sentences
+            .Where(sentence => !HasCliffhanger(sentence) && !HasSoftContinuation(sentence))
+            .ToList();
         var result = string.Join(" ", kept).Trim();
         return result.Length == 0 ? text.Trim() : result;
     }
+
+    public static bool HasSoftContinuation(string? text) =>
+        !string.IsNullOrWhiteSpace(text)
+        && _softContinuationMarkers.Any(marker => text.Contains(marker, StringComparison.OrdinalIgnoreCase));
 }

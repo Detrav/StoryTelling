@@ -7,6 +7,7 @@ public interface IChapterAgent
 {
     Task<ChapterDraft> WriteAsync(
         WriterContext context,
+        IReadOnlyList<EditorIssue>? knownIssues = null,
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }

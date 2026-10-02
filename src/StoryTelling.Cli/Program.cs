@@ -308,12 +308,14 @@ internal static class Program
         var file = ArgReader.Value(args, "--file");
         if (string.IsNullOrWhiteSpace(file))
         {
-            Console.Error.WriteLine("usage: storydev complete --file <path> [--languages <codes>] [--no-translate] [--out <path>]");
+            Console.Error.WriteLine("usage: storydev complete --file <path> [--languages <codes>] [--no-translate] [--auto] [--check] [--out <path>]");
             return 2;
         }
 
         var output = ArgReader.String(args, "--out", file);
         var noTranslate = args.Contains("--no-translate");
+        var auto = args.Contains("--auto");
+        var check = args.Contains("--check");
 
         using var context = await BuildAsync(args, cancellationToken);
         var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
@@ -340,8 +342,20 @@ internal static class Program
                 }
 
                 Console.WriteLine($"  Writing chapter {chapter.Number}…");
-                await runner.GenerateAsync(project, chapter, new ConsoleProgress($"chapter {chapter.Number}"), cancellationToken);
+                var result = await runner.GenerateAsync(project, chapter, new ConsoleProgress($"chapter {chapter.Number}"), cancellationToken);
                 Console.WriteLine($"  Chapter {chapter.Number}: {chapter.ContentOriginal.Length} chars");
+                foreach (var issue in result.ContinuityIssues)
+                {
+                    logger.LogWarning("chapter {Number} continuity [{Severity}] {Detail} ({Reference})", chapter.Number, issue.Severity, issue.Detail, issue.Reference);
+                    Console.WriteLine($"    [continuity {issue.Severity}] {issue.Detail}");
+                }
+
+                if (!auto && result.Verdict is { Integrity: false, Issues.Count: > 0 })
+                {
+                    Console.WriteLine("    canon issues remain after the retry; review the chapter");
+                }
+
+                ApplyDirectionRewrites(project, result, auto, logger);
             }
             else if (needsSummary)
             {
@@ -372,7 +386,57 @@ internal static class Program
         project.UpdatedUtc = DateTimeOffset.UtcNow;
         await SaveAsync(project, output, cancellationToken);
         logger.LogInformation("complete finished: {Chapters} chapter(s)", project.Chapters.Count);
+        Console.WriteLine($"Saved: {Path.GetFullPath(output)}");
+        Console.WriteLine($"  {project.Name} · {project.Knowledge.Count} knowledge · {project.Chapters.Count} chapter(s)");
+
+        if (check)
+        {
+            return await RunPostChecksAsync(context, project, cancellationToken);
+        }
+
         return 0;
+    }
+
+    private static async Task<int> RunPostChecksAsync(CliContext context, Project project, CancellationToken cancellationToken)
+    {
+        var reviewer = new ContinuityReviewer(context.LlmClient, context.SettingsService);
+        var errors = 0;
+        foreach (var chapter in project.Chapters.Where(chapter => !string.IsNullOrWhiteSpace(chapter.ContentOriginal)).OrderBy(chapter => chapter.Number))
+        {
+            var findings = await reviewer.ReviewAsync(project, chapter, cancellationToken);
+            foreach (var finding in findings)
+            {
+                Console.WriteLine($"  continuity ch{chapter.Number} [{finding.Severity}] {finding.Title}");
+                if (finding.Severity == ReviewSeverity.Error)
+                {
+                    errors++;
+                }
+            }
+        }
+
+        Console.WriteLine(errors == 0 ? "Continuity: no errors." : $"Continuity: {errors} error(s).");
+        return errors == 0 ? 0 : 1;
+    }
+
+    private static void ApplyDirectionRewrites(Project project, ChapterResult result, bool auto, ILogger logger)
+    {
+        foreach (var rewrite in result.DirectionRewrites)
+        {
+            var target = project.Chapters.FirstOrDefault(chapter => chapter.Number == rewrite.ChapterNumber);
+            if (target is null)
+            {
+                continue;
+            }
+
+            var before = target.Direction;
+            logger.LogInformation("direction updated for chapter {Number}: was \"{Before}\" -> will be \"{After}\"", target.Number, before, rewrite.Direction);
+            Console.WriteLine($"    direction [ch{target.Number}] was: {before}");
+            Console.WriteLine($"    direction [ch{target.Number}] will be: {rewrite.Direction}");
+            if (auto)
+            {
+                target.Direction = rewrite.Direction;
+            }
+        }
     }
 
     private static string? MissingForGeneration(Project project, Chapter chapter)
@@ -1766,7 +1830,7 @@ internal static class Program
         Console.WriteLine("  setup     Generate project setup: --out <path> [--brief ...] [--characters N]");
         Console.WriteLine("  write     Write chapters into an existing project: --file <path> [--chapters N]");
         Console.WriteLine("  plan      Plan the whole book as N chapters (title + direction): --file <path> [--chapters N] [--brief ...] [--replace]");
-        Console.WriteLine("  complete  Finish the whole book (write/summarize/translate pending work): --file <path> [--languages ru,de] [--no-translate]");
+        Console.WriteLine("  complete  Finish the whole book (write/summarize/translate pending work): --file <path> [--languages ru,de] [--no-translate] [--auto] [--check]");
         Console.WriteLine("  finish    Plan the final chapter (title + direction): --file <path> [--brief ...]");
         Console.WriteLine("  chapter   Manage chapters: --action <add|remove|move|status> --file <path> [--number N] [--from N] [--status ...]");
         Console.WriteLine("  set       Edit fields by hand: --what <project|world|state|chapter|knowledge> --file <path> [field options]");

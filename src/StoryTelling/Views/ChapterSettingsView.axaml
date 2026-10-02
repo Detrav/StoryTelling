@@ -19,6 +19,22 @@
             <TextBlock Text="Title" Opacity="0.7" />
             <TextBox Text="{Binding Title}" LostFocus="OnCommit" />
 
+            <Border IsVisible="{Binding HasDirectionSuggestion}"
+                    Background="#332B6FBF"
+                    CornerRadius="6"
+                    Padding="10">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="The AI suggests a new direction for this chapter (the story moved since it was planned)."
+                               TextWrapping="Wrap"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding DirectionSuggestion}" TextWrapping="Wrap" Opacity="0.85" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Apply" Click="OnApplyDirectionSuggestionClick" />
+                        <Button Content="Dismiss" Click="OnDismissDirectionSuggestionClick" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="Direction — what should happen in this chapter" Opacity="0.7" />
             <TextBox Text="{Binding Direction}"
                      AcceptsReturn="True"

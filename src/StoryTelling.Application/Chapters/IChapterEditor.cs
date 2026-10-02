@@ -10,6 +10,14 @@ public interface IChapterEditor
         Chapter chapter,
         string draft,
         WorldState stateBefore,
+        EditorStage stage,
+        IReadOnlyList<EditorIssue>? knownIssues = null,
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default);
+}
+
+public enum EditorStage
+{
+    Integrity,
+    Cosmetic,
 }

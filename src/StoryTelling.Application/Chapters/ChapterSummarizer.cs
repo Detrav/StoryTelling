@@ -3,6 +3,7 @@ using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
+using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -129,7 +130,9 @@ public sealed class ChapterSummarizer : IChapterSummarizer
             summary = new ChapterSummary(
                 logline,
                 new WorldState { TimeAndPlace = timeAndPlace, Situation = situation },
-                ParseChanges(root));
+                ParseChanges(root),
+                ParseContinuity(root),
+                ParseRewrites(root));
             return true;
         }
         catch (JsonException)
@@ -181,6 +184,62 @@ public sealed class ChapterSummarizer : IChapterSummarizer
         }
 
         return changes;
+    }
+
+    private static List<ContinuityIssue> ParseContinuity(JsonElement root)
+    {
+        var issues = new List<ContinuityIssue>();
+        if (!root.TryGetProperty("continuityNotes", out var items) || items.ValueKind != JsonValueKind.Array)
+        {
+            return issues;
+        }
+
+        foreach (var element in items.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.Object
+                || !Enum.TryParse<ReviewSeverity>(GetString(element, "severity"), ignoreCase: true, out var severity))
+            {
+                continue;
+            }
+
+            var detail = GetString(element, "detail").Trim();
+            if (detail.Length == 0)
+            {
+                continue;
+            }
+
+            issues.Add(new ContinuityIssue(severity, detail, GetString(element, "reference").Trim()));
+        }
+
+        return issues;
+    }
+
+    private static List<DirectionRewrite> ParseRewrites(JsonElement root)
+    {
+        var rewrites = new List<DirectionRewrite>();
+        if (!root.TryGetProperty("directionRewrites", out var items) || items.ValueKind != JsonValueKind.Array)
+        {
+            return rewrites;
+        }
+
+        foreach (var element in items.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.Object
+                || !element.TryGetProperty("chapterNumber", out var number) || number.ValueKind != JsonValueKind.Number
+                || !number.TryGetInt32(out var chapterNumber)
+                || !element.TryGetProperty("direction", out var direction) || direction.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var text = direction.GetString()?.Trim() ?? string.Empty;
+            if (text.Length > 0)
+            {
+                rewrites.Add(new DirectionRewrite(chapterNumber, text));
+            }
+        }
+
+        return rewrites;
     }
 
     private static Guid? ParseEntryId(string value) =>

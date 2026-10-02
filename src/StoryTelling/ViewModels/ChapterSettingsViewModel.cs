@@ -82,6 +82,26 @@ public partial class ChapterSettingsViewModel : ViewModelBase
 
     public string Status => _chapter.StatusText;
 
+    public bool HasDirectionSuggestion => _chapter.HasDirectionSuggestions;
+
+    public string DirectionSuggestion => _chapter.DirectionSuggestions.Count > 0 ? _chapter.DirectionSuggestions[0] : string.Empty;
+
+    public void ApplyDirectionSuggestion()
+    {
+        if (_chapter.DirectionSuggestions.Count == 0)
+        {
+            return;
+        }
+
+        Direction = _chapter.DirectionSuggestions[0];
+    }
+
+    public void DismissDirectionSuggestion()
+    {
+        _chapter.DirectionSuggestions = [];
+        _debouncer.Trigger();
+    }
+
     public IReadOnlyList<TranslatedTitleViewModel> TranslatedTitles =>
         _chapter.TranslatedTitles
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
@@ -137,6 +157,10 @@ public partial class ChapterSettingsViewModel : ViewModelBase
                 break;
             case nameof(ChapterViewModel.Status):
                 OnPropertyChanged(nameof(Status));
+                break;
+            case nameof(ChapterViewModel.DirectionSuggestions):
+                OnPropertyChanged(nameof(HasDirectionSuggestion));
+                OnPropertyChanged(nameof(DirectionSuggestion));
                 break;
         }
     }

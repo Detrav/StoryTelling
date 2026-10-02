@@ -95,7 +95,7 @@ public sealed class WorkspaceViewModelTests
             Summary = new ChapterSummary("New logline.", new WorldState { TimeAndPlace = "New place" },
             [
                 new KnowledgeChange { Operation = KnowledgeChangeOperation.Create, Kind = KnowledgeKind.Item, Title = "Relic", Content = "x" },
-            ]),
+            ], [], []),
         };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var chapter = workspace.SelectedChapter;
@@ -629,7 +629,7 @@ public sealed class WorkspaceViewModelTests
         project.Chapters[0].Logline = string.Empty;
         var runner = new FakeChapterRunner
         {
-            Summary = new ChapterSummary("New logline.", new WorldState { TimeAndPlace = "Dusk" }, []),
+            Summary = new ChapterSummary("New logline.", new WorldState { TimeAndPlace = "Dusk" }, [], [], []),
         };
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         var mutations = new List<string>();
@@ -883,3 +883,5 @@ public sealed class WorkspaceViewModelTests
         ],
     };
 }
+
+
