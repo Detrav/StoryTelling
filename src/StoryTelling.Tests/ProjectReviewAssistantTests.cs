@@ -9,28 +9,23 @@ namespace StoryTelling.Tests;
 public sealed class ProjectReviewAssistantTests
 {
     [Fact]
-    public async Task ReviewAsync_ParsesFindingsAndUsesTools()
+    public async Task ReviewAsync_RunsSinglePassAndParsesFindings()
     {
         const string json = """{"findings":[{"severity":"Warning","area":"Knowledge","title":"Tone vs rating","detail":"Grim tone with a G rating.","suggestion":"Raise the rating."}]}""";
-        var client = new ScriptedLlmClient(json,
-        [
-            new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "story", "{}")]),
-            new LlmToolResponse(string.Empty, "stop", []),
-        ]);
+        var client = new ScriptedLlmClient(json, []);
         var assistant = new ProjectReviewAssistant(client, new FakeSettingsService
         {
             Settings = new AppSettings { Model = "m", MaxToolCalls = 5 },
         });
 
-        var findings = await assistant.ReviewAsync(new Project { Name = "Book" }, "check names");
+        var findings = await assistant.ReviewAsync(new Project { Name = "Book" }, "check names", ReviewChecks.Facts);
 
         var finding = Assert.Single(findings);
         Assert.Equal(ReviewSeverity.Warning, finding.Severity);
         Assert.Equal(ReviewArea.Knowledge, finding.Area);
         Assert.Equal("Tone vs rating", finding.Title);
         Assert.Equal("Raise the rating.", finding.Suggestion);
-        Assert.Equal(2, client.JsonRequests.Count);
-        Assert.Contains(client.JsonRequests, request => request.Messages.Any(message => message.Role == LlmRole.Tool));
+        Assert.Single(client.JsonRequests);
     }
 
     [Fact]
@@ -38,7 +33,7 @@ public sealed class ProjectReviewAssistantTests
     {
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient("""{"findings":[]}""", []), new FakeSettingsService());
 
-        var findings = await assistant.ReviewAsync(new Project(), string.Empty);
+        var findings = await assistant.ReviewAsync(new Project(), string.Empty, ReviewChecks.Facts);
 
         Assert.Empty(findings);
     }
@@ -49,7 +44,7 @@ public sealed class ProjectReviewAssistantTests
         const string json = """{"findings":[{"severity":"Warning","area":"Knowledge","title":"Age gap","detail":"Aria is 200 but looks 20.","suggestion":"Align the age.","reference":"Aria","fix":{"edits":[{"target":"Knowledge","reference":"Aria","field":"Content","value":"Aria is 200 but looks 20."},{"target":"Knowledge","reference":"Aria","field":"Bogus","value":"x"}]}}]}""";
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient(json, []), new FakeSettingsService());
 
-        var findings = await assistant.ReviewAsync(new Project(), string.Empty);
+        var findings = await assistant.ReviewAsync(new Project(), string.Empty, ReviewChecks.Facts);
 
         var finding = Assert.Single(findings);
         Assert.Equal("Aria", finding.Reference);
@@ -66,7 +61,7 @@ public sealed class ProjectReviewAssistantTests
     {
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient("{ not json", []), new FakeSettingsService());
 
-        var findings = await assistant.ReviewAsync(new Project(), string.Empty);
+        var findings = await assistant.ReviewAsync(new Project(), string.Empty, ReviewChecks.Facts);
 
         Assert.Empty(findings);
     }
@@ -81,7 +76,7 @@ public sealed class ProjectReviewAssistantTests
             Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Tags = ["mystic"], Content = "Aria is 200 but looks 20." }],
         };
 
-        var findings = await assistant.ReviewAsync(project, string.Empty);
+        var findings = await assistant.ReviewAsync(project, string.Empty, ReviewChecks.Facts);
 
         var finding = Assert.Single(findings);
         Assert.Null(finding.Fix);
@@ -97,10 +92,10 @@ public sealed class ProjectReviewAssistantTests
             Settings = new AppSettings { Model = "m", MaxToolCalls = 0 },
         });
 
-        var findings = await assistant.ReviewAsync(new Project(), string.Empty);
+        var findings = await assistant.ReviewAsync(new Project(), string.Empty, ReviewChecks.Facts);
 
         Assert.Single(findings);
-        Assert.Equal(2, client.JsonRequests.Count);
+        Assert.Single(client.JsonRequests);
     }
 
     [Fact]
@@ -109,7 +104,7 @@ public sealed class ProjectReviewAssistantTests
         const string json = "{\"findings\":[{\"severity\":\"Warning\",\"area\":\"Knowledge\",\"title\":\"A\",\"detail\":\"first\"},{\"severity\":\"Error\",\"area\":\"Knowledge\",\"title\":\"B\",\"detail\":\"unterminated";
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient(json, []), new FakeSettingsService());
 
-        var findings = await assistant.ReviewAsync(new Project(), string.Empty);
+        var findings = await assistant.ReviewAsync(new Project(), string.Empty, ReviewChecks.Facts);
 
         var finding = Assert.Single(findings);
         Assert.Equal("A", finding.Title);
@@ -121,7 +116,7 @@ public sealed class ProjectReviewAssistantTests
         const string json = """{"findings":[{"severity":"Error","area":"Knowledge","title":"Two protagonists","detail":"First wording.","suggestion":"","reference":"Elias"},{"severity":"Error","area":"Knowledge","title":"Two protagonists","detail":"Second wording.","suggestion":"","reference":"Elias"}]}""";
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient(json, []), new FakeSettingsService());
 
-        var findings = await assistant.ReviewAsync(new Project(), string.Empty);
+        var findings = await assistant.ReviewAsync(new Project(), string.Empty, ReviewChecks.Facts);
 
         Assert.Single(findings);
     }

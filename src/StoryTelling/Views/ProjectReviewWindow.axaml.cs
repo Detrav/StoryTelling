@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Review;
+using StoryTelling.Domain;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
@@ -12,6 +13,13 @@ public partial class ProjectReviewWindow : Window
     {
         InitializeComponent();
         Closed += (_, _) => (DataContext as ProjectReviewViewModel)?.Cancel();
+        Opened += async (_, _) =>
+        {
+            if (DataContext is ProjectReviewViewModel viewModel)
+            {
+                await viewModel.StartAsync();
+            }
+        };
     }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
@@ -29,6 +37,72 @@ public partial class ProjectReviewWindow : Window
         }
 
         await PreviewAndApplyAsync(viewModel, finding, fix);
+    }
+
+    private async void OnCreateEntryClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ProjectReviewViewModel viewModel)
+        {
+            return;
+        }
+
+        if (sender is not Button { Tag: ReviewFindingViewModel finding })
+        {
+            return;
+        }
+
+        var entry = new KnowledgeEntryEditorViewModel
+        {
+            Kind = GuessKind(finding),
+            Title = GuessTitle(finding),
+            Content = finding.Detail,
+        };
+
+        entry.GenerateOptions = (brief, options, session, progress, cancellationToken) =>
+            viewModel.Generate(GenerationTarget.Knowledge)(brief, options, session, progress, cancellationToken);
+        var window = new KnowledgeEntryWindow { DataContext = entry };
+        if (await window.ShowDialog<bool>(this))
+        {
+            viewModel.AddEntry(entry.ToEntry(), $"Create: {entry.Title}");
+        }
+    }
+
+    private static string GuessTitle(ReviewFindingViewModel finding)
+    {
+        var title = finding.Finding.Reference;
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            return title.Trim();
+        }
+
+        var cleaned = finding.Title
+            .Replace("Missing central character entry for", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("Missing entry for", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("Dangling reference to", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("Missing entry:", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Trim(' ', ':', '-', '.');
+        return cleaned.Length > 0 ? cleaned : finding.Title;
+    }
+
+    private static KnowledgeKind GuessKind(ReviewFindingViewModel finding)
+    {
+        var text = $"{finding.Title} {finding.Detail}".ToLowerInvariant();
+        if (text.Contains("character") || text.Contains("captain") || text.Contains("surname") || text.Contains("protagonist"))
+        {
+            return KnowledgeKind.Character;
+        }
+
+        if (text.Contains("place") || text.Contains("location") || text.Contains("district"))
+        {
+            return KnowledgeKind.Place;
+        }
+
+        if (text.Contains("group") || text.Contains("syndicate") || text.Contains("organization") || text.Contains("faction"))
+        {
+            return KnowledgeKind.Faction;
+        }
+
+        return KnowledgeKind.Background;
     }
 
     private async void OnAiFixClick(object? sender, RoutedEventArgs e)

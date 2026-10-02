@@ -12,14 +12,18 @@ internal sealed class FakeProjectReviewAssistant : IProjectReviewAssistant
 
     public string? LastBrief { get; private set; }
 
+    public ReviewCheck? LastCheck { get; private set; }
+
     public Task<IReadOnlyList<ReviewFinding>> ReviewAsync(
         Project snapshot,
         string brief,
+        ReviewCheck check,
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         LastSnapshot = snapshot;
         LastBrief = brief;
+        LastCheck = check;
         return Task.FromResult(Findings);
     }
 }

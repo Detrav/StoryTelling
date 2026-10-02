@@ -650,13 +650,22 @@ internal static class Program
         var file = ArgReader.Value(args, "--file");
         if (string.IsNullOrWhiteSpace(file))
         {
-            Console.Error.WriteLine("usage: storydev review --file <path> [--brief <text>] [--trace <dir>] [--out <path.json>]");
+            Console.Error.WriteLine("usage: storydev review --file <path> [--check numbers,facts|all] [--brief <text>] [--trace <dir>] [--out <path.json>]");
             return 2;
         }
 
         var brief = ArgReader.String(args, "--brief", string.Empty);
         var trace = ArgReader.Value(args, "--trace");
         var output = ArgReader.Value(args, "--out");
+        var requested = ArgReader.Value(args, "--check");
+        var apply = args.Contains("--apply");
+
+        var checks = SelectChecks(requested);
+        if (checks.Count == 0)
+        {
+            Console.Error.WriteLine($"unknown --check value(s): {requested}");
+            return 2;
+        }
 
         using var context = await BuildAsync(args, cancellationToken);
         var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
@@ -668,43 +677,108 @@ internal static class Program
         }
 
         var reviewer = new ProjectReviewAssistant(client, context.SettingsService);
-        var findings = await reviewer.ReviewAsync(project, brief, new ConsoleProgress("review"), cancellationToken);
+        var all = new List<ReviewFinding>();
 
-        foreach (var finding in findings)
+        foreach (var check in checks)
         {
-            Console.WriteLine($"  [{finding.Severity}] ({finding.Area}) {finding.Title}");
-            Console.WriteLine($"      {finding.Detail}");
-            if (!string.IsNullOrWhiteSpace(finding.Reference))
-            {
-                Console.WriteLine($"      reference: {finding.Reference}");
-            }
+            Console.WriteLine($"== {check.Label} ({check.Id}) ==");
+            var findings = await reviewer.ReviewAsync(project, brief, check, new ConsoleProgress("review"), cancellationToken);
+            all.AddRange(findings);
 
-            if (!string.IsNullOrWhiteSpace(finding.Suggestion))
+            foreach (var finding in findings)
             {
-                Console.WriteLine($"      suggestion: {finding.Suggestion}");
-            }
-
-            if (finding.Fix is { IsEmpty: false } fix)
-            {
-                foreach (var edit in fix.Edits)
+                Console.WriteLine($"  [{finding.Severity}] ({finding.Area}) {finding.Title}");
+                Console.WriteLine($"      {finding.Detail}");
+                if (!string.IsNullOrWhiteSpace(finding.Reference))
                 {
-                    Console.WriteLine($"      fix: {edit.Target}.{edit.Field} [{edit.Reference}] = {edit.Value}");
+                    Console.WriteLine($"      reference: {finding.Reference}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(finding.Suggestion))
+                {
+                    Console.WriteLine($"      suggestion: {finding.Suggestion}");
+                }
+
+                if (finding.Fix is { IsEmpty: false } fix)
+                {
+                    foreach (var edit in fix.Edits)
+                    {
+                        Console.WriteLine($"      fix: {edit.Target}.{edit.Field} [{edit.Reference}] = {edit.Value}");
+                    }
                 }
             }
+
+            Console.WriteLine($"  {findings.Count} finding(s)");
         }
 
-        Console.WriteLine($"  {findings.Count} finding(s)");
+        Console.WriteLine($"  {all.Count} finding(s) total");
+
+        if (apply)
+        {
+            var applied = 0;
+            foreach (var finding in all)
+            {
+                if (finding.Fix is { IsEmpty: false } fix && ApplyReviewFix(project, fix))
+                {
+                    applied++;
+                }
+            }
+
+            await SaveAsync(project, file, cancellationToken);
+            Console.WriteLine($"  applied {applied} fix(es) to {Path.GetFullPath(file)}");
+        }
 
         if (!string.IsNullOrWhiteSpace(output))
         {
             await File.WriteAllTextAsync(
                 output,
-                FindingsToJson(findings).ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+                FindingsToJson(all).ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
                 cancellationToken);
             Console.WriteLine($"  written: {Path.GetFullPath(output)}");
         }
 
         return 0;
+    }
+
+    private static bool ApplyReviewFix(Project project, ReviewFix fix)
+    {
+        var changed = false;
+        foreach (var edit in fix.Edits)
+        {
+            if (edit.Target != GenerationTarget.Knowledge)
+            {
+                continue;
+            }
+
+            var entry = project.Knowledge.FirstOrDefault(candidate =>
+                string.Equals(candidate.Title.Trim(), edit.Reference.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+            {
+                continue;
+            }
+
+            switch (edit.Field.Trim().ToLowerInvariant())
+            {
+                case "kind" when Enum.TryParse<KnowledgeKind>(edit.Value.Trim(), ignoreCase: true, out var kind):
+                    entry.Kind = kind;
+                    break;
+                case "title":
+                    entry.Title = edit.Value.Trim();
+                    break;
+                case "tags":
+                    entry.Tags = [.. edit.Value.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+                    break;
+                case "content":
+                    entry.Content = edit.Value;
+                    break;
+                default:
+                    continue;
+            }
+
+            changed = true;
+        }
+
+        return changed;
     }
 
     private static JsonArray FindingsToJson(IReadOnlyList<ReviewFinding> findings) =>
@@ -729,6 +803,25 @@ internal static class Program
                     })]),
                 },
         })]);
+
+    private static IReadOnlyList<ReviewCheck> SelectChecks(string? requested)
+    {
+        if (string.IsNullOrWhiteSpace(requested) || string.Equals(requested, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReviewChecks.ForScope(ReviewScope.Project);
+        }
+
+        var result = new List<ReviewCheck>();
+        foreach (var id in requested.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (ReviewChecks.Find(id) is { Scope: ReviewScope.Project } check)
+            {
+                result.Add(check);
+            }
+        }
+
+        return result;
+    }
 
     private static async Task<int> ContinuityAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
@@ -821,7 +914,7 @@ internal static class Program
         Console.WriteLine("  context   Print the assembled writer prompt for one chapter (no provider): --file <path> --number N");
         Console.WriteLine("  regenerate Rewrite one chapter in place with the current seed: --file <path> --chapter N [--out <path>]");
         Console.WriteLine("  continuity Check a chapter's direction against the established facts: --file <path> [--chapter N | --all]");
-        Console.WriteLine("  review    AI-review the knowledge base for contradictions: --file <path> [--brief <text>] [--trace <dir>] [--out <path.json>]");
+        Console.WriteLine("  review    AI-review the knowledge base for contradictions: --file <path> [--check numbers,facts|all] [--brief <text>] [--trace <dir>] [--out <path.json>]");
         Console.WriteLine("  judge     Score whether a chapter continues the story: --file <path> --chapter N");
         Console.WriteLine("  compare   Pick which of two chapter drafts continues better: --a <pathA> --b <pathB> --chapter N");
         Console.WriteLine("  experiment Run full-book passes with full prompt traces: --file <base> [--out <dir>] [--from N] [--to M]");

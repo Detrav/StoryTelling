@@ -4,16 +4,12 @@ using StoryTelling.Application.Generation;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
 using StoryTelling.Application.Settings;
-using StoryTelling.Application.Story;
-using StoryTelling.Application.Tools;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Review;
 
 public sealed class ProjectReviewAssistant : IProjectReviewAssistant
 {
-    private static readonly ReviewFocus[] _passes = [ReviewFocus.Numbers, ReviewFocus.Facts];
-
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
 
@@ -26,122 +22,29 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
     public async Task<IReadOnlyList<ReviewFinding>> ReviewAsync(
         Project snapshot,
         string brief,
+        ReviewCheck check,
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
 
-        var findings = new List<ReviewFinding>();
-        foreach (var focus in _passes)
-        {
-            findings.AddRange(await RunPassAsync(snapshot, brief, settings, connection, focus, progress, cancellationToken).ConfigureAwait(false));
-        }
+        progress?.Report(new GenerationProgress("Reviewing", 0));
 
-        return Normalize(findings, snapshot);
-    }
-
-    private async Task<IReadOnlyList<ReviewFinding>> RunPassAsync(
-        Project snapshot,
-        string brief,
-        AppSettings settings,
-        LlmConnection connection,
-        ReviewFocus focus,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var seed = PromptTemplates.BuildReview(snapshot, brief, focus);
         var request = new LlmRequest
         {
             Model = settings.Model,
-            Messages = seed,
+            Messages = PromptTemplates.BuildReview(snapshot, brief, check),
             Temperature = settings.TemperatureFor(LlmTask.Review),
             MaxTokens = settings.MaxTokens,
         };
 
-        var messages = seed;
-        if (settings.MaxToolCalls > 0)
-        {
-            var toolset = new StoryToolset(new StoryQuery(snapshot));
-            var tools = toolset.Definitions
-                .Select(definition => new LlmTool(definition.Name, definition.Description, definition.Parameters))
-                .ToList();
-
-            var agent = new ToolAgent(_llmClient);
-            var outcome = await agent
-                .GatherAsync(connection, request, tools, toolset.Invoke, settings.MaxToolCalls, progress: progress, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            messages = outcome.Messages;
-        }
-
-        progress?.Report(new GenerationProgress("Reviewing", 0));
-
         var content = await _llmClient
-            .CompleteJsonAsync(connection, request with { Messages = messages }, "ReviewFindings", ReviewSchema.Build(), cancellationToken)
+            .CompleteJsonAsync(connection, request, "ReviewFindings", ReviewSchema.Build(), cancellationToken)
             .ConfigureAwait(false);
 
-        return ParseFindings(content);
+        return ReviewDeduplicator.Deduplicate(ParseFindings(content), snapshot);
     }
-
-    private static IReadOnlyList<ReviewFinding> Normalize(IReadOnlyList<ReviewFinding> findings, Project snapshot)
-    {
-        var result = new List<ReviewFinding>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var finding in findings)
-        {
-            var normalized = finding with { Fix = NormalizeFix(finding.Fix, snapshot) };
-            var key = $"{normalized.Area}|{normalized.Reference?.Trim()}|{normalized.Title.Trim()}";
-            if (seen.Add(key))
-            {
-                result.Add(normalized);
-            }
-        }
-
-        return result;
-    }
-
-    private static ReviewFix? NormalizeFix(ReviewFix? fix, Project snapshot)
-    {
-        if (fix is null || fix.IsEmpty)
-        {
-            return fix;
-        }
-
-        var edits = fix.Edits.Where(edit => !IsNoOp(edit, snapshot)).ToList();
-        return edits.Count == 0 ? null : new ReviewFix(edits);
-    }
-
-    private static bool IsNoOp(ReviewEdit edit, Project snapshot)
-    {
-        if (edit.Target != GenerationTarget.Knowledge)
-        {
-            return false;
-        }
-
-        var entry = snapshot.Knowledge.FirstOrDefault(candidate =>
-            string.Equals(candidate.Title, edit.Reference?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (entry is null)
-        {
-            return false;
-        }
-
-        var current = CurrentValue(entry, edit.Field);
-        return current is not null
-            && string.Equals(Collapse(current), Collapse(edit.Value), StringComparison.Ordinal);
-    }
-
-    private static string? CurrentValue(KnowledgeEntry entry, string field) => field.Trim().ToLowerInvariant() switch
-    {
-        "title" => entry.Title,
-        "kind" => entry.Kind.ToString(),
-        "content" => entry.Content,
-        "tags" => string.Join(", ", entry.Tags),
-        _ => null,
-    };
-
-    private static string Collapse(string value) =>
-        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static IReadOnlyList<ReviewFinding> ParseFindings(string content)
     {

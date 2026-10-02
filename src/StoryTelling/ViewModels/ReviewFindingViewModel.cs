@@ -6,10 +6,17 @@ namespace StoryTelling.ViewModels;
 
 public partial class ReviewFindingViewModel : ObservableObject
 {
+    private static readonly string[] _creationMarkers =
+    [
+        "no dedicated", "no entry", "has no entry", "no knowledge entry", "missing entry",
+        "dangling reference", "undefined reference", "does not exist", "never defined",
+        "no character entry", "no such entry", "is referenced but", "is mentioned but",
+    ];
+
     public ReviewFindingViewModel(ReviewFinding finding, Func<GenerationTarget, string?>? singleReference = null, bool canFixWithAi = true)
     {
         Finding = finding;
-        _canFixWithAi = canFixWithAi;
+        Action = ClassifyAction(finding, canFixWithAi);
 
         if (ExplicitTarget(finding.Area, finding.Reference) is { } target)
         {
@@ -27,7 +34,7 @@ public partial class ReviewFindingViewModel : ObservableObject
 
     public ReviewFinding Finding { get; }
 
-    private readonly bool _canFixWithAi;
+    public ReviewFindingAction Action { get; }
 
     public string Severity => Finding.Severity.ToString();
 
@@ -41,19 +48,47 @@ public partial class ReviewFindingViewModel : ObservableObject
 
     public bool HasSuggestion => !string.IsNullOrWhiteSpace(Finding.Suggestion);
 
-    public bool CanApplyFix => Finding.Fix is { IsEmpty: false };
+    public bool CanApplyFix => Action == ReviewFindingAction.Fix;
+
+    public bool CanFixWithAi => Action == ReviewFindingAction.FixWithAi;
+
+    public bool CanCreateEntry => Action == ReviewFindingAction.CreateEntry;
 
     public GenerationTarget? AiTarget { get; }
 
     public string AiReference { get; } = string.Empty;
-
-    public bool CanFixWithAi => _canFixWithAi;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FixLabel))]
     private bool _isFixed;
 
     public string FixLabel => IsFixed ? "Fixed" : "Fix";
+
+    private static ReviewFindingAction ClassifyAction(ReviewFinding finding, bool canFixWithAi)
+    {
+        if (finding.Fix is { IsEmpty: false })
+        {
+            return ReviewFindingAction.Fix;
+        }
+
+        if (IsCreationIssue(finding))
+        {
+            return ReviewFindingAction.CreateEntry;
+        }
+
+        return canFixWithAi ? ReviewFindingAction.FixWithAi : ReviewFindingAction.None;
+    }
+
+    private static bool IsCreationIssue(ReviewFinding finding)
+    {
+        if (finding.Suggestion?.TrimStart().StartsWith("Create", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+
+        var text = $"{finding.Title} {finding.Detail}".ToLowerInvariant();
+        return _creationMarkers.Any(text.Contains);
+    }
 
     private static GenerationTarget? ExplicitTarget(ReviewArea area, string? reference) => area switch
     {

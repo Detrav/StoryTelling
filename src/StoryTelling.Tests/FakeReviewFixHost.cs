@@ -1,5 +1,6 @@
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Review;
+using StoryTelling.Domain;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Tests;
@@ -24,9 +25,21 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
 
     public IReadOnlyList<ReviewFixTarget> FixTargets() => Targets;
 
+    public string Signature { get; set; } = string.Empty;
+
+    public string ReviewSignature() => Signature;
+
     public void ApplyFix(ReviewFix fix, string label)
     {
         LastApplied = fix;
+        LastLabel = label;
+    }
+
+    public KnowledgeEntry? LastAdded { get; private set; }
+
+    public void AddEntry(KnowledgeEntry entry, string label)
+    {
+        LastAdded = entry;
         LastLabel = label;
     }
 

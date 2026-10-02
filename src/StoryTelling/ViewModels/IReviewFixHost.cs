@@ -1,5 +1,6 @@
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Review;
+using StoryTelling.Domain;
 
 namespace StoryTelling.ViewModels;
 
@@ -9,9 +10,13 @@ public interface IReviewFixHost
 
     void ApplyFix(ReviewFix fix, string label);
 
+    void AddEntry(KnowledgeEntry entry, string label);
+
     string? SingleReference(GenerationTarget target);
 
     IReadOnlyList<ReviewFixTarget> FixTargets();
+
+    string ReviewSignature();
 
     Task<IReadOnlyList<GenerationOption>> GenerateAsync(
         GenerationTarget target,

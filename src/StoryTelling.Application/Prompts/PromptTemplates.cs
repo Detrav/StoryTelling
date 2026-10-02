@@ -138,59 +138,61 @@ public static class PromptTemplates
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
 
-    private static readonly string[] _reviewCategories =
-    [
-        "Ages and dates: estimate a birth year for every stated age/year (including ages embedded in Event entries about a relative) and compare across entries; check that the ages of relatives are mutually possible (parent vs child, siblings, spouses). Flag impossible or inconsistent numbers.",
-        "Timeline: event years vs \"N years ago\" vs ages vs tenure (time spent in a job or role), including whether an event can fit before or after another.",
-        "Tags vs content: kind, role, status, age, gender, rank or affiliation that disagrees with the entry body. Check this for every character, not just the most prominent one, and check every tag against the body.",
-        "Setting vs entries: the world's geography, era and technology vs the places and events (for example a fictional setting vs real-world place names).",
-        "Identity mix-ups: an entry whose text names or describes a different entry's character (for example an entry titled with a nickname whose body keeps describing another character by name), or an entry that reuses another entry's wording.",
-        "Dangling references: a person, place, group or object that is referenced but has no entry anywhere.",
-        "Missing entries: a named entity that is central to the story but has no knowledge entry.",
-        "Conflicting facts: the same object, event or location described differently in two or more entries (for example where contraband was hidden, or the name of a group).",
-        "Roles and titles that drift between entries.",
-        "Misplaced content: details that belong to a different entry (for example a character trait inside a Place entry).",
-    ];
-
-    private static readonly int[] _numberCategories = [0, 1, 8];
-    private static readonly int[] _factCategories = [2, 3, 4, 5, 6, 7, 9];
-
-    public static IReadOnlyList<LlmMessage> BuildReview(Project snapshot, string brief, ReviewFocus focus = ReviewFocus.Full)
+    public static IReadOnlyList<LlmMessage> BuildReview(Project snapshot, string brief, ReviewCheck check)
     {
         var system = "Role: You are a meticulous story-bible continuity editor.\n"
             + "Objective: Find every internal inconsistency, contradiction, gap and ambiguity in the story bible — the world and the knowledge base.\n"
-            + "Method: Read every knowledge entry with the tools and compare the entries against each other and against the world. Never judge an entry in isolation.\n"
+            + "Method: Compare the entries of the story bible against each other. Never judge an entry in isolation.\n"
             + "Constraints: Work in English only. Do not rewrite anything — only report. Base every finding strictly on the given facts.\n"
             + "Output: Only a JSON object that matches the required schema.";
 
         var user = new StringBuilder();
-        user.AppendLine(focus switch
-        {
-            ReviewFocus.Numbers => "Audit the story bible's numbers: every stated age, date, year, duration and rank, across all entries. Read every entry with the tools before deciding.",
-            ReviewFocus.Facts => "Audit the story bible's facts: names, identities, roles, metadata (tags/kind), places, objects and entities, across all entries. Read every entry with the tools before deciding.",
-            _ => "Review the story bible (the world and the knowledge base) for consistency and gaps. Read every entry with the tools before deciding.",
-        });
+        user.AppendLine($"{check.Intro} You are given the relevant parts of the story bible below.");
         user.AppendLine();
         user.AppendLine("Story bible:");
         AppendField(user, "Book name", snapshot.Name);
-        var world = snapshot.World;
-        AppendField(user, "World", world.Title);
-        AppendField(user, "World description", world.Body);
-        AppendField(user, "Genre", world.Genre);
-        AppendField(user, "Tone", world.Tone);
-        AppendField(user, "Point of view", world.PointOfView);
-        AppendField(user, "Tense", world.Tense);
-        AppendField(user, "Rating", world.Rating);
-        AppendField(user, "Opens at", snapshot.InitialWorldState.TimeAndPlace);
-        AppendField(user, "Opening situation", snapshot.InitialWorldState.Situation);
 
-        if (snapshot.Knowledge.Count > 0)
+        if (check.IncludeWorld)
         {
-            user.AppendLine($"- Knowledge ({snapshot.Knowledge.Count} entries): {string.Join(", ", snapshot.Knowledge.Select(entry => $"{entry.Title} [{entry.Kind}]"))}");
+            var world = snapshot.World;
+            AppendField(user, "World", world.Title);
+            AppendField(user, "World description", world.Body);
+            AppendField(user, "Genre", world.Genre);
+            AppendField(user, "Tone", world.Tone);
+            AppendField(user, "Point of view", world.PointOfView);
+            AppendField(user, "Tense", world.Tense);
+            AppendField(user, "Rating", world.Rating);
+        }
+
+        if (check.IncludeInitialState)
+        {
+            AppendField(user, "Opens at", snapshot.InitialWorldState.TimeAndPlace);
+            AppendField(user, "Opening situation", snapshot.InitialWorldState.Situation);
+        }
+
+        var entries = (check.Kinds is { Count: > 0 }
+                ? snapshot.Knowledge.Where(entry => check.Kinds.Contains(entry.Kind))
+                : snapshot.Knowledge)
+            .ToList();
+
+        user.AppendLine();
+        user.AppendLine($"Knowledge entries ({entries.Count}):");
+        var used = 0;
+        foreach (var entry in entries)
+        {
+            var text = check.IncludeFullText ? RenderEntry(entry) : SummaryLine(entry);
+            if (used + text.Length > check.MaxChars)
+            {
+                user.AppendLine("- (remaining entries omitted to fit the budget)");
+                break;
+            }
+
+            user.AppendLine(text);
+            used += text.Length;
         }
 
         user.AppendLine();
-        if (focus is ReviewFocus.Full or ReviewFocus.Numbers)
+        if (check.Reconcile)
         {
             user.AppendLine("Reconcile the numbers: for every person collect EVERY age, year, duration and rank stated in EVERY entry (even entries about other topics), then compare them with each other. Most contradictions hide across two different entries, so never check an entry only against itself.");
             user.AppendLine("Worked example of the required arithmetic: if one entry says \"Elena is 26\" (present day) and another says \"her son was 20 in 2019\", then Elena was 21 in 2019 and would have given birth at age 1 — that is impossible; report it as an Error. Compute the birth year of each relative from each statement and compare.");
@@ -201,9 +203,9 @@ public static class PromptTemplates
         }
 
         user.AppendLine("Check every category below and report a separate finding for each violation you find:");
-        foreach (var index in Categories(focus))
+        for (var index = 0; index < check.Checklist.Count; index++)
         {
-            user.AppendLine($"{index + 1}. {_reviewCategories[index]}");
+            user.AppendLine($"{index + 1}. {check.Checklist[index]}");
         }
 
         user.AppendLine();
@@ -213,7 +215,11 @@ public static class PromptTemplates
         user.AppendLine("If the bible is consistent, return an empty list of findings.");
         user.AppendLine();
         user.AppendLine("Set reference to the exact title of the knowledge entry a finding is about. Always fill it for knowledge findings; leave it empty for whole-project issues.");
-        user.AppendLine("Provide a fix only when replacing field values corrects the problem. Add one edit per changed field with target Knowledge, reference (the entry title) and the corrected value. The corrected value MUST differ from the current value — never return the current text unchanged. When a tag conflicts with the content, edit the field that is wrong (for example Tags). If the correct value is unknown, omit the fix. Fields per target:");
+        user.AppendLine();
+        user.AppendLine("Always try to provide a 'fix' whenever the problem can be resolved by replacing, extending or correcting the field values of the entry it is about. Add one edit per changed field with target Knowledge, reference (the entry title) and the FULL corrected value of that field (not a fragment — the whole new Content or Tags string). The corrected value MUST differ from the current value; never return the current text unchanged.");
+        user.AppendLine("Give a fix even when you must rewrite most of the entry: extend the Content with the missing fact, correct the wrong age, fix the conflicting tag, and so on. Only leave 'fix' empty when the problem genuinely cannot be expressed as new field values — and in that case start the 'suggestion' with the word \"Create\" followed by the kind and title of the new entry to add (for example \"Create Character: Captain Thorne\").");
+        user.AppendLine("Cases that require a NEW entry (a dangling reference or a missing entity) get no field edits: use the reference of nothing and a suggestion that begins with \"Create\". Cases about an existing entry should almost always carry edits.");
+        user.AppendLine("Fields per target:");
         user.AppendLine("- Knowledge: Kind, Title, Tags, Content");
 
         if (!string.IsNullOrWhiteSpace(brief))
@@ -224,12 +230,28 @@ public static class PromptTemplates
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
 
-    private static IReadOnlyList<int> Categories(ReviewFocus focus) => focus switch
+    private static string SummaryLine(KnowledgeEntry entry)
     {
-        ReviewFocus.Numbers => _numberCategories,
-        ReviewFocus.Facts => _factCategories,
-        _ => [.. Enumerable.Range(0, _reviewCategories.Length)],
-    };
+        var tags = entry.Tags.Count > 0 ? $" ({string.Join(", ", entry.Tags)})" : string.Empty;
+        return $"- [{entry.Kind}] {entry.Title}{tags}";
+    }
+
+    private static string RenderEntry(KnowledgeEntry entry)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"[{entry.Kind}] {entry.Title}");
+        if (entry.Tags.Count > 0)
+        {
+            builder.AppendLine($"Tags: {string.Join(", ", entry.Tags)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Content))
+        {
+            builder.AppendLine(entry.Content.Trim());
+        }
+
+        return builder.ToString().TrimEnd();
+    }
 
     public static IReadOnlyList<LlmMessage> BuildContinuityReview(Chapter chapter, IReadOnlyList<KnowledgeEntry> knowledge)
     {

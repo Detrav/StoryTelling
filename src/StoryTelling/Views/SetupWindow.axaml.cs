@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using StoryTelling.Application.Review;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
@@ -27,7 +28,8 @@ public partial class SetupWindow : Window
         }
 
         var viewModel = new ProjectReviewViewModel(
-            (brief, progress, cancellationToken) => setup.RunReviewAsync(brief, progress, cancellationToken),
+            ReviewChecks.ForScope(ReviewScope.Project),
+            (check, brief, progress, cancellationToken) => setup.RunReviewAsync(check, brief, progress, cancellationToken),
             setup);
 
         var window = new ProjectReviewWindow { DataContext = viewModel };

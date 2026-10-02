@@ -316,8 +316,21 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
 
     public KnowledgeImportPlan PlanKnowledgeImport(string content) => _importer.Plan(content);
 
-    public Task<IReadOnlyList<ReviewFinding>> RunReviewAsync(string brief, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken) =>
-        _review.ReviewAsync(BuildSnapshot(), brief, progress, cancellationToken);
+    public Task<IReadOnlyList<ReviewFinding>> RunReviewAsync(ReviewCheck check, string brief, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken) =>
+        _review.ReviewAsync(BuildSnapshot(), brief, check, progress, cancellationToken);
+
+    public string ReviewSignature()
+    {
+        var snapshot = BuildSnapshot();
+        var parts = new List<string>
+        {
+            snapshot.Name,
+            snapshot.World.Title,
+            snapshot.World.Body,
+        };
+        parts.AddRange(snapshot.Knowledge.Select(entry => $"{entry.Kind}|{entry.Title}|{entry.Content}"));
+        return string.Join('\n', parts);
+    }
 
     public IReadOnlyList<ReviewChange> PreviewFix(ReviewFix fix) => ResolveFix(fix, apply: false);
 
@@ -344,6 +357,13 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         {
             PushUndo(label);
         }
+    }
+
+    public void AddEntry(KnowledgeEntry entry, string label)
+    {
+        Knowledge.Add(new KnowledgeEntryEditorViewModel(entry));
+        SelectedKnowledge = Knowledge.LastOrDefault();
+        PushUndo(label);
     }
 
     private List<ReviewChange> ResolveFix(ReviewFix fix, bool apply)
