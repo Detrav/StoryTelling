@@ -7,8 +7,10 @@ public sealed class FileLoggerProvider : ILoggerProvider
     private readonly StreamWriter _writer;
     private readonly object _gate = new();
 
-    public FileLoggerProvider(string filePath)
+    public FileLoggerProvider(string filePath, LogLevel minimumLevel = LogLevel.Information)
     {
+        MinimumLevel = minimumLevel;
+
         var directory = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(directory))
         {
@@ -20,6 +22,8 @@ public sealed class FileLoggerProvider : ILoggerProvider
             AutoFlush = true,
         };
     }
+
+    public LogLevel MinimumLevel { get; }
 
     public ILogger CreateLogger(string categoryName) => new FileLogger(categoryName, this);
 

@@ -32,7 +32,7 @@ public sealed class ContinuityReviewer : IContinuityReviewer
         var request = new LlmRequest
         {
             Model = settings.Model,
-            Messages = PromptTemplates.BuildContinuityReview(chapter, knowledge),
+            Messages = PromptTemplates.BuildContinuityReview(project, chapter, knowledge),
             Temperature = settings.TemperatureFor(LlmTask.Continuity),
             MaxTokens = settings.MaxTokens,
         };

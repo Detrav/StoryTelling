@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization.Metadata;
+using Microsoft.Extensions.Logging;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Llm;
 using StoryTelling.Infrastructure.Json;
@@ -17,8 +18,13 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
     private const int MaxStructuredAttempts = 3;
 
     private readonly HttpClient _httpClient;
+    private readonly ILogger<OpenAiCompatibleLlmClient>? _logger;
 
-    public OpenAiCompatibleLlmClient(HttpClient httpClient) => _httpClient = httpClient;
+    public OpenAiCompatibleLlmClient(HttpClient httpClient, ILogger<OpenAiCompatibleLlmClient>? logger = null)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
 
     public async Task<LlmCompletion> CompleteAsync(
         LlmConnection connection,
@@ -373,6 +379,16 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         CancellationToken outer)
     {
         var url = BuildChatCompletionsUrl(connection.BaseUrl);
+        if (_logger?.IsEnabled(LogLevel.Debug) == true)
+        {
+            _logger.LogDebug("LLM request POST {Url} ({Model}, temperature {Temperature}, max tokens {MaxTokens})\n{Payload}",
+                url,
+                payload.Model,
+                payload.Temperature,
+                payload.MaxTokens,
+                JsonSerializer.Serialize(payload, LlmJsonContext.Default.ChatCompletionRequestPayload));
+        }
+
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(payload, LlmJsonContext.Default.ChatCompletionRequestPayload),
@@ -397,11 +413,17 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         }
     }
 
-    private static async Task<string> ReadBodyAsync(HttpResponseMessage response, CancellationToken token, CancellationToken outer)
+    private async Task<string> ReadBodyAsync(HttpResponseMessage response, CancellationToken token, CancellationToken outer)
     {
         try
         {
-            return await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+            if (_logger?.IsEnabled(LogLevel.Debug) == true)
+            {
+                _logger.LogDebug("LLM response {StatusCode} ({Bytes} bytes)\n{Body}", (int)response.StatusCode, body.Length, body);
+            }
+
+            return body;
         }
         catch (OperationCanceledException) when (!outer.IsCancellationRequested)
         {

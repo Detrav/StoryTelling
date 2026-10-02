@@ -73,12 +73,36 @@ public static class KnowledgeComposer
             entry.Title = change.Title.Trim();
         }
 
-        entry.Tags = [.. change.Tags];
+        entry.Tags = MergeTags(entry.Tags, change.Tags);
         entry.Content = change.Content;
         if (change.Status is { } status)
         {
             entry.Status = status;
         }
+    }
+
+    private const int MaxTags = 16;
+
+    private static List<string> MergeTags(IReadOnlyList<string> existing, IReadOnlyList<string> incoming)
+    {
+        var merged = new List<string>(existing.Count + incoming.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tag in existing.Concat(incoming))
+        {
+            var trimmed = tag.Trim();
+            if (trimmed.Length == 0 || !seen.Add(trimmed))
+            {
+                continue;
+            }
+
+            merged.Add(trimmed);
+            if (merged.Count >= MaxTags)
+            {
+                break;
+            }
+        }
+
+        return merged;
     }
 
     private static bool Matches(KnowledgeEntry entry, KnowledgeChange change) =>

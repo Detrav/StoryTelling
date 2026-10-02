@@ -60,6 +60,7 @@ LM Studio or Ollama work the same as a hosted provider.
 - [UI](docs/ui.md)
 - [Stack](docs/stack.md)
 - [Developer CLI](docs/cli.md)
+- [Creating a book from scratch](docs/creating-a-book.md)
 
 ## License
 

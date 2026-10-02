@@ -253,11 +253,12 @@ public static class PromptTemplates
         return builder.ToString().TrimEnd();
     }
 
-    public static IReadOnlyList<LlmMessage> BuildContinuityReview(Chapter chapter, IReadOnlyList<KnowledgeEntry> knowledge)
+    public static IReadOnlyList<LlmMessage> BuildContinuityReview(Project project, Chapter chapter, IReadOnlyList<KnowledgeEntry> knowledge)
     {
         var system = "Role: You are a strict story-continuity checker.\n"
-            + "Objective: Compare one chapter's plan against the established facts and report contradictions.\n"
-            + "Constraints: Work in English only. Do not rewrite anything — only report. Base findings strictly on the facts given.\n"
+            + "Objective: Compare one chapter's drafted prose and its plan against the world, the initial state and the established facts, and report contradictions.\n"
+            + "Method: Check the prose against the plan and the facts; check the facts against each other; check the prose against the inviolable world.\n"
+            + "Constraints: Work in English only. Do not rewrite anything — only report. Base findings strictly on the given material. Ignore ordinary stylistic choices.\n"
             + "Output: Only a JSON object that matches the required schema.";
 
         var user = new StringBuilder();
@@ -271,13 +272,29 @@ public static class PromptTemplates
         }
 
         user.AppendLine();
+        user.AppendLine("World (inviolable canon):");
+        user.AppendLine(string.IsNullOrWhiteSpace(project.World.Title) ? "(unnamed)" : project.World.Title.Trim());
+        if (!string.IsNullOrWhiteSpace(project.World.Body))
+        {
+            user.AppendLine(project.World.Body.Trim());
+        }
+
+        user.AppendLine();
+        user.AppendLine("Initial state:");
+        user.AppendLine(string.IsNullOrWhiteSpace(project.InitialWorldState.TimeAndPlace) ? "(no time and place)" : project.InitialWorldState.TimeAndPlace.Trim());
+        if (!string.IsNullOrWhiteSpace(project.InitialWorldState.Situation))
+        {
+            user.AppendLine(project.InitialWorldState.Situation.Trim());
+        }
+
+        user.AppendLine();
         user.AppendLine("Established facts:");
-        const int total = 12000;
+        const int knowledgeBudget = 12000;
         var used = 0;
         foreach (var entry in knowledge)
         {
             var line = $"- [{entry.Kind}] {entry.Title}: {entry.Content?.Trim()}";
-            var room = Math.Min(line.Length, total - used);
+            var room = Math.Min(line.Length, knowledgeBudget - used);
             if (room <= 0)
             {
                 break;
@@ -287,11 +304,29 @@ public static class PromptTemplates
             used += room;
         }
 
+        var openThreads = knowledge.Where(entry => entry.Kind == KnowledgeKind.Thread && entry.Status == KnowledgeStatus.Open).ToList();
+        if (openThreads.Count > 0)
+        {
+            user.AppendLine();
+            user.AppendLine("Open threads that should be tracked:");
+            foreach (var thread in openThreads)
+            {
+                user.AppendLine($"- {thread.Title.Trim()}");
+            }
+        }
+
         user.AppendLine();
-        user.AppendLine("Report findings where the plan contradicts the facts (wrong relationships, impossible "
-            + "ages, alias mismatches, a dead character acting, a resolved fact reappearing). Severity is Info, "
-            + "Warning or Error; set reference to the exact entry title involved. Return an empty list when "
-            + "the plan is consistent.");
+        user.AppendLine("Chapter prose:");
+        const int proseBudget = 16000;
+        var prose = chapter.ContentOriginal?.Trim() ?? string.Empty;
+        user.AppendLine(prose.Length <= proseBudget ? prose : prose[..proseBudget] + "…[truncated]");
+
+        user.AppendLine();
+        user.AppendLine("Report findings where the prose or the plan contradicts the world, the initial state or "
+            + "the facts — or where the prose fails to carry out the plan (wrong relationships, impossible ages, "
+            + "alias mismatches, a dead character acting, a resolved fact reappearing, the world's fixed rules "
+            + "broken, a promised event skipped). Severity is Info, Warning or Error; set reference to the exact "
+            + "entry title involved. Return an empty list when everything is consistent.");
 
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
     }
@@ -387,10 +422,13 @@ public static class PromptTemplates
     public static string WriterSystem() =>
         "Role: You are a novelist writing one chapter of an ongoing book.\n"
         + "Objective: Extend the established story — never restart it — and carry out this chapter's task.\n"
-        + "Constraints: Write in English only. Follow the given point of view and tense exactly. Stay "
-        + "consistent with the world, the world state and the knowledge. Never re-introduce people or "
-        + "places the reader has already met. Never mention chapter numbers, the book, or these "
-        + "instructions in the prose. Aim for roughly 1500-2500 words.\n"
+        + "Constraints: Write in English only. Follow the given point of view and tense exactly. The "
+        + "world description and the narrative frame (genre, tone, point of view, tense) are inviolable "
+        + "canon: never contradict them, not even for atmosphere. Carry out the chapter direction you "
+        + "are given; do not skip, summarize or replace it with a different scene. Stay consistent with "
+        + "the world state and the knowledge. Never re-introduce people or places the reader has already "
+        + "met. Never mention chapter numbers, the book, or these instructions in the prose. Aim for "
+        + "roughly 1500-2500 words.\n"
         + "Output: Only the chapter prose — no title, headings or commentary.\n"
         + "Tools: Consult the project before writing. Do not write the chapter until you are asked to.";
 
@@ -402,7 +440,8 @@ public static class PromptTemplates
     public static string WriterWrite(Chapter chapter) =>
         $"Now write chapter {chapter.Number}"
         + (string.IsNullOrWhiteSpace(chapter.Title) ? string.Empty : $" (\"{chapter.Title.Trim()}\")")
-        + " as a full chapter of roughly 1500-2500 words. Output only the chapter prose in English — "
+        + " as a full chapter of roughly 1500-2500 words. Keep the frame's point of view and tense "
+        + "exactly and stay within the world described above. Output only the chapter prose in English — "
         + "no headings, notes or commentary. Do not begin with the chapter title or a heading line; "
         + "start directly with the prose.";
 
@@ -461,7 +500,9 @@ public static class PromptTemplates
         {
             return $"This is the final chapter — the resolution of the story (chapter {number} of {total}). "
                 + "Bring everything to a full close: resolve every open thread, pay off the setups, and do "
-                + "not end on a cliffhanger or set up a sequel.";
+                + "not end on a cliffhanger or set up a sequel. The last paragraph must be a stable, closed "
+                + "final note — no 'to be continued', no 'this is not the end', no promise that the "
+                + "mystery/signal/conflict will return, and no new question left dangling.";
         }
 
         return $"This is chapter {number} of {total} — the middle of the story. The setup has already "

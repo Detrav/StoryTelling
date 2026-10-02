@@ -95,6 +95,50 @@ public sealed class ChapterRunnerTests
     }
 
     [Fact]
+    public async Task GenerateAsync_FinaleLeftOpen_RetriesWithStrictContract()
+    {
+        var writer = new FakeChapterAgent { Text = "Draft." };
+        var editor = new FakeChapterEditor { Result = "Edited." };
+        var calls = 0;
+        var summarizer = new FakeChapterSummarizer
+        {
+            SummaryFactory = _ =>
+            {
+                calls++;
+                return calls == 1
+                    ? new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" },
+                        [new KnowledgeChange { Operation = KnowledgeChangeOperation.Create, Kind = KnowledgeKind.Thread, Title = "Who?", Content = "open", Status = KnowledgeStatus.Open }])
+                    : new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, []);
+            },
+        };
+        var runner = new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
+        var project = Project();
+
+        await runner.GenerateAsync(project, project.Chapters[2]);
+
+        Assert.Equal(2, summarizer.CallCount);
+        Assert.Equal(ChapterStatus.Generated, project.Chapters[2].Status);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_NonFinaleOpenThread_DoesNotRetry()
+    {
+        var writer = new FakeChapterAgent { Text = "Draft." };
+        var editor = new FakeChapterEditor { Result = "Edited." };
+        var summarizer = new FakeChapterSummarizer
+        {
+            Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" },
+                [new KnowledgeChange { Operation = KnowledgeChangeOperation.Create, Kind = KnowledgeKind.Thread, Title = "Who?", Content = "open", Status = KnowledgeStatus.Open }]),
+        };
+        var runner = new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
+        var project = Project();
+
+        await runner.GenerateAsync(project, project.Chapters[0]);
+
+        Assert.Equal(1, summarizer.CallCount);
+    }
+
+    [Fact]
     public async Task RecomputeFromAsync_RefreshesStaleChaptersAndClearsStale()
     {
         var runner = Runner(out _, out var summarizer);

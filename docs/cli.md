@@ -1,9 +1,9 @@
 # Developer CLI — `storydev`
 
 `StoryTelling.Cli` is a thin terminal front end over the same engine the desktop app uses. It exists
-to drive one pass at a time when debugging the prompts, to batch-generate content, and to produce an
-FB2 without launching the UI. It shares the project format, the services and the user settings with the
-app.
+to drive any pass of the pipeline from a script or an agent: set up a world, plan and write chapters,
+summarize, review, translate, export. It shares the project format, the services and the user settings
+with the app.
 
 ```powershell
 dotnet run --project src/StoryTelling.Cli -- <command> [options]
@@ -11,41 +11,89 @@ dotnet run --project src/StoryTelling.Cli -- <command> [options]
 
 Run `storydev` with no command (or `help`) for the usage summary.
 
+## Logging
+
+Every command writes a single run log to `%AppData%/StoryTelling/logs/app-<timestamp>.log` (20 most
+recent files are kept). The app logs at `Information`; the CLI does too by default.
+
+```
+--log-level <Trace|Debug|Information|Warning|Error>   file log verbosity
+--verbose                                             alias for --log-level Debug
+```
+
+At `Debug` every API request and response (URL, model, temperature, full messages, tools, schema,
+response body) is logged. The API key is never logged. There are no separate trace files any more —
+use `--verbose` and read the log.
+
 ## Commands
 
 | Command | What it does |
 |---------|--------------|
 | `ping` | Checks provider connectivity and whether the model supports JSON-schema structured output. |
-| `raw` | Sends a raw prompt: `--prompt <text> [--system <text>]`. |
-| `probe` | Prints the raw schema output for one `GenerationTarget` without applying it: `--target <Target> [--variants N] [--file <path>] [--brief ...] [--out <path>]`. |
 | `gen` | Generates one target and applies it into a project: `--target <Target> --file <path> [--variants N] [--brief ...] [--out <path>] [--replace]`. |
-| `setup` | Generates a fresh project setup: `--out <path> [--brief ...] [--characters N]`. |
+| `setup` | Generates a fresh project setup (name, world, characters, initial state): `--out <path> [--brief ...] [--characters N]`. |
+| `plan` | Plans the whole book as N chapters (title + direction) and replaces the chapter list: `--file <path> [--chapters N] [--brief ...] [--out <path>] [--replace]`. |
 | `write` | Writes chapters into an existing project: `--file <path> [--chapters N]`. |
+| `complete` | Finishes the whole book: writes pending/stale chapters, rebuilds missing summaries, translates when needed: `--file <path> [--languages ru,de] [--no-translate] [--out <path>]`. |
+| `finish` | Plans the final chapter (title + direction, `Finale`): `--file <path> [--brief ...] [--out <path>]`. |
+| `chapter` | Manages the chapter list: `--action <add\|remove\|move\|status> --file <path> [--number N] [--from N] [--status Draft\|Generated\|Stale]`. |
+| `set` | Edits fields by hand: `--what <project\|world\|state\|chapter\|knowledge> --file <path> [field options]`. |
+| `settings` | Shows or edits provider settings: `[show\|set] [--model ...] [--base-url ...] [--api-key ...] [--temperature ...] [--languages ru,de]`. |
+| `import` | Imports knowledge from Markdown files: `--file <path> --from <file.md\|dir> [--mode extract\|design] [--brief ...]`. |
 | `summarize` | Rebuilds loglines, world state and knowledge diffs: `--file <path> [--chapter N \| --all] [--out <path>]`. |
-| `translate` | Translates every chapter into a language: `--file <path> --language <code> [--out <path>]`. |
-| `design` | Builds knowledge entries from a description: `--file <path> --prompt <text> [--out <path>]`. |
 | `recompute` | Refreshes summaries/world state from a chapter onward: `--file <path> [--from N] [--out <path>]`. |
-| `edit` | Runs the editor on one chapter (debug aid): `--file <path> --number N [--in <draft.txt>] [--out <edited.txt>]`. |
-| `draft` | Runs the writer on one chapter without persisting (debug aid): `--file <path> --number N [--out <draft.txt>]`. |
-| `create` | Full run (setup + chapters): `--out <path> [--chapters N] [--brief ...] [--characters N]`. |
-| `export` | Writes an FB2 from a project: `--file <path> [--language <code>] [--out <path.fb2>]`. |
+| `translate` | Translates chapters and/or metadata into a language: `--file <path> --language <code> [--metadata-only] [--with-metadata] [--out <path>]`. |
+| `design` | Builds knowledge entries from a description: `--file <path> --prompt <text> [--out <path>]`. |
+| `regenerate` | Rewrites one chapter in place with the current seed: `--file <path> --chapter N [--out <path>]`. |
+| `continuity` | Checks a chapter's prose and plan against the world, initial state and facts: `--file <path> [--chapter N \| --all]`. |
+| `review` | AI-reviews the knowledge base for contradictions: `--file <path> [--check numbers,facts\|all] [--brief <text>] [--out <path.json>] [--apply] [--apply-content]`. |
+| `apply-fixes` | Applies curated knowledge edits: `--file <book.json> --fixes <edits.json>`. |
+| `context` | Prints the assembled writer prompt for one chapter (no provider): `--file <path> --number N`. |
+| `export` | Writes an FB2: `--file <path> [--language <code>] [--out <path.fb2>]`. |
+| `create` | Full run (setup + write): `--out <path> [--chapters N] [--brief ...] [--characters N]`. |
+| `judge` | Scores whether a chapter continues the story: `--file <path> --chapter N`. |
+| `compare` | Picks which of two chapter drafts continues better: `--a <pathA> --b <pathB> --chapter N`. |
+| `experiment` | Runs full-book passes per hypothesis: `--file <base> [--out <dir>] [--from N] [--to M]`. |
 
-## Defaults
+## Typical full pipeline
 
-| Option | Default |
-|--------|---------|
-| `--variants` (`probe`, `gen`) | 1 |
-| `--out` (`setup`, `create`) | `examples/story.story.json` |
-| `--out` (`probe`) | `examples/probe-<Target>.json` |
-| `--out` (`edit`, `draft`) | `examples/dbg/ch<N>-edited.txt` / `ch<N>-draft.txt` |
-| `--chapters` | 1 for `write`, 2 for `create` |
-| `--characters` | 3 |
-| `--chapter` (`summarize`, without `--all`) | 1 |
-| `--from` (`recompute`) | 1 |
-| `--language` | `ru` for `translate`, `en` for `export` |
+```powershell
+# 1. a world, characters and the initial situation
+storydev setup --out book.story.json --brief "a lighthouse keeper on a tideless sea" --characters 3
 
-`--out` defaults write into the repository's `examples/` folder; pass an explicit path to keep the
-working tree clean.
+# 2. plan the whole arc
+storydev plan --file book.story.json --chapters 6 --replace
+
+# 3. write everything, then summarize/translate as configured
+storydev complete --file book.story.json
+
+# 4. verify
+storydev continuity --file book.story.json --all
+storydev review --file book.story.json --check all
+
+# 5. finish the translation story and export
+storydev translate --file book.story.json --language ru --with-metadata
+storydev export --file book.story.json --language ru --out book.ru.fb2
+```
+
+See `docs/creating-a-book.md` for the step-by-step tutorial.
+
+## `set` field options
+
+| `--what` | Options |
+|----------|---------|
+| `project` | `--name` |
+| `world` | `--title --body --genre --tone --style --pov --tense --rating` |
+| `state` | `--time-and-place --situation` (the initial world state) |
+| `chapter` | `--number --title --direction --notes --logline --role --text \| --text-file --time-and-place --situation` |
+| `knowledge` | `--entry <title> --kind --title --content --tags --status` |
+
+## `--out` and side files
+
+Most commands default `--out` to the input file and edit it in place; pass an explicit `--out` for a
+copy. Data products that are inputs to other tools are still written explicitly: `review --out` writes
+the findings JSON that `apply-fixes` consumes. The `experiment` command still writes its per-hypothesis
+`book.story.json`; everything else goes to the run log.
 
 ## Common options
 
@@ -54,6 +102,7 @@ Every command that talks to a provider accepts these overrides, which take prece
 
 ```
 --base-url --model --api-key --max-tokens --max-tool-calls --temperature --timeout
+--context-token-budget --recent-loglines --required-cap --tool-result-max-chars
 ```
 
 `export` is the exception: it reads no settings at all and needs no provider.
@@ -62,34 +111,10 @@ Every command that talks to a provider accepts these overrides, which take prece
 
 ## Notes and limitations
 
-- **`gen --replace`** clears the knowledge base first, and only for `--target Knowledge`; with any
-  other target the flag is ignored.
-- **`gen` only applies** the targets `ProjectName`, `World`, `InitialWorldState` and `Knowledge`. For
-  `ChapterSettings`, `ChapterPlan` and `Finale` the options are printed but not written back, and the
-  command reports `Applied 0 option(s).` — use `probe` to inspect those, and the app to apply them.
-- The CLI covers the engine passes, not the app-level orchestration: there is no *Complete book*
-  equivalent, no knowledge review and no setup/knowledge review dialog.
-- It does **not** translate the book's metadata (title, annotation, chapter titles) — that action lives
-  in the desktop app. Use the app once before exporting if the target language needs it; the CLI
-  `export` command reads whatever the app already cached and otherwise falls back to English.
-- Generation via `gen`/`setup`/`create` reuses the same prompts and tools as the app, so output is
-  comparable between the two.
-
-## Examples
-
-The repository ships two sample projects: `examples/embers-of-ashen-reach.story.json` and
-`examples/silent-beacon.story.json`.
-
-```powershell
-# is the provider reachable and structured-output capable?
-dotnet run --project src/StoryTelling.Cli -- ping
-
-# look at the raw schema output for the chapter-plan target before trusting it
-dotnet run --project src/StoryTelling.Cli -- probe --target ChapterPlan --variants 5 --out ./probe-plan.json
-
-# translate a project into Russian
-dotnet run --project src/StoryTelling.Cli -- translate --file examples/embers-of-ashen-reach.story.json --language ru
-
-# export the Russian FB2 (no provider needed)
-dotnet run --project src/StoryTelling.Cli -- export --file examples/embers-of-ashen-reach.story.json --language ru --out ./book.fb2
-```
+- **`gen --replace`** clears the knowledge base first, and only for `--target Knowledge`.
+- **`gen`** applies only the targets `ProjectName`, `World`, `InitialWorldState` and `Knowledge`. Use
+  `plan`, `finish`, `chapter`, `set` and the chapter commands for chapter targets.
+- `complete` writes and summarizes in reading order and cascades: once a chapter is written, everything
+  after it is regenerated. It skips chapters whose world, initial state or direction is missing.
+- The CLI covers the engine. Interactive affordances of the app (per-finding preview, undo/redo, dialogs)
+  have no CLI equivalent and are not needed for scripted generation.

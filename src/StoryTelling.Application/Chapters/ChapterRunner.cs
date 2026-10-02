@@ -27,7 +27,12 @@ public sealed class ChapterRunner : IChapterRunner
     {
         var stateBefore = StateBefore(project, project.Chapters.IndexOf(chapter));
         var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number));
-        var result = await _workflow.RunAsync(effective, chapter, stateBefore, progress, cancellationToken).ConfigureAwait(false);
+        var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, progress, cancellationToken).ConfigureAwait(false);
+
+        if (IsFinale(project, chapter) && FinaleGuard.IsUnresolved(result))
+        {
+            result = await _workflow.RunAsync(effective, ForWriting(project, chapter, strict: true), stateBefore, progress, cancellationToken).ConfigureAwait(false);
+        }
 
         Apply(chapter, result);
         MarkLaterStale(project, chapter.Number);
@@ -58,7 +63,13 @@ public sealed class ChapterRunner : IChapterRunner
         try
         {
             var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, number));
-            var result = await _workflow.RunAsync(effective, chapter, stateBefore, progress, cancellationToken).ConfigureAwait(false);
+            var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, progress, cancellationToken).ConfigureAwait(false);
+
+            if (IsFinale(project, chapter) && FinaleGuard.IsUnresolved(result))
+            {
+                result = await _workflow.RunAsync(effective, ForWriting(project, chapter, strict: true), stateBefore, progress, cancellationToken).ConfigureAwait(false);
+            }
+
             Apply(chapter, result);
             return result;
         }
@@ -143,6 +154,47 @@ public sealed class ChapterRunner : IChapterRunner
             }
         }
     }
+
+    private static bool IsFinale(Project project, Chapter chapter) =>
+        chapter.Role == ChapterRole.Finale
+        || (project.Chapters.Count > 0 && chapter.Number == project.Chapters.Max(candidate => candidate.Number));
+
+    private static Chapter ForWriting(Project project, Chapter chapter, bool strict = false)
+    {
+        if (!IsFinale(project, chapter))
+        {
+            return chapter;
+        }
+
+        var notes = string.IsNullOrWhiteSpace(chapter.Notes)
+            ? FinaleGuard.Contract
+            : chapter.Notes.TrimEnd() + "\n" + FinaleGuard.Contract;
+        if (strict)
+        {
+            notes += "\n" + FinaleGuard.StrictContract;
+        }
+
+        return CopyWithNotes(chapter, notes);
+    }
+
+    private static Chapter CopyWithNotes(Chapter chapter, string notes) => new()
+    {
+        Number = chapter.Number,
+        Title = chapter.Title,
+        Role = chapter.Role,
+        Direction = chapter.Direction,
+        Notes = notes,
+        ContentOriginal = chapter.ContentOriginal,
+        Translations = new(chapter.Translations),
+        TranslatedTitles = new(chapter.TranslatedTitles),
+        StaleTranslations = [.. chapter.StaleTranslations],
+        Logline = chapter.Logline,
+        WorldState = chapter.WorldState,
+        KnowledgeChanges = [.. chapter.KnowledgeChanges],
+        EditorNotes = [.. chapter.EditorNotes],
+        Status = chapter.Status,
+        CreatedUtc = chapter.CreatedUtc,
+    };
 
     private static void Apply(Chapter chapter, ChapterResult result)
     {

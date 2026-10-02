@@ -17,7 +17,7 @@ internal sealed class FileLogger : ILogger
     public IDisposable? BeginScope<TState>(TState state)
         where TState : notnull => null;
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= _provider.MinimumLevel && logLevel != LogLevel.None;
 
     public void Log<TState>(
         LogLevel logLevel,

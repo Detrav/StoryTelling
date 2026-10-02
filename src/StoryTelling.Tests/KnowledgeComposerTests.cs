@@ -129,6 +129,31 @@ public sealed class KnowledgeComposerTests
     }
 
     [Fact]
+    public void ApplyUpdate_MergesTagsInsteadOfReplacingThem()
+    {
+        var elara = new KnowledgeEntry
+        {
+            Kind = KnowledgeKind.Character,
+            Title = "Elara Voss",
+            Tags = ["Lighthouse keeper", "Former signal technician"],
+            Content = "base",
+        };
+        var knowledge = new List<KnowledgeEntry> { elara };
+
+        KnowledgeComposer.Apply(knowledge, [new KnowledgeChange
+        {
+            Operation = KnowledgeChangeOperation.Update,
+            Kind = KnowledgeKind.Character,
+            Title = "Elara Voss",
+            Tags = ["Main Character", "lighthouse keeper"],
+            Content = "updated",
+        }]);
+
+        var entry = Assert.Single(knowledge);
+        Assert.Equal(["Lighthouse keeper", "Former signal technician", "Main Character"], entry.Tags);
+    }
+
+    [Fact]
     public void ApplyUpdate_ForExistingTitle_BecomesUpdate()
     {
         var aria = new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Aria", Content = "old" };
