@@ -151,7 +151,9 @@ public static class PromptTemplates
         var system = "Role: You are a meticulous story-bible continuity editor.\n"
             + "Objective: Find every internal inconsistency, contradiction, gap and ambiguity in the story bible — the world and the knowledge base.\n"
             + "Method: Compare the entries of the story bible against each other. Never judge an entry in isolation.\n"
-            + "Constraints: Work in English only. Do not rewrite anything — only report. Base every finding strictly on the given facts.\n"
+            + "Constraints: Work in English only. Base every finding strictly on the given facts; report problems instead of silently changing the bible.\n"
+            + "Answer immediately: never write out your analysis, reasoning or working notes; the JSON object must be your only output.\n"
+            + "Stop as soon as you have covered the checklist; do not keep hunting for more issues after you have recorded the serious ones.\n"
             + "Output: Only a JSON object that matches the required schema.";
 
         var user = new StringBuilder();
@@ -202,15 +204,23 @@ public static class PromptTemplates
         user.AppendLine();
         if (check.Reconcile)
         {
-            user.AppendLine("Reconcile the numbers: for every person collect EVERY age, year, duration and rank stated in EVERY entry (even entries about other topics), then compare them with each other. Most contradictions hide across two different entries, so never check an entry only against itself.");
-            user.AppendLine("Worked example of the required arithmetic: if one entry says \"Elena is 26\" (present day) and another says \"her son was 20 in 2019\", then Elena was 21 in 2019 and would have given birth at age 1 — that is impossible; report it as an Error. Compute the birth year of each relative from each statement and compare.");
-            user.AppendLine("Hard rules: a biological parent must be at least 12 years older than their child; a person's age plus the years elapsed between two events must equal their stated age at the later event; a person cannot be the same age as their parent. Report every violation.");
-            user.AppendLine();
-            user.AppendLine("Fill the 'reconciliation' array first: one entry per person, listing each age/date statement with its source entry and the birth year it implies (for example \"Elena Volkov: 26 years old now (2024) -> born ~1998; The Neon Alley Raid (2019): 'her son Dmitri, age 20' -> if she is the mother she was 1 in 2019 -> born ~2018\"). Use the reconciliation to spot the conflicts before writing findings.");
-            user.AppendLine();
+            if (HasDigit(user))
+            {
+                user.AppendLine("Reconcile the numbers: for each person, collect the ages, years, durations and ranks stated in the entries about them and compare them. Most contradictions hide across two different entries, so never check an entry only against itself.");
+                user.AppendLine("Worked example of the required arithmetic: if one entry says \"Elena is 26\" (present day) and another says \"her son was 20 in 2019\", then Elena was 21 in 2019 and would have given birth at age 1 — that is impossible; report it as an Error. Compute the birth year of each relative from each statement and compare.");
+                user.AppendLine("Hard rules: a biological parent must be at least 12 years older than their child; a person's age plus the years elapsed between two events must equal their stated age at the later event; a person cannot be the same age as their parent. Report the violations you find.");
+                user.AppendLine();
+                user.AppendLine("Optionally record the statements you compared in 'reconciliation' as one short line per person; skip it when there is nothing to reconcile.");
+                user.AppendLine();
+            }
+            else
+            {
+                user.AppendLine("This story bible states no ages, dates, years, durations or ranks; do not attempt a timeline reconciliation.");
+                user.AppendLine();
+            }
         }
 
-        user.AppendLine("Check every category below and report a separate finding for each violation you find:");
+        user.AppendLine("Go through every category below and report the serious violations you find:");
         for (var index = 0; index < check.Checklist.Count; index++)
         {
             user.AppendLine($"{index + 1}. {check.Checklist[index]}");
@@ -224,9 +234,9 @@ public static class PromptTemplates
         user.AppendLine();
         user.AppendLine("Set reference to the exact title of the knowledge entry a finding is about. Always fill it for knowledge findings; leave it empty for whole-project issues.");
         user.AppendLine();
-        user.AppendLine("Always try to provide a 'fix' whenever the problem can be resolved by replacing, extending or correcting the field values of the entry it is about. Add one edit per changed field with target Knowledge, reference (the entry title) and the FULL corrected value of that field (not a fragment — the whole new Content or Tags string). The corrected value MUST differ from the current value; never return the current text unchanged.");
-        user.AppendLine("Give a fix even when you must rewrite most of the entry: extend the Content with the missing fact, correct the wrong age, fix the conflicting tag, and so on. Only leave 'fix' empty when the problem genuinely cannot be expressed as new field values — and in that case start the 'suggestion' with the word \"Create\" followed by the kind and title of the new entry to add (for example \"Create Character: Captain Thorne\").");
-        user.AppendLine("Cases that require a NEW entry (a dangling reference or a missing entity) get no field edits: use the reference of nothing and a suggestion that begins with \"Create\". Cases about an existing entry should almost always carry edits.");
+        user.AppendLine("Provide a 'fix' only when the correction is short and certain: one edit per changed field with target Knowledge, reference (the entry title) and the corrected value. Keep the value minimal and do not restate the rest of the entry; the corrected value MUST differ from the current value.");
+        user.AppendLine("Do not invent facts to fill a gap. If the problem needs a new entry or a large rewrite, leave 'fix' empty instead and start the 'suggestion' with the word \"Create\" followed by the kind and title of the new entry to add (for example \"Create Character: Captain Thorne\").");
+        user.AppendLine("Cases that require a NEW entry (a dangling reference or a missing entity) get no field edits: use the reference of nothing and a suggestion that begins with \"Create\".");
         user.AppendLine("Fields per target:");
         user.AppendLine("- Knowledge: Kind, Title, Tags, Content");
 
@@ -236,6 +246,19 @@ public static class PromptTemplates
         }
 
         return [LlmMessage.System(system), LlmMessage.User(user.ToString())];
+    }
+
+    private static bool HasDigit(StringBuilder builder)
+    {
+        for (var index = 0; index < builder.Length; index++)
+        {
+            if (char.IsDigit(builder[index]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string SummaryLine(KnowledgeEntry entry)

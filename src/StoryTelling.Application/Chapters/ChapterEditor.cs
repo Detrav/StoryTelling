@@ -49,6 +49,7 @@ public sealed class ChapterEditor : IChapterEditor
             Model = settings.Model,
             Messages = gathered.Messages,
             Temperature = settings.TemperatureFor(LlmTask.EditorChecker),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.EditorChecker),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -97,6 +98,7 @@ public sealed class ChapterEditor : IChapterEditor
             Model = settings.Model,
             Messages = [.. gathered.Messages, .. PromptTemplates.BuildEditorWrite(text)],
             Temperature = settings.TemperatureFor(LlmTask.EditorFixer),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.EditorFixer),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -153,6 +155,7 @@ public sealed class ChapterEditor : IChapterEditor
             Model = settings.Model,
             Messages = [.. gathered.Messages, .. PromptTemplates.BuildEditorWrite(text)],
             Temperature = settings.TemperatureFor(LlmTask.EditorCosmetic),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.EditorCosmetic),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -261,6 +264,7 @@ public sealed class ChapterEditor : IChapterEditor
             Model = settings.Model,
             Messages = PromptTemplates.BuildEditorRepair(revised, violations, drifts, declaredTense),
             Temperature = settings.TemperatureFor(LlmTask.StyleRepair),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.StyleRepair),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -306,6 +310,7 @@ public sealed class ChapterEditor : IChapterEditor
             Model = settings.Model,
             Messages = PromptTemplates.BuildEditorNotes(digest),
             Temperature = settings.TemperatureFor(LlmTask.StyleRepair),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.StyleRepair),
             MaxTokens = settings.MaxTokens,
         };
 

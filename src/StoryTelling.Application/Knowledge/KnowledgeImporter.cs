@@ -59,6 +59,7 @@ public sealed class KnowledgeImporter : IKnowledgeImporter
                 Model = settings.Model,
                 Messages = BuildMessages(request.Mode, work[index], request.Brief),
                 Temperature = settings.TemperatureFor(LlmTask.Import),
+                ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Import),
                 MaxTokens = settings.MaxTokens,
             };
 

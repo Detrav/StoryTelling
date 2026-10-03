@@ -34,6 +34,7 @@ public sealed class ContinuityReviewer : IContinuityReviewer
             Model = settings.Model,
             Messages = PromptTemplates.BuildContinuityReview(project, chapter, knowledge),
             Temperature = settings.TemperatureFor(LlmTask.Continuity),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Continuity),
             MaxTokens = settings.MaxTokens,
         };
 

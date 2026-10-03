@@ -5,7 +5,7 @@ namespace StoryTelling.Application.Review;
 
 public static class ReviewSchema
 {
-    public static JsonObject Build()
+    public static JsonObject Build(bool includeReconciliation = true)
     {
         var knowledgeFields = GenerationTargets.Fields(GenerationTarget.Knowledge).Select(spec => spec.Field).ToList();
 
@@ -65,27 +65,31 @@ public static class ReviewSchema
                     ["additionalProperties"] = false,
                 },
             },
-            ["required"] = new JsonArray { "severity", "area", "title", "detail", "suggestion", "reference", "fix" },
+            ["required"] = new JsonArray { "severity", "area", "title", "detail", "suggestion", "reference" },
             ["additionalProperties"] = false,
+        };
+
+        var properties = new JsonObject();
+        if (includeReconciliation)
+        {
+            properties["reconciliation"] = new JsonObject
+            {
+                ["type"] = "array",
+                ["description"] = "For each person, every age/date statement with its source and the implied birth year, used to check consistency.",
+                ["items"] = new JsonObject { ["type"] = "string" },
+            };
+        }
+
+        properties["findings"] = new JsonObject
+        {
+            ["type"] = "array",
+            ["items"] = finding,
         };
 
         return new JsonObject
         {
             ["type"] = "object",
-            ["properties"] = new JsonObject
-            {
-                ["reconciliation"] = new JsonObject
-                {
-                    ["type"] = "array",
-                    ["description"] = "For each person, every age/date statement with its source and the implied birth year, used to check consistency.",
-                    ["items"] = new JsonObject { ["type"] = "string" },
-                },
-                ["findings"] = new JsonObject
-                {
-                    ["type"] = "array",
-                    ["items"] = finding,
-                },
-            },
+            ["properties"] = properties,
             ["required"] = new JsonArray { "findings" },
             ["additionalProperties"] = false,
         };

@@ -37,7 +37,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             ?? Languages.FirstOrDefault();
 
         RoleTemperatures = new ObservableCollection<RoleTemperatureViewModel>(
-            LlmTasks.All.Select(task => new RoleTemperatureViewModel(task.Id(), task.Label(), settings.TemperatureFor(task))));
+            LlmTasks.All.Select(task => new RoleTemperatureViewModel(task.Id(), task.Label(), settings.TemperatureFor(task), settings.ReasoningEffortFor(task))));
 
         InitializeUndo();
     }
@@ -199,6 +199,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         Temperature = Temperature,
         CosmeticEditorEnabled = CosmeticEditorEnabled,
         RoleTemperatures = RoleTemperatures.ToDictionary(item => item.Id, item => item.Value),
+        RoleReasoningEfforts = RoleTemperatures.ToDictionary(item => item.Id, item => item.EffortValue),
         DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
         Languages = Languages.ToList(),
         RecentProjects = _original.RecentProjects.ToList(),
@@ -221,6 +222,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             Temperature,
             CosmeticEditorEnabled,
             RoleTemperatures.ToDictionary(item => item.Id, item => item.Value),
+            RoleTemperatures.ToDictionary(item => item.Id, item => item.EffortValue),
             SelectedDefault?.Code ?? _original.DefaultLanguageCode,
             [.. Languages]);
 
@@ -255,6 +257,11 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             {
                 item.Value = value;
             }
+
+            if (snapshot.RoleReasoningEfforts.TryGetValue(item.Id, out var effort))
+            {
+                item.Effort = string.IsNullOrWhiteSpace(effort) ? RoleTemperatureViewModel.ProviderDefault : effort.Trim();
+            }
         }
 
         Languages.Clear();
@@ -282,6 +289,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         double Temperature,
         bool CosmeticEditorEnabled,
         Dictionary<string, double> RoleTemperatures,
+        Dictionary<string, string> RoleReasoningEfforts,
         string DefaultLanguageCode,
         List<LanguageData> Languages);
 }

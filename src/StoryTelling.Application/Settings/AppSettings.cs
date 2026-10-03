@@ -34,6 +34,8 @@ public sealed class AppSettings
 
     public Dictionary<string, double> RoleTemperatures { get; set; } = [];
 
+    public Dictionary<string, string> RoleReasoningEfforts { get; set; } = [];
+
     public List<string> EnabledEditorChecks { get; set; } = [];
 
     public bool CosmeticEditorEnabled { get; set; } = true;
@@ -48,6 +50,11 @@ public sealed class AppSettings
         RoleTemperatures.TryGetValue(task.Id(), out var value)
             ? value
             : task.FollowsGlobalTemperature() ? Temperature : task.DefaultTemperature();
+
+    public string ReasoningEffortFor(LlmTask task) =>
+        RoleReasoningEfforts.TryGetValue(task.Id(), out var value)
+            ? value.Trim()
+            : task.DefaultReasoningEffort();
 
     public static AppSettings CreateDefault() => new()
     {

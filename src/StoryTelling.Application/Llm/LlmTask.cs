@@ -23,6 +23,11 @@ public static class LlmTasks
 {
     public static IReadOnlyList<LlmTask> All { get; } = Enum.GetValues<LlmTask>();
 
+    public static IReadOnlyList<string> ReasoningEffortLevels { get; } = ["none", "minimal", "low", "medium", "high"];
+
+    public static bool IsKnownReasoningEffort(string value) =>
+        string.IsNullOrWhiteSpace(value) || ReasoningEffortLevels.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase);
+
     public static string Id(this LlmTask task) => task switch
     {
         LlmTask.Writer => "writer",
@@ -69,6 +74,12 @@ public static class LlmTasks
 
     public static bool FollowsGlobalTemperature(this LlmTask task) =>
         task is LlmTask.Writer or LlmTask.Editor or LlmTask.EditorFixer or LlmTask.EditorCosmetic or LlmTask.Setup or LlmTask.Planner;
+
+    public static string DefaultReasoningEffort(this LlmTask task) => task switch
+    {
+        LlmTask.Review or LlmTask.Continuity => "none",
+        _ => string.Empty,
+    };
 
     public static LlmTask ForGenerationTarget(GenerationTarget target) => target switch
     {

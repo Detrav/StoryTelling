@@ -18,6 +18,10 @@ internal sealed class ChatCompletionRequestPayload
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? MaxTokens { get; set; }
 
+    [JsonPropertyName("reasoning_effort")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReasoningEffort { get; set; }
+
     [JsonPropertyName("stream")]
     public bool Stream { get; set; }
 

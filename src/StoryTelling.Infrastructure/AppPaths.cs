@@ -42,6 +42,12 @@ public static class AppPaths
 
     private static string ResolveConfigDirectory()
     {
+        var custom = Environment.GetEnvironmentVariable("STORYTELLING_CONFIG_DIR");
+        if (!string.IsNullOrWhiteSpace(custom))
+        {
+            return custom.Trim();
+        }
+
         if (OperatingSystem.IsWindows())
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);

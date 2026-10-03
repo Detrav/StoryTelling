@@ -37,6 +37,7 @@ public sealed class ChapterSummarizer : IChapterSummarizer
             Model = settings.Model,
             Messages = PromptTemplates.BuildChapterSummary(chapter, stateBefore, knowledge),
             Temperature = settings.TemperatureFor(LlmTask.Summarizer),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Summarizer),
             MaxTokens = settings.MaxTokens,
         };
 

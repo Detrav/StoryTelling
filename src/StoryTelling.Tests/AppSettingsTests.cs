@@ -36,6 +36,27 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void ReasoningEffortFor_ReviewDefaultsToNone_AndOthersToProviderDefault()
+    {
+        var settings = new AppSettings();
+
+        Assert.Equal("none", settings.ReasoningEffortFor(LlmTask.Review));
+        Assert.Equal("none", settings.ReasoningEffortFor(LlmTask.Continuity));
+        Assert.Equal(string.Empty, settings.ReasoningEffortFor(LlmTask.Writer));
+    }
+
+    [Fact]
+    public void ReasoningEffortFor_OverrideWinsEvenWhenEmpty()
+    {
+        var settings = new AppSettings();
+        settings.RoleReasoningEfforts[LlmTask.Review.Id()] = "low";
+        settings.RoleReasoningEfforts[LlmTask.Continuity.Id()] = string.Empty;
+
+        Assert.Equal("low", settings.ReasoningEffortFor(LlmTask.Review));
+        Assert.Equal(string.Empty, settings.ReasoningEffortFor(LlmTask.Continuity));
+    }
+
+    [Fact]
     public void ForGenerationTarget_MapsPlannerAndSetupTargets()
     {
         Assert.Equal(LlmTask.Planner, LlmTasks.ForGenerationTarget(GenerationTarget.ChapterPlan));

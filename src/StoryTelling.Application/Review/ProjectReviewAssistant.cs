@@ -36,15 +36,16 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
             Model = settings.Model,
             Messages = PromptTemplates.BuildReview(snapshot, brief, check),
             Temperature = settings.TemperatureFor(LlmTask.Review),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Review),
             MaxTokens = settings.MaxTokens,
         };
 
-        var content = await CompleteWithRetryAsync(connection, request, cancellationToken).ConfigureAwait(false);
+        var content = await CompleteWithRetryAsync(connection, request, check.Reconcile, cancellationToken).ConfigureAwait(false);
 
         return ReviewDeduplicator.Deduplicate(ParseFindings(content), snapshot);
     }
 
-    private async Task<string> CompleteWithRetryAsync(LlmConnection connection, LlmRequest request, CancellationToken cancellationToken)
+    private async Task<string> CompleteWithRetryAsync(LlmConnection connection, LlmRequest request, bool includeReconciliation, CancellationToken cancellationToken)
     {
         const int attempts = 2;
 
@@ -53,7 +54,7 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
             try
             {
                 return await _llmClient
-                    .CompleteJsonAsync(connection, request, "ReviewFindings", ReviewSchema.Build(), cancellationToken)
+                    .CompleteJsonAsync(connection, request, "ReviewFindings", ReviewSchema.Build(includeReconciliation), cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (LlmException) when (attempt < attempts)

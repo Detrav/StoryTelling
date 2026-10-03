@@ -766,13 +766,14 @@ internal static class Program
             Console.WriteLine($"max tokens: {current.MaxTokens}");
             Console.WriteLine($"temp:       {current.Temperature}");
             Console.WriteLine($"languages:  {string.Join(", ", current.Languages.Select(language => language.Code))}");
+            Console.WriteLine($"efforts:    {DescribeReasoningEfforts(current)}");
             Console.WriteLine($"file:       {AppPaths.SettingsFile}");
             return 0;
         }
 
         if (!action.Equals("set", StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine("usage: storydev settings [show|set] [--base-url ...] [--model ...] [--api-key ...] [--temperature ...] [--languages ru,de]");
+            Console.Error.WriteLine("usage: storydev settings [show|set] [--base-url ...] [--model ...] [--api-key ...] [--temperature ...] [--languages ru,de] [--reasoning-efforts review=none,writer=default]");
             return 2;
         }
 
@@ -796,6 +797,11 @@ internal static class Program
                 .. languages.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Select(code => new LanguageData(code, code.ToUpperInvariant())),
             ];
+        }
+
+        if (ArgReader.Value(args, "--reasoning-efforts") is { } efforts)
+        {
+            settings.RoleReasoningEfforts = ParseReasoningEfforts(efforts);
         }
 
         await service.SaveAsync(settings, cancellationToken);
@@ -1335,6 +1341,31 @@ internal static class Program
         return 0;
     }
 
+    private static string DescribeReasoningEfforts(AppSettings settings) =>
+        settings.RoleReasoningEfforts.Count == 0
+            ? $"defaults ({string.Join(", ", LlmTasks.All.Select(task => $"{task.Id()}={DisplayEffort(settings.ReasoningEffortFor(task))}"))})"
+            : string.Join(", ", settings.RoleReasoningEfforts.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key}={DisplayEffort(pair.Value)}"));
+
+    private static string DisplayEffort(string effort) => string.IsNullOrWhiteSpace(effort) ? "default" : effort.Trim();
+
+    private static Dictionary<string, string> ParseReasoningEfforts(string value)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]))
+            {
+                continue;
+            }
+
+            var effort = parts[1].Trim();
+            result[parts[0].Trim()] = string.Equals(effort, "default", StringComparison.OrdinalIgnoreCase) ? string.Empty : effort;
+        }
+
+        return result;
+    }
+
     private static AppSettings CloneSettings(AppSettings source) => new()
     {
         SchemaVersion = source.SchemaVersion,
@@ -1350,6 +1381,8 @@ internal static class Program
         ContextRequiredSectionMaxChars = source.ContextRequiredSectionMaxChars,
         ToolResultMaxChars = source.ToolResultMaxChars,
         Temperature = source.Temperature,
+        RoleTemperatures = source.RoleTemperatures,
+        RoleReasoningEfforts = source.RoleReasoningEfforts,
         DefaultLanguageCode = source.DefaultLanguageCode,
         Languages = source.Languages,
         RecentProjects = source.RecentProjects,
@@ -1835,7 +1868,7 @@ internal static class Program
         Console.WriteLine("  finish    Plan the final chapter (title + direction): --file <path> [--brief ...]");
         Console.WriteLine("  chapter   Manage chapters: --action <add|remove|move|status> --file <path> [--number N] [--from N] [--status ...]");
         Console.WriteLine("  set       Edit fields by hand: --what <project|world|state|chapter|knowledge> --file <path> [field options]");
-        Console.WriteLine("  settings  Show or set provider settings: [show|set] [--model ...] [--base-url ...] [--api-key ...] [--languages ru,de]");
+        Console.WriteLine("  settings  Show or set provider settings: [show|set] [--model ...] [--base-url ...] [--api-key ...] [--languages ru,de] [--reasoning-efforts review=none,...]");
         Console.WriteLine("  import    Import knowledge from Markdown files: --file <path> --from <file.md|dir> [--mode extract|design] [--brief ...]");
         Console.WriteLine("  create    Full run (setup + chapters): --out <path> [--chapters N] [--brief ...] [--characters N]");
         Console.WriteLine("  summarize Summarize chapters into loglines + world state: --file <path> [--chapter N | --all]");

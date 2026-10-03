@@ -146,6 +146,22 @@ public sealed class JsonSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoad_RoundTripsRoleReasoningEfforts()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        var service = new JsonSettingsService(path);
+        var settings = AppSettings.CreateDefault();
+        settings.RoleReasoningEfforts["review"] = "none";
+        settings.RoleReasoningEfforts["writer"] = string.Empty;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal("none", loaded.RoleReasoningEfforts["review"]);
+        Assert.Equal(string.Empty, loaded.RoleReasoningEfforts["writer"]);
+    }
+
+    [Fact]
     public async Task Save_WithEnvironmentApiKey_PreservesBudgetsAndRoleTemperatures()
     {
         var path = Path.Combine(_directory, "settings.json");

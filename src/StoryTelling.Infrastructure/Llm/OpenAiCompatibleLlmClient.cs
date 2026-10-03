@@ -359,6 +359,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
             Model = request.Model,
             Temperature = request.Temperature,
             MaxTokens = request.MaxTokens,
+            ReasoningEffort = string.IsNullOrWhiteSpace(request.ReasoningEffort) ? null : request.ReasoningEffort.Trim(),
             Stream = stream,
             Messages = [.. request.Messages.Select(message => new ChatMessagePayload
             {

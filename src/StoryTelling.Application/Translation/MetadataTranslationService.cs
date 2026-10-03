@@ -37,6 +37,7 @@ public sealed class MetadataTranslationService : IMetadataTranslator
                 request.Annotation,
                 request.ChapterTitles),
             Temperature = settings.TemperatureFor(LlmTask.Translation),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Translation),
             MaxTokens = settings.MaxTokens,
         };
 

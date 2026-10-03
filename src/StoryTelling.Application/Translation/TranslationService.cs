@@ -38,6 +38,7 @@ public sealed class TranslationService : ITranslationService
             Model = settings.Model,
             Messages = PromptTemplates.BuildTranslation(text, languageCode),
             Temperature = settings.TemperatureFor(LlmTask.Translation),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Translation),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -129,6 +130,7 @@ public sealed class TranslationService : ITranslationService
             Model = settings.Model,
             Messages = PromptTemplates.BuildTranslation(paragraph, languageCode),
             Temperature = settings.TemperatureFor(LlmTask.Translation),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTask.Translation),
             MaxTokens = settings.MaxTokens,
         };
 

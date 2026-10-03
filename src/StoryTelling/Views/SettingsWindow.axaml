@@ -72,14 +72,14 @@
 
             <TabItem Header="Roles">
                 <StackPanel Margin="18" Spacing="12">
-                    <TextBlock Text="Temperature per task. Lower is more deterministic; raise it for creative work. Prefer values above 0.1."
+                    <TextBlock Text="Temperature per task (lower is more deterministic; raise it for creative work) and reasoning effort. Use 'provider default' to leave effort to the model; set 'none' on review tasks to stop hidden reasoning that can burn the whole token budget."
                                Opacity="0.7"
                                TextWrapping="Wrap" />
 
                     <ItemsControl ItemsSource="{Binding RoleTemperatures}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:RoleTemperatureViewModel">
-                                <Grid ColumnDefinitions="*,170,Auto" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="*,170,160,Auto" Margin="0,0,0,8">
                                     <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" />
                                     <NumericUpDown Grid.Column="1"
                                                    Value="{Binding Value}"
@@ -87,7 +87,13 @@
                                                    Maximum="2"
                                                    Increment="0.1"
                                                    LostFocus="OnCommit" />
-                                    <TextBlock Grid.Column="2"
+                                    <ComboBox Grid.Column="2"
+                                              Margin="8,0,0,0"
+                                              HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding EffortOptionsList}"
+                                              SelectedItem="{Binding Effort}"
+                                              SelectionChanged="OnEffortChanged" />
+                                    <TextBlock Grid.Column="3"
                                                Text="Value too low"
                                                Foreground="#B00020"
                                                Margin="8,0,0,0"

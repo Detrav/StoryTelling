@@ -27,4 +27,6 @@ public partial class SettingsWindow : Window
     }
 
     private void OnCommit(object? sender, FocusChangedEventArgs e) => (DataContext as SettingsWindowViewModel)?.Commit();
+
+    private void OnEffortChanged(object? sender, SelectionChangedEventArgs e) => (DataContext as SettingsWindowViewModel)?.Commit();
 }

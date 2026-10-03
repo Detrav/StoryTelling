@@ -39,6 +39,7 @@ public sealed class GenerationAssistant : IGenerationAssistant
             Model = settings.Model,
             Messages = messages,
             Temperature = settings.TemperatureFor(LlmTasks.ForGenerationTarget(request.Target)),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTasks.ForGenerationTarget(request.Target)),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -149,6 +150,7 @@ public sealed class GenerationAssistant : IGenerationAssistant
             Model = settings.Model,
             Messages = seed,
             Temperature = settings.TemperatureFor(LlmTasks.ForGenerationTarget(request.Target)),
+            ReasoningEffort = settings.ReasoningEffortFor(LlmTasks.ForGenerationTarget(request.Target)),
             MaxTokens = settings.MaxTokens,
         };
 

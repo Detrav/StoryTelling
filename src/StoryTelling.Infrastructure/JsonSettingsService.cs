@@ -84,6 +84,7 @@ public sealed class JsonSettingsService : ISettingsService
         ToolResultMaxChars = settings.ToolResultMaxChars,
         Temperature = settings.Temperature,
         RoleTemperatures = new Dictionary<string, double>(settings.RoleTemperatures),
+        RoleReasoningEfforts = new Dictionary<string, string>(settings.RoleReasoningEfforts),
         DefaultLanguageCode = settings.DefaultLanguageCode,
         Languages = [.. settings.Languages],
         RecentProjects = [.. settings.RecentProjects],
