@@ -46,7 +46,7 @@ public sealed class SetupViewModelTests
         setup.ApplyGenerated(new Dictionary<string, string>
         {
             ["TimeAndPlace"] = "Dusk above the keep",
-            ["Description"] = "Aria crouches in the ruins.",
+            ["Situation"] = "Aria crouches in the ruins.",
         });
 
         Assert.Equal("Dusk above the keep", setup.InitialStateTimeAndPlace);

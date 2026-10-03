@@ -231,6 +231,7 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
             case "TimeAndPlace":
                 InitialStateTimeAndPlace = FirstLine(text);
                 break;
+            case "Situation":
             case "Description":
                 InitialStateDescription = text;
                 break;
