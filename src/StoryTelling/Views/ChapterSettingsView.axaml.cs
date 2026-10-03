@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using StoryTelling.Application.Generation;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
@@ -12,23 +11,22 @@ public partial class ChapterSettingsView : UserControl
 
     private async void OnGenerateClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not ChapterSettingsViewModel viewModel || viewModel.GenerateOptions is not { } generate)
+        if (DataContext is not ChapterSettingsViewModel viewModel || viewModel.Suggest is not { } suggest)
         {
             return;
         }
 
-        var wizard = new AiWizardWindow
+        var setup = new ChapterSetupViewModel(
+            "Chapter settings",
+            isAddMode: false,
+            viewModel.Role,
+            viewModel.Notes,
+            (role, notes, variants, session, progress, cancellationToken) =>
+                suggest(role, notes, variants, session, progress, cancellationToken));
+        var dialog = new ChapterSetupWindow { DataContext = setup };
+        if (await dialog.ShowDialog<bool>(GetWindow()) && setup.SelectedOption is { } option)
         {
-            DataContext = new AiWizardViewModel(
-                GenerationTargets.Label(GenerationTarget.ChapterSettings),
-                GenerationTarget.ChapterSettings,
-                (brief, options, session, progress, cancellationToken) => generate(brief, options, session, progress, cancellationToken)),
-        };
-
-        var result = await wizard.ShowDialog<IReadOnlyDictionary<string, string>?>(GetWindow());
-        if (result is { Count: > 0 })
-        {
-            viewModel.ApplyGenerated(result);
+            viewModel.ApplyChapterSetup(setup.Role, setup.Notes, option.Title, option.Direction);
         }
     }
 

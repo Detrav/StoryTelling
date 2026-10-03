@@ -16,7 +16,15 @@ public partial class ChapterSettingsViewModel : ViewModelBase
         chapter.PropertyChanged += OnChapterChanged;
     }
 
-    public Func<string, int, GenerationSession, IProgress<GenerationProgress>?, CancellationToken, Task<IReadOnlyList<GenerationOption>>>? GenerateOptions { get; set; }
+    public delegate Task<IReadOnlyList<GenerationOption>> SuggestOptions(
+        ChapterRole role,
+        string notes,
+        int variants,
+        GenerationSession session,
+        IProgress<GenerationProgress>? progress,
+        CancellationToken cancellationToken);
+
+    public SuggestOptions? Suggest { get; set; }
 
     public IReadOnlyList<ChapterRole> Roles { get; } = Enum.GetValues<ChapterRole>();
 
@@ -116,26 +124,12 @@ public partial class ChapterSettingsViewModel : ViewModelBase
 
     public void Commit() => _debouncer.CommitNow();
 
-    public void ApplyGenerated(string field, string text)
+    public void ApplyChapterSetup(ChapterRole role, string notes, string title, string direction)
     {
-        switch (field)
-        {
-            case "Title":
-                Title = text.Split('\n')[0].Trim();
-                break;
-            case "Direction":
-                Direction = text;
-                break;
-        }
-    }
-
-    public void ApplyGenerated(IReadOnlyDictionary<string, string> fields)
-    {
-        foreach (var (field, text) in fields)
-        {
-            ApplyGenerated(field, text);
-        }
-
+        Role = role;
+        Notes = notes;
+        Title = title;
+        Direction = direction;
         _debouncer.Trigger();
     }
 

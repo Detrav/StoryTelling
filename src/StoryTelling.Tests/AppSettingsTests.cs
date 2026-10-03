@@ -59,8 +59,7 @@ public sealed class AppSettingsTests
     [Fact]
     public void ForGenerationTarget_MapsPlannerAndSetupTargets()
     {
-        Assert.Equal(LlmTask.Planner, LlmTasks.ForGenerationTarget(GenerationTarget.ChapterPlan));
-        Assert.Equal(LlmTask.Planner, LlmTasks.ForGenerationTarget(GenerationTarget.Finale));
+        Assert.Equal(LlmTask.Planner, LlmTasks.ForGenerationTarget(GenerationTarget.ChapterSettings));
         Assert.Equal(LlmTask.Setup, LlmTasks.ForGenerationTarget(GenerationTarget.World));
         Assert.Equal(LlmTask.Setup, LlmTasks.ForGenerationTarget(GenerationTarget.Knowledge));
     }

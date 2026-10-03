@@ -40,7 +40,11 @@ public partial class WorkspaceViewModel : ViewModelBase
         _continuityReviewer = continuityReviewer;
         _projectName = project.Name;
 
-        Chapters.CollectionChanged += (_, _) => Renumber();
+        Chapters.CollectionChanged += (_, _) =>
+        {
+            Renumber();
+            OnPropertyChanged(nameof(HasChapters));
+        };
 
         foreach (var code in project.Settings.TargetLanguages)
         {
@@ -54,12 +58,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             Chapters.Add(viewModel);
         }
 
-        if (Chapters.Count == 0)
-        {
-            AddNewChapter();
-        }
-
-        _selectedChapter = Chapters[0];
+        _selectedChapter = Chapters.FirstOrDefault();
     }
 
     public event Action? CloseRequested;
@@ -140,7 +139,7 @@ public partial class WorkspaceViewModel : ViewModelBase
     private int _selectedTabIndex;
 
     [ObservableProperty]
-    private ChapterViewModel _selectedChapter;
+    private ChapterViewModel? _selectedChapter;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -154,24 +153,102 @@ public partial class WorkspaceViewModel : ViewModelBase
 
     public string? FilePath { get; set; }
 
-    [RelayCommand]
-    private void AddChapter()
+    public bool HasChapters => Chapters.Count > 0;
+
+    public ChapterViewModel CreateChapter(ChapterRole role, string notes, string title, string direction)
     {
-        SelectedChapter = AddNewChapter();
+        var number = Chapters.Count + 1;
+        var chapter = new ChapterViewModel
+        {
+            Number = number,
+            Title = string.IsNullOrWhiteSpace(title) ? $"Chapter {number}" : title.Trim(),
+            Role = role,
+            Notes = notes,
+            Direction = direction,
+            Status = ChapterStatus.Draft,
+            CreatedUtc = _clock.UtcNow,
+        };
+
+        foreach (var code in Languages)
+        {
+            chapter.Translations.Add(new TranslationViewModel(code, string.Empty));
+        }
+
+        BuildTabs(chapter);
+        Chapters.Add(chapter);
+        SelectedChapter = chapter;
         MarkMetadataStale();
         IsDirty = true;
         Mutated?.Invoke("Add chapter");
+        return chapter;
+    }
+
+    public void SetChapterSettings(ChapterViewModel chapter, ChapterRole role, string notes, string title, string direction)
+    {
+        chapter.Role = role;
+        chapter.Notes = notes;
+        chapter.Title = title.Trim();
+        chapter.Direction = direction;
+        IsDirty = true;
+        Mutated?.Invoke($"Edit settings of chapter {chapter.Number}");
+    }
+
+    public Task<IReadOnlyList<GenerationOption>> SuggestChapterSettingsAsync(
+        ChapterViewModel? chapter,
+        ChapterRole role,
+        string notes,
+        int variants,
+        GenerationSession session,
+        IProgress<GenerationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var number = chapter?.Number ?? Chapters.Count + 1;
+        var project = ToProject();
+        var priorChapters = project.Chapters.Where(candidate => candidate.Number < number).ToList();
+        var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, number), priorChapters);
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.ChapterSettings,
+            Brief = BuildChapterBrief(role, notes),
+            Variants = variants,
+            Context = new GenerationContext { Fields = ProjectFields() },
+            Snapshot = effective,
+            Avoid =
+            [
+                .. project.Chapters
+                    .Where(candidate => candidate.Number != number)
+                    .Select(candidate => candidate.Title.Trim())
+                    .Where(title => title.Length > 0),
+            ],
+        };
+
+        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
+    }
+
+    private static string BuildChapterBrief(ChapterRole role, string notes)
+    {
+        var parts = new List<string>();
+        if (role != ChapterRole.Auto)
+        {
+            parts.Add($"Chapter role: {role}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(notes))
+        {
+            parts.Add($"Author's notes: {notes.Trim()}");
+        }
+
+        return string.Join(" ", parts);
     }
 
     [RelayCommand]
     private void DeleteChapter(ChapterViewModel? chapter)
     {
-        if (Chapters.Count <= 1)
+        var target = chapter ?? SelectedChapter;
+        if (target is null)
         {
             return;
         }
-
-        var target = chapter ?? SelectedChapter;
         var index = Chapters.IndexOf(target);
         if (index < 0)
         {
@@ -180,7 +257,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
         Chapters.RemoveAt(index);
         Renumber();
-        SelectedChapter = Chapters[Math.Min(index, Chapters.Count - 1)];
+        SelectedChapter = Chapters.Count == 0 ? null : Chapters[Math.Min(index, Chapters.Count - 1)];
         MarkMetadataStale();
         IsDirty = true;
         Mutated?.Invoke("Delete chapter");
@@ -189,7 +266,11 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void MoveChapterUp(ChapterViewModel? chapter)
     {
-        var target = chapter ?? SelectedChapter;
+        if ((chapter ?? SelectedChapter) is not { } target)
+        {
+            return;
+        }
+
         var index = Chapters.IndexOf(target);
         if (index <= 0)
         {
@@ -205,7 +286,11 @@ public partial class WorkspaceViewModel : ViewModelBase
     [RelayCommand]
     private void MoveChapterDown(ChapterViewModel? chapter)
     {
-        var target = chapter ?? SelectedChapter;
+        if ((chapter ?? SelectedChapter) is not { } target)
+        {
+            return;
+        }
+
         var index = Chapters.IndexOf(target);
         if (index < 0 || index >= Chapters.Count - 1)
         {
@@ -228,79 +313,6 @@ public partial class WorkspaceViewModel : ViewModelBase
         chapter.Status = status;
         IsDirty = true;
         Mutated?.Invoke($"Set status of chapter {chapter.Number}");
-    }
-
-    public async Task PlanFinalChapterAsync(
-        IProgress<ProgressTaskProgress> progress,
-        CancellationToken cancellationToken)
-    {
-        if (IsBusy)
-        {
-            throw new InvalidOperationException("Another operation is in progress. Wait for it to finish.");
-        }
-
-        AddChapter();
-        var chapter = SelectedChapter;
-
-        IsBusy = true;
-        Status = "Planning the final chapter…";
-        progress.Report(new ProgressTaskProgress(0, 1, 0, "Planning the final chapter…"));
-
-        try
-        {
-            var project = ToProject();
-            var priorChapters = project.Chapters.Where(candidate => candidate.Number < chapter.Number).ToList();
-            var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number), priorChapters);
-            var request = new GenerationRequest
-            {
-                Target = GenerationTarget.Finale,
-                Variants = 1,
-                Context = new GenerationContext { Fields = ProjectFields() },
-                Snapshot = effective,
-                Avoid =
-                [
-                    .. project.Chapters
-                        .Where(candidate => candidate.Number != chapter.Number)
-                        .Select(candidate => candidate.Title.Trim())
-                        .Where(title => title.Length > 0),
-                ],
-            };
-
-            var inner = new Progress<GenerationProgress>(report =>
-                progress.Report(new ProgressTaskProgress(0, 1, 0, DescribeStage(report))));
-
-            var options = await _assistant.GenerateAsync(request, new GenerationSession(), inner, cancellationToken);
-            var option = options.FirstOrDefault()
-                ?? throw new InvalidOperationException("The model returned no usable plan. Try again.");
-
-            if (option.Fields.TryGetValue("Title", out var title) && !string.IsNullOrWhiteSpace(title))
-            {
-                chapter.Title = title.Trim();
-            }
-
-            if (option.Fields.TryGetValue("Direction", out var direction))
-            {
-                chapter.Direction = direction.Trim();
-            }
-
-            Status = "Final chapter planned — review the direction, then Generate.";
-            Mutated?.Invoke("Plan final chapter");
-            progress.Report(new ProgressTaskProgress(1, 1, -1, string.Empty));
-        }
-        catch (OperationCanceledException)
-        {
-            Status = "Stopped.";
-            throw;
-        }
-        catch (Exception exception)
-        {
-            Status = $"Failed: {exception.Message}";
-            throw;
-        }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     public IReadOnlyList<BookOperation> BuildCompletionPlan()
@@ -1046,79 +1058,7 @@ public partial class WorkspaceViewModel : ViewModelBase
         return _project;
     }
 
-    public Task<IReadOnlyList<GenerationOption>> PlanChaptersAsync(int count, string brief, GenerationSession session, IProgress<GenerationProgress>? progress, CancellationToken cancellationToken)
-    {
-        var project = ToProject();
-        var snapshot = WithKnowledge(project, KnowledgeComposer.Compose(project, 1), []);
-        var request = new GenerationRequest
-        {
-            Target = GenerationTarget.ChapterPlan,
-            Brief = brief,
-            Variants = count,
-            Bundle = true,
-            Context = new GenerationContext { Fields = ProjectFields() },
-            Snapshot = snapshot,
-        };
-
-        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
-    }
-
     public bool HasWrittenContent => Chapters.Any(chapter => !string.IsNullOrWhiteSpace(chapter.ContentOriginal));
-
-    public void ApplyChapterPlan(IReadOnlyList<(string Title, string Direction)> plan)
-    {
-        Chapters.Clear();
-        foreach (var (title, direction) in plan)
-        {
-            var chapter = new ChapterViewModel
-            {
-                Number = Chapters.Count + 1,
-                Title = title,
-                Direction = direction,
-                Status = ChapterStatus.Draft,
-                CreatedUtc = _clock.UtcNow,
-            };
-
-            foreach (var code in Languages)
-            {
-                chapter.Translations.Add(new TranslationViewModel(code, string.Empty));
-            }
-
-            BuildTabs(chapter);
-            Chapters.Add(chapter);
-        }
-
-        if (Chapters.Count == 0)
-        {
-            AddNewChapter();
-        }
-
-        SelectedChapter = Chapters[0];
-        SelectedTabIndex = 0;
-        MarkMetadataStale();
-        IsDirty = true;
-        Mutated?.Invoke("Plan chapters");
-    }
-
-    private ChapterViewModel AddNewChapter()
-    {
-        var chapter = new ChapterViewModel
-        {
-            Number = Chapters.Count + 1,
-            Title = $"Chapter {Chapters.Count + 1}",
-            Status = ChapterStatus.Draft,
-            CreatedUtc = _clock.UtcNow,
-        };
-
-        foreach (var code in Languages)
-        {
-            chapter.Translations.Add(new TranslationViewModel(code, string.Empty));
-        }
-
-        BuildTabs(chapter);
-        Chapters.Add(chapter);
-        return chapter;
-    }
 
     private void UpdateLanguages(IReadOnlyList<string> codes)
     {
@@ -1179,7 +1119,7 @@ public partial class WorkspaceViewModel : ViewModelBase
             chapter.Number = i + 1;
             chapter.CanMoveUp = i > 0;
             chapter.CanMoveDown = i < Chapters.Count - 1;
-            chapter.CanDelete = Chapters.Count > 1;
+            chapter.CanDelete = true;
         }
     }
 
@@ -1234,39 +1174,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 
             RaiseMutation($"Edit settings of chapter {chapter.Number}");
         });
-        settings.GenerateOptions = (brief, options, session, progress, cancellationToken) =>
-            GenerateChapterAsync(chapter, brief, options, session, progress, cancellationToken);
+        settings.Suggest = (role, notes, options, session, progress, cancellationToken) =>
+            SuggestChapterSettingsAsync(chapter, role, notes, options, session, progress, cancellationToken);
         chapter.Tabs.Add(new ChapterTabViewModel("Settings", settings));
-    }
-
-    private Task<IReadOnlyList<GenerationOption>> GenerateChapterAsync(
-        ChapterViewModel chapter,
-        string brief,
-        int options,
-        GenerationSession session,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var project = ToProject();
-        var priorChapters = project.Chapters.Where(candidate => candidate.Number < chapter.Number).ToList();
-        var effective = WithKnowledge(project, KnowledgeComposer.Compose(project, chapter.Number), priorChapters);
-        var request = new GenerationRequest
-        {
-            Target = GenerationTarget.ChapterSettings,
-            Brief = brief,
-            Variants = options,
-            Context = new GenerationContext { Fields = ProjectFields() },
-            Snapshot = effective,
-            Avoid =
-            [
-                .. project.Chapters
-                    .Where(candidate => candidate.Number != chapter.Number)
-                    .Select(candidate => candidate.Title.Trim())
-                    .Where(title => title.Length > 0),
-            ],
-        };
-
-        return _assistant.GenerateAsync(request, session, progress, cancellationToken);
     }
 
     private IReadOnlyDictionary<string, string> ProjectFields() => new Dictionary<string, string>

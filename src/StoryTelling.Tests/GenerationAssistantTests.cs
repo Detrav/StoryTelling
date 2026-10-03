@@ -245,21 +245,21 @@ public sealed class GenerationAssistantTests
     }
 
     [Fact]
-    public async Task GenerateAsync_ChapterPlan_ForcesResolutionInLastChapter()
+    public async Task GenerateAsync_ChapterSettings_AsksForAlternativeOptions()
     {
         var llm = new FakeLlmClient("[]");
         var assistant = new GenerationAssistant(llm, new FakeSettingsService());
 
         await assistant.GenerateAsync(new GenerationRequest
         {
-            Target = GenerationTarget.ChapterPlan,
-            Variants = 5,
+            Target = GenerationTarget.ChapterSettings,
+            Variants = 3,
             Context = new GenerationContext(),
         });
 
         var user = llm.LastRequest!.Messages[1].Content;
-        Assert.Contains("exactly 5 chapters", user);
-        Assert.Contains("FULL resolution in chapter 5", user);
+        Assert.Contains("3 distinct chapter options", user);
+        Assert.Contains("alternative for the SAME chapter", user);
     }
 
     [Fact]

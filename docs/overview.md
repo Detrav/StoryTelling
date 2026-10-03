@@ -25,10 +25,11 @@ the English original is always preserved.
 3. **Generate with AI (wizard).** Not a chat: pressing a *Generate with AI* button opens a wizard
    that offers several AI options for one field, lets the user ask for more (with a brief), and
    applies the chosen option or the user's own edits. Almost all context is pulled through tools.
-4. **Chapter planning.** The *Plan chapters* action asks for a chapter count and an optional brief,
-   and the AI produces that many titles + directions forming a complete arc (setup, rising action,
-   climax, resolution); applying it replaces the chapter list. *Finish* plans a concluding final
-   chapter. The sidebar chapter list is the outline.
+4. **Chapters, one at a time.** A book starts empty; `+` opens a chapter-setup dialog where you
+   pick the chapter's **role** and write notes, and the AI proposes several **titles + directions**
+   built from the previous chapters and the knowledge base. You pick one and the chapter is appended
+   to the list. The chapter text is not written until you press *Generate*; the sidebar list is the
+   outline.
 5. **Chapter pipeline.** Each chapter is produced as a sequence of AI passes; previous chapters are
    never resent:
    - write the chapter text (English), streamed to the UI;

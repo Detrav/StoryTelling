@@ -7,6 +7,4 @@ public enum GenerationTarget
     Knowledge,
     InitialWorldState,
     ChapterSettings,
-    ChapterPlan,
-    Finale,
 }

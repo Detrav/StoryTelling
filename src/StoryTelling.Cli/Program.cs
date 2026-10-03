@@ -44,9 +44,7 @@ internal static class Program
                 "gen" => await GenAsync(rest, token),
                 "setup" => await SetupAsync(rest, token),
                 "write" => await WriteAsync(rest, token),
-                "plan" => await PlanAsync(rest, token),
                 "complete" => await CompleteAsync(rest, token),
-                "finish" => await FinishAsync(rest, token),
                 "chapter" => await ChapterAsync(rest, token),
                 "set" => await SetAsync(rest, token),
                 "settings" => await SettingsAsync(rest, token),
@@ -227,82 +225,6 @@ internal static class Program
         return 0;
     }
 
-    private static async Task<int> PlanAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
-    {
-        var file = ArgReader.Value(args, "--file");
-        if (string.IsNullOrWhiteSpace(file))
-        {
-            Console.Error.WriteLine("usage: storydev plan --file <path> [--chapters N] [--brief ...] [--out <path>] [--replace]");
-            return 2;
-        }
-
-        var count = Math.Clamp(ArgReader.Int(args, "--chapters", 10), 1, 50);
-        var brief = ArgReader.String(args, "--brief", string.Empty);
-        var output = ArgReader.String(args, "--out", file);
-
-        using var context = await BuildAsync(args, cancellationToken);
-        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
-
-        if (project.Chapters.Any(chapter => !string.IsNullOrWhiteSpace(chapter.ContentOriginal)) && !args.Contains("--replace"))
-        {
-            Console.Error.WriteLine("the project already has written chapters; pass --replace to discard them");
-            return 2;
-        }
-
-        var snapshot = WithKnowledge(project, KnowledgeComposer.Compose(project, 1));
-        var request = new GenerationRequest
-        {
-            Target = GenerationTarget.ChapterPlan,
-            Brief = brief,
-            Variants = count,
-            Bundle = true,
-            Context = BookBuilder.BuildContext(project),
-            Snapshot = snapshot,
-        };
-
-        var assistant = new GenerationAssistant(context.LlmClient, context.SettingsService);
-        var options = await assistant.GenerateAsync(request, new GenerationSession(), new ConsoleProgress("planning"), cancellationToken);
-
-        var chapters = new List<Chapter>();
-        foreach (var option in options)
-        {
-            var title = option.Fields.TryGetValue("Title", out var candidateTitle) ? candidateTitle.Trim() : string.Empty;
-            var direction = option.Fields.TryGetValue("Direction", out var candidateDirection) ? candidateDirection.Trim() : string.Empty;
-            if (title.Length == 0 && direction.Length == 0)
-            {
-                continue;
-            }
-
-            var chapter = new Chapter
-            {
-                Number = chapters.Count + 1,
-                Title = title.Length == 0 ? $"Chapter {chapters.Count + 1}" : title,
-                Direction = direction,
-                Status = ChapterStatus.Draft,
-                CreatedUtc = DateTimeOffset.UtcNow,
-            };
-
-            foreach (var code in project.Settings.TargetLanguages)
-            {
-                chapter.Translations[code] = string.Empty;
-            }
-
-            chapters.Add(chapter);
-        }
-
-        if (chapters.Count == 0)
-        {
-            Console.Error.WriteLine("the model returned no usable plan; try again");
-            return 1;
-        }
-
-        project.Chapters = chapters;
-        project.UpdatedUtc = DateTimeOffset.UtcNow;
-        await SaveAsync(project, output, cancellationToken);
-        Console.WriteLine($"Planned {chapters.Count} chapter(s).");
-        return 0;
-    }
-
     private static async Task<int> CompleteAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
         var file = ArgReader.Value(args, "--file");
@@ -459,65 +381,54 @@ internal static class Program
         return null;
     }
 
-    private static async Task<int> FinishAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<ChapterSuggestion>> SuggestChapterAsync(
+        CliContext context,
+        Project project,
+        int number,
+        ChapterRole role,
+        string notes,
+        CancellationToken cancellationToken)
     {
-        var file = ArgReader.Value(args, "--file");
-        if (string.IsNullOrWhiteSpace(file))
-        {
-            Console.Error.WriteLine("usage: storydev finish --file <path> [--brief ...] [--out <path>]");
-            return 2;
-        }
-
-        var brief = ArgReader.String(args, "--brief", string.Empty);
-        var output = ArgReader.String(args, "--out", file);
-
-        using var context = await BuildAsync(args, cancellationToken);
-        var project = await new JsonProjectRepository().LoadAsync(file, cancellationToken);
-
-        var number = project.Chapters.Count == 0 ? 1 : project.Chapters.Max(chapter => chapter.Number) + 1;
-        var snapshot = WithKnowledge(project, KnowledgeComposer.Compose(project, number), project.Chapters);
+        var assistant = new GenerationAssistant(context.LlmClient, context.SettingsService);
+        var snapshot = WithKnowledge(project, KnowledgeComposer.Compose(project, number));
         var request = new GenerationRequest
         {
-            Target = GenerationTarget.Finale,
-            Brief = brief,
-            Variants = 1,
+            Target = GenerationTarget.ChapterSettings,
+            Brief = BuildChapterBrief(role, notes),
+            Variants = 3,
             Context = BookBuilder.BuildContext(project),
             Snapshot = snapshot,
         };
 
-        var assistant = new GenerationAssistant(context.LlmClient, context.SettingsService);
-        var options = await assistant.GenerateAsync(request, new GenerationSession(), new ConsoleProgress("finale"), cancellationToken);
-        var option = options.FirstOrDefault();
-        if (option is null)
-        {
-            Console.Error.WriteLine("the model returned no usable final chapter; try again");
-            return 1;
-        }
+        var options = await assistant
+            .GenerateAsync(request, new GenerationSession(), new ConsoleProgress("suggesting"), cancellationToken)
+            .ConfigureAwait(false);
 
-        var title = option.Fields.TryGetValue("Title", out var candidateTitle) ? candidateTitle.Trim() : string.Empty;
-        var direction = option.Fields.TryGetValue("Direction", out var candidateDirection) ? candidateDirection.Trim() : string.Empty;
-        var chapter = new Chapter
-        {
-            Number = number,
-            Title = title.Length == 0 ? "Finale" : title,
-            Direction = direction,
-            Role = ChapterRole.Finale,
-            Status = ChapterStatus.Draft,
-            CreatedUtc = DateTimeOffset.UtcNow,
-        };
-
-        foreach (var code in project.Settings.TargetLanguages)
-        {
-            chapter.Translations[code] = string.Empty;
-        }
-
-        project.Chapters.Add(chapter);
-        project.UpdatedUtc = DateTimeOffset.UtcNow;
-        await SaveAsync(project, output, cancellationToken);
-        Console.WriteLine($"Planned final chapter {number}: {chapter.Title}");
-        Console.WriteLine($"  {chapter.Direction}");
-        return 0;
+        return
+        [
+            .. options.Select(option => new ChapterSuggestion(
+                option.Fields.TryGetValue("Title", out var title) ? title.Trim() : string.Empty,
+                option.Fields.TryGetValue("Direction", out var direction) ? direction.Trim() : string.Empty)),
+        ];
     }
+
+    private static string BuildChapterBrief(ChapterRole role, string notes)
+    {
+        var parts = new List<string>();
+        if (role != ChapterRole.Auto)
+        {
+            parts.Add($"Chapter role: {role}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(notes))
+        {
+            parts.Add($"Author's notes: {notes.Trim()}");
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private sealed record ChapterSuggestion(string Title, string Direction);
 
     private static Project WithKnowledge(Project project, IReadOnlyList<KnowledgeEntry> knowledge, IReadOnlyList<Chapter>? chapters = null) => new()
     {
@@ -550,14 +461,51 @@ internal static class Program
         {
             case "add":
                 var number = project.Chapters.Count == 0 ? 1 : project.Chapters.Max(chapter => chapter.Number) + 1;
-                var added = new Chapter { Number = number, Title = $"Chapter {number}", Status = ChapterStatus.Draft, CreatedUtc = DateTimeOffset.UtcNow };
+                var role = Enum.TryParse<ChapterRole>(ArgReader.String(args, "--role", "Auto"), ignoreCase: true, out var parsedRole)
+                    ? parsedRole
+                    : ChapterRole.Auto;
+                var notes = ArgReader.String(args, "--notes", string.Empty);
+                var title = ArgReader.String(args, "--title", $"Chapter {number}");
+                var direction = ArgReader.String(args, "--direction", string.Empty);
+
+                if (args.Contains("--suggest"))
+                {
+                    using var context = await BuildAsync(args, cancellationToken);
+                    var suggestions = await SuggestChapterAsync(context, project, number, role, notes, cancellationToken);
+                    if (suggestions.Count == 0)
+                    {
+                        Console.Error.WriteLine("the model returned no chapter suggestion; try again");
+                        return 1;
+                    }
+
+                    for (var optionIndex = 0; optionIndex < suggestions.Count; optionIndex++)
+                    {
+                        Console.WriteLine($"  {optionIndex + 1}. {suggestions[optionIndex].Title}");
+                        Console.WriteLine($"     {suggestions[optionIndex].Direction}");
+                    }
+
+                    var pick = Math.Clamp(ArgReader.Int(args, "--pick", 1), 1, suggestions.Count);
+                    title = suggestions[pick - 1].Title.Length == 0 ? title : suggestions[pick - 1].Title;
+                    direction = suggestions[pick - 1].Direction;
+                }
+
+                var added = new Chapter
+                {
+                    Number = number,
+                    Title = title,
+                    Role = role,
+                    Notes = notes,
+                    Direction = direction,
+                    Status = ChapterStatus.Draft,
+                    CreatedUtc = DateTimeOffset.UtcNow,
+                };
                 foreach (var code in project.Settings.TargetLanguages)
                 {
                     added.Translations[code] = string.Empty;
                 }
 
                 project.Chapters.Add(added);
-                Console.WriteLine($"Added chapter {number}.");
+                Console.WriteLine($"Added chapter {number}: {added.Title}");
                 break;
 
             case "remove":
@@ -1863,10 +1811,8 @@ internal static class Program
         Console.WriteLine("  gen       Generate one target into a project: --target <Target> --file <path> [--variants N] [--replace]");
         Console.WriteLine("  setup     Generate project setup: --out <path> [--brief ...] [--characters N]");
         Console.WriteLine("  write     Write chapters into an existing project: --file <path> [--chapters N]");
-        Console.WriteLine("  plan      Plan the whole book as N chapters (title + direction): --file <path> [--chapters N] [--brief ...] [--replace]");
         Console.WriteLine("  complete  Finish the whole book (write/summarize/translate pending work): --file <path> [--languages ru,de] [--no-translate] [--auto] [--check]");
-        Console.WriteLine("  finish    Plan the final chapter (title + direction): --file <path> [--brief ...]");
-        Console.WriteLine("  chapter   Manage chapters: --action <add|remove|move|status> --file <path> [--number N] [--from N] [--status ...]");
+        Console.WriteLine("  chapter   Manage chapters: --action <add|remove|move|status> --file <path> [--number N] [--role Auto|Opening|Middle|Finale] [--notes ...] [--title ...] [--direction ...] [--suggest] [--pick N] [--from N] [--status ...]");
         Console.WriteLine("  set       Edit fields by hand: --what <project|world|state|chapter|knowledge> --file <path> [field options]");
         Console.WriteLine("  settings  Show or set provider settings: [show|set] [--model ...] [--base-url ...] [--api-key ...] [--languages ru,de] [--reasoning-efforts review=none,...]");
         Console.WriteLine("  import    Import knowledge from Markdown files: --file <path> --from <file.md|dir> [--mode extract|design] [--brief ...]");

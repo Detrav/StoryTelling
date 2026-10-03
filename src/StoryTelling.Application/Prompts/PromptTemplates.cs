@@ -75,7 +75,7 @@ public static class PromptTemplates
             }
         }
 
-        if (request.Target is GenerationTarget.ChapterSettings or GenerationTarget.Finale && request.Snapshot is { } project)
+        if (request.Target is GenerationTarget.ChapterSettings && request.Snapshot is { } project)
         {
             AppendPreviousChapters(user, project);
         }
@@ -114,24 +114,13 @@ public static class PromptTemplates
             user.AppendLine("Consult the project with the tools (characters, initial world state, knowledge entries, search) before answering; prefer checking the project over guessing.");
         }
 
-        if (request.Target == GenerationTarget.ChapterPlan)
+        if (request.Target == GenerationTarget.ChapterSettings)
         {
             user.AppendLine();
-            user.AppendLine($"Plan exactly {request.Variants} chapters in reading order. These are sequential "
-                + "chapters of ONE story, not alternative options: chapter 1 happens first, chapter 2 continues "
-                + "it, and so on. Do not number or name other chapters inside a chapter's direction and do not "
-                + "describe the whole arc in every direction — each direction describes only that chapter and "
-                + "ends where the next one begins.");
-            user.AppendLine($"Spread the story across them (setup, rising action, climax, resolution) and make "
-                + $"sure it reaches a FULL resolution in chapter {request.Variants}: the last chapter must "
-                + "resolve every open thread — no cliffhanger, no new mystery, nothing left for a sequel.");
-        }
-
-        if (request.Target == GenerationTarget.Finale)
-        {
-            user.AppendLine();
-            user.AppendLine("This is the FINAL chapter. Resolve every open thread and end the story — no "
-                + "cliffhanger and no setup for a sequel.");
+            user.AppendLine($"Propose {request.Variants} distinct chapter options, each a title and a direction "
+                + "(2-4 sentences) that continues coherently from the previous chapters and the current state. "
+                + "Each option is an alternative for the SAME chapter, so they must differ in what happens, not "
+                + "continue one another. Do not number or name other chapters inside a direction.");
         }
 
         if (!string.IsNullOrWhiteSpace(request.Brief))
@@ -530,39 +519,32 @@ public static class PromptTemplates
 
     public static string WriterPosition(Project project, Chapter chapter)
     {
-        var total = project.Chapters.Count;
         var number = chapter.Number;
-        var role = chapter.Role == ChapterRole.Auto ? DeriveRole(number, total) : chapter.Role;
-
-        if (chapter.Role == ChapterRole.Auto && total <= 1)
-        {
-            return "This is the opening and the whole story: establish the setting, the characters and "
-                + "the inciting incident, then bring it to a complete resolution within this chapter.";
-        }
+        var role = chapter.Role == ChapterRole.Auto ? DeriveRole(number) : chapter.Role;
 
         if (role == ChapterRole.Opening)
         {
-            return $"This is the opening chapter — the setup of the story (chapter {number} of {total}). "
-                + "Establish the setting, introduce the characters and the inciting incident; do not "
-                + "assume the reader knows anything yet. Leave clear threads to develop in later chapters.";
+            return "This is the opening chapter — the setup of the story. Establish the setting, introduce "
+                + "the characters and the inciting incident; do not assume the reader knows anything yet. Leave "
+                + "clear threads to develop in later chapters.";
         }
 
         if (role == ChapterRole.Finale)
         {
-            return $"This is the final chapter — the resolution of the story (chapter {number} of {total}). "
-                + "Bring everything to a full close: resolve every open thread, pay off the setups, and do "
-                + "not end on a cliffhanger or set up a sequel. The last paragraph must be a stable, closed "
-                + "final note — no 'to be continued', no 'this is not the end', no promise that the "
-                + "mystery/signal/conflict will return, and no new question left dangling.";
+            return "This is the final chapter — the resolution of the story. Bring everything to a full close: "
+                + "resolve every open thread, pay off the setups, and do not end on a cliffhanger or set up a "
+                + "sequel. The last paragraph must be a stable, closed final note — no 'to be continued', no "
+                + "'this is not the end', no promise that the mystery/signal/conflict will return, and no new "
+                + "question left dangling.";
         }
 
-        return $"This is chapter {number} of {total} — the middle of the story. The setup has already "
-            + "happened; continue from the situation below instead of restarting, do not re-introduce "
-            + "people or places the reader has already met, and keep moving toward the resolution.";
+        return $"This is chapter {number} — the middle of the story. The setup has already happened; continue "
+            + "from the situation below instead of restarting, do not re-introduce people or places the reader "
+            + "has already met, and keep moving toward the resolution.";
     }
 
-    private static ChapterRole DeriveRole(int number, int total) =>
-        number <= 1 ? ChapterRole.Opening : number >= total ? ChapterRole.Finale : ChapterRole.Middle;
+    private static ChapterRole DeriveRole(int number) =>
+        number <= 1 ? ChapterRole.Opening : ChapterRole.Middle;
 
     public static string WriterRecap(Project project, Chapter chapter, int recentCount)
     {

@@ -14,8 +14,8 @@ StoryTelling` (the leading `*` appears while there are unsaved changes).
   Close project, Exit.
 - **Edit** — Undo, Redo.
 - **View** — Show chapter list (toggle the sidebar).
-- **Chapter** — Generate chapter, Complete book…, Translate book metadata…, Finish story,
-  Add chapter, Delete chapter, Move up, Move down.
+- **Chapter** — Generate chapter, Complete book…, Translate book metadata…, Add chapter…,
+  Delete chapter, Move up, Move down.
 - **Help** — Open logs folder, About.
 
 Undo/Redo (`Ctrl+Z` / `Ctrl+Y`) cover project edits made in the current session and are reachable both
@@ -23,9 +23,8 @@ from this menu and from the end of the workspace toolbar. Closing a dirty projec
 close button, *File → Close project* or *Exit* — asks what to do with the unsaved changes: **Save**
 (with a file picker when the project has never been saved), **Discard** or **Cancel** (also the default
 when the dialog is dismissed). Actions are not duplicated everywhere: *Add / Delete chapter* and *Move
-up / down* live in the **Chapter** menu and the chapter-list context menu, *Plan chapters* and
-*Translate chapter* live only on the workspace toolbar, and *Translate book metadata* exists in both
-the menu and the toolbar.
+up / down* live in the **Chapter** menu and the chapter-list context menu, *Translate chapter* lives
+only on the workspace toolbar, and *Translate book metadata* exists in both the menu and the toolbar.
 
 ## Welcome
 
@@ -38,7 +37,7 @@ the menu and the toolbar.
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ File  Edit  View  Chapter  Help                                           │
 ├──────────────┬───────────────────────────────────────────────────────────┤
-│ Chapters  [+]│  Chapter 3 — The Long Night  ▶ Finish ≡ Complete book Aa ⇄│
+│ Chapters  [+]│  Chapter 3 — The Long Night  ▶ Complete book Aa ⇄         │
 │ 1 Embers     │                                          │ ↶ ↷            │
 │ 2 Ashes      ├───────────────────────────────────────────────────────────┤
 │ 3 Long Night │ Ch (EN) | Ch (RU) | Ch (DE) | Summary | Settings         │
@@ -49,25 +48,25 @@ the menu and the toolbar.
 
 - **Sidebar** — the list of chapters is always visible (unless toggled off in *View*). The
   chapter list **is** the outline; there is no separate outline section.
-  - `+` adds a chapter; right-clicking anywhere on a row opens a context menu with Delete /
-    Move up / Move down and a *Status* submenu. The three statuses the engine uses are offered with
-    their meaning spelled out: *Draft — not written*, *Generated — up to date* and
+  - `+` opens the **chapter setup** dialog: pick the chapter's *Role*, write optional notes, and the
+    AI immediately proposes several **titles + directions** built from the previous chapters and the
+    knowledge base (with the same tools as generation); *Suggest again* re-runs it and *Stop*
+    cancels. Choosing an option and pressing *Add chapter* appends the chapter to the end of the
+    list (the text is not written yet). A book may have **no chapters**; the workspace shows a
+    placeholder until the first one is added. Right-clicking anywhere on a row opens a context menu
+    with Delete / Move up / Move down and a *Status* submenu. The three statuses the engine uses are
+    offered with their meaning spelled out: *Draft — not written*, *Generated — up to date* and
     *Stale — needs regeneration*; the current one is checked. Setting a status by hand never
     regenerates, never touches translations and never cascades — it is how the author clears a
     *Stale* the AI set (for example on a later chapter after an earlier one was edited) once the
     text has been checked. The status line in the list also carries a tooltip with the same
     explanation.
-- **Toolbar** — icon buttons for Generate (`▶`), Finish (`Finish`), Plan chapters (`≡`),
-  *Complete book* (`Complete book`), *Translate book metadata* (`Aa`) and Translate (`⇄`), followed
-  by a separator and the Undo/Redo pair (`↶` `↷`) whose tooltips name the action they revert.
-  *Generate* opens a blocking dialog (see below). *Plan chapters* opens a dialog where the
-  author sets the chapter count and an optional brief; the AI proposes that many chapter
-  titles + directions forming a complete arc, and *Apply* replaces the chapter list (with a
-  confirmation when chapters already contain written text). *Finish* opens a progress dialog that
-  appends a final chapter and plans its title + direction as the story's resolution (no cliffhanger);
-  review it, then Generate. *Translate* (`⇄`) opens a progress dialog that translates this chapter
-  into every target language, one row per language, and can be cancelled. *Complete book* runs every
-  outstanding AI task across the book (see below).
+- **Toolbar** — icon buttons for Generate (`▶`), *Complete book* (`Complete book`),
+  *Translate book metadata* (`Aa`) and Translate (`⇄`), followed by a separator and the Undo/Redo
+  pair (`↶` `↷`) whose tooltips name the action they revert. *Generate* opens a blocking dialog (see
+  below). The toolbar is hidden while the book has no chapters. *Translate* (`⇄`) opens a progress
+  dialog that translates this chapter into every target language, one row per language, and can be
+  cancelled. *Complete book* runs every outstanding AI task across the book (see below).
   There is no separate *Regenerate* button: generating a chapter that already has text rewrites it
   through the same dialog. To re-derive only the summary of an existing chapter, use *Regenerate
   summary* on the **Summary** tab.
@@ -88,10 +87,11 @@ the menu and the toolbar.
     the chapter carries structured, RAG-like information forward, and the project knowledge base
     itself is never edited by a chapter.
   - *Settings* — the chapter's own settings: **role in the story** (Auto, Opening, Middle, Finale;
-    Auto infers from the chapter's position), title, direction (what should happen), notes and the
-    generation status. A *Generate with AI* button proposes the title and direction from the world,
-    the previous chapters and the knowledge base (tool-backed). Before writing, the app checks the
-    required fields and shows a warning listing what is missing (the world, the story frame, the
+    Auto infers Opening/Middle from the position — the finale is always explicit), title, direction
+    (what should happen), notes and the generation status. A *Generate with AI* button opens the same
+    **chapter setup** dialog as `+`, prefilled with this chapter's role and notes, and applying an
+    option replaces the title/direction instead of adding a chapter. Before writing, the app checks
+    the required fields and shows a warning listing what is missing (the world, the story frame, the
     initial world state for the first chapter, and this chapter's direction) — it never fills them
     automatically. Which characters appear is decided by the writer (via tools), not by hand.
 
@@ -170,8 +170,8 @@ status reads *Done* with *Close to read the chapter*; on failure it shows the re
 chapter was left unchanged. The text is written to the chapter in the background and appears in the
 editor tab once the dialog is closed, so there is no live preview while generating.
 
-*Finish story* and *Translate chapter* use the same progress list with their own steps — one row for
-the final-chapter plan; one row per target language — each with **Cancel**.
+*Translate chapter* uses the same progress list — one row per target language — each with
+**Cancel**.
 *Complete book* uses the same pass in bulk and keeps its own multi-operation dialog with Cancel, since
 it can be stopped between chapters.
 
@@ -233,8 +233,9 @@ applying unrelated settings cannot persist the secret.
 
 All core stages are implemented: project setup (World / Knowledge / Initial world state /
 Languages, each AI-assisted), the knowledge base (add / edit / import Markdown / design from a
-prompt / AI review with structured fixes), chapter planning (*Plan chapters*, *Finish*), the chapter
-pipeline (writer → editor with change notes → summarizer producing a logline, the new world state
+prompt / AI review with structured fixes), chapter setup (`+` opens a dialog that proposes titles
+and directions per role), the chapter pipeline (writer → editor with change notes → summarizer
+producing a logline, the new world state
 and a knowledge diff), the chapter *Summary* tab (editable knowledge diff + editor notes) and
 per-language translation with out-of-date flags and wrong-script repair. A *Complete book* action
 fills in every pending chapter, summary and translation in one pass, with progress, a log and a

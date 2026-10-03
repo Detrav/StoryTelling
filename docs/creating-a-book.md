@@ -18,7 +18,7 @@ storydev settings set --base-url http://127.0.0.1:1234 --model <model-name> --la
 storydev ping
 ```
 
-`ping` must report `structured output: supported`. If it does not, planning, review and summaries will
+`ping` must report `structured output: supported`. If it does not, chapter setup, review and summaries will
 degrade — pick a model that supports JSON-schema output.
 
 **Human decision:** the model. This is the single biggest quality lever; everything downstream inherits
@@ -72,35 +72,38 @@ storydev set --what knowledge --file book.story.json --entry "The Cormorant" --t
 **Where the AI can be trusted:** bulk extraction and the first draft of descriptions. **Where the human
 must decide:** the world rules, character ages/relations and anything the whole plot will depend on.
 
-## 2. Plan the whole arc
+## 2. Add chapters one at a time
+
+A book starts empty; add chapters one by one, appended at the end. Each chapter gets a title and a
+direction (2-4 sentences) that continues from the previous chapter. You can write them yourself or
+have the AI propose several and pick one:
 
 ```powershell
-storydev plan --file book.story.json --chapters 6 --replace
+storydev chapter --action add --file book.story.json --role Opening --notes "the storm arrives" --suggest
 ```
 
-This asks the AI for six chapters in reading order, each with a title and a direction (2-4 sentences),
-forming a complete arc: opening, rising action, climax, resolution. The last chapter is required to
-resolve everything.
+`--suggest` prints three title/direction options built from the previous chapters, the knowledge base
+and the initial state, and applies the first (`--pick N` chooses another). Without `--suggest`, pass
+`--title`/`--direction` directly.
 
-**Human decision — the second important review point.** A bad plan poisons every chapter. Open the file
-and read the directions, or print the first chapter's assembled prompt to see how the plan will be handed
-to the writer:
+**Human decision — the second important review point.** A weak direction poisons the chapter. Review
+the directions, or print the first chapter's assembled prompt to see how they are handed to the writer:
 
 ```powershell
 storydev context --file book.story.json --number 1
 ```
 
-If a direction is weak, edit it before writing:
+Edit a direction before writing:
 
 ```powershell
 storydev set --what chapter --file book.story.json --number 3 --direction "Elara ventures onto the reef and finds the hull."
 ```
 
-`plan` sets the chapter count. If you later want a different ending, `storydev finish` appends a dedicated
-`Finale` chapter that the pipeline enforces as a hard resolution.
+Mark the last chapter with `--role Finale` so the pipeline enforces a hard resolution; any other role
+continues the story.
 
-**Where the AI can be trusted:** the shape of the arc. **Where the human must decide:** what the story is
-actually about and the beats you care about.
+**Where the AI can be trusted:** the shape of a chapter's direction. **Where the human must decide:**
+what the story is actually about and the beats you care about.
 
 ## 3. Write the book
 
@@ -134,7 +137,8 @@ with `set --text-file` when you want full control, or `regenerate` when you want
 storydev continuity --file book.story.json --all
 ```
 
-The continuity checker now compares each chapter's **prose and plan** against the **world**, the **initial
+The continuity checker now compares each chapter's **prose and direction** against the **world**, the
+**initial
 state**, the knowledge base and the **open threads**, and reports contradictions with a reference. Treat
 `Error` findings as blockers; fix the source (an entry, a direction or the text) and re-run.
 
@@ -148,17 +152,18 @@ storydev review --file book.story.json --check all
 decide:** whether a "contradiction" is intentional (unreliable narrator, a lie in dialogue) — the checker
 cannot tell.
 
-## 5. Finish the ending (if the story needs a dedicated finale)
+## 5. Finish the ending
+
+There is no separate *finish* command: give the last chapter `--role Finale`. When that chapter is
+written, the pipeline checks it deterministically: if any thread is still `Open`, or the prose or world
+state promises a continuation ("to be continued", "it will answer again", …), the chapter is
+**rewritten once** under a strict final-chapter contract. A final chapter should end on a stable,
+closed note.
 
 ```powershell
-storydev finish --file book.story.json --brief "everything must close; no sequel hook"
-storydev regenerate --file book.story.json --chapter 7
+storydev chapter --action add --file book.story.json --role Finale --suggest
+storydev complete --file book.story.json
 ```
-
-`finish` appends a `Finale` chapter with a direction. When that chapter is written, the pipeline checks it
-deterministically: if any thread is still `Open`, or the prose or world state promises a continuation
-("to be continued", "it will answer again", …), the chapter is **rewritten once** under a strict
-final-chapter contract. A final chapter should end on a stable, closed note.
 
 **Human decision:** the tone of the ending. Ambiguous is allowed if the premise asks for it; a **sequel
 hook** is not — and the guard will fight you if you try.
@@ -184,7 +189,7 @@ and names that must stay consistent — edit them and export again.
 | Rewrite one chapter's prose | `storydev regenerate --file book.story.json --chapter N` |
 | Rebuild one chapter's summary/state/diff | `storydev summarize --file book.story.json --chapter N` |
 | Recompute summaries from N onward | `storydev recompute --file book.story.json --from N` |
-| Re-plan the whole arc | `storydev plan --file book.story.json --chapters N --replace` |
+| Add a chapter (optionally let the AI propose title/direction) | `storydev chapter --action add --file book.story.json [--role ...] [--notes ...] [--suggest]` |
 | Change one chapter's role/title/direction/logline | `storydev set --what chapter --file book.story.json --number N ...` |
 | Change the world/state | `storydev set --what world\|state --file book.story.json ...` |
 | Edit a knowledge entry | `storydev set --what knowledge --file book.story.json --entry "Name" ...` |
@@ -199,9 +204,9 @@ summaries stay consistent.
 
 1. `settings set` + `ping` — a model with structured output.
 2. `setup` — world, cast, initial state. **Review carefully.** `review --check all`.
-3. `plan` — the arc. **Review the directions.**
+3. `chapter --action add` — add chapters one at a time. **Review the directions.**
 4. `complete` — write / summarize / translate.
 5. `continuity --all` and `review --check all` — fix and re-run.
-6. `finish` (if needed) — a closed ending.
+6. mark the ending with `--role Finale` — a closed ending.
 7. `translate --with-metadata`, `export`.
 8. Re-run any single step from the table above when something is off.

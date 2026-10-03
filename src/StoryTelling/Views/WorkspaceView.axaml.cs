@@ -37,9 +37,7 @@ public partial class WorkspaceView : UserControl
         return Task.CompletedTask;
     });
 
-    private void OnPlanChaptersClick(object? sender, RoutedEventArgs e) => Guarded(RunPlanChaptersAsync);
-
-    private void OnFinishStoryClick(object? sender, RoutedEventArgs e) => Guarded(RunFinishStoryAsync);
+    private void OnAddChapterClick(object? sender, RoutedEventArgs e) => Guarded(AddChapterAsync);
 
     private void OnTranslateChapterClick(object? sender, RoutedEventArgs e) => Guarded(RunTranslateChapterAsync);
 
@@ -47,29 +45,26 @@ public partial class WorkspaceView : UserControl
 
     private void OnTranslateMetadataClick(object? sender, RoutedEventArgs e) => Guarded(RunTranslateMetadataAsync);
 
-    private async Task RunPlanChaptersAsync()
+    private async Task AddChapterAsync()
     {
         if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
         {
             return;
         }
 
-        var viewModel = new ChapterPlanViewModel(
-            (count, brief, session, progress, cancellationToken) => workspace.PlanChaptersAsync(count, brief, session, progress, cancellationToken));
+        var viewModel = new ChapterSetupViewModel(
+            "Add chapter",
+            isAddMode: true,
+            ChapterRole.Auto,
+            string.Empty,
+            (role, notes, variants, session, progress, cancellationToken) =>
+                workspace.SuggestChapterSettingsAsync(null, role, notes, variants, session, progress, cancellationToken));
 
-        var dialog = new ChapterPlanWindow { DataContext = viewModel };
-        if (!await dialog.ShowDialog<bool>(window) || viewModel.Chapters.Count == 0)
+        var dialog = new ChapterSetupWindow { DataContext = viewModel };
+        if (await dialog.ShowDialog<bool>(window) && viewModel.SelectedOption is { } option)
         {
-            return;
+            workspace.CreateChapter(viewModel.Role, viewModel.Notes, option.Title, option.Direction);
         }
-
-        if (workspace.HasWrittenContent
-            && !await ConfirmDialog.ShowAsync(window, "Replace chapters", "This replaces all chapters and deletes the written text. Continue?"))
-        {
-            return;
-        }
-
-        workspace.ApplyChapterPlan([.. viewModel.Chapters.Select(chapter => (chapter.Title, chapter.Direction))]);
     }
 
     private async Task RunCompleteBookAsync()
@@ -79,25 +74,15 @@ public partial class WorkspaceView : UserControl
             return;
         }
 
-        var viewModel = new BookCompletionViewModel(workspace.BuildCompletionPlan, workspace.CompleteBookAsync);
-        var dialog = new BookCompletionWindow { DataContext = viewModel };
-        await dialog.ShowDialog(window);
-    }
-
-    private async Task RunFinishStoryAsync()
-    {
-        if (DataContext is not WorkspaceViewModel workspace || TopLevel.GetTopLevel(this) is not Window window)
+        if (!workspace.HasChapters)
         {
+            ErrorDialog.Show(window, "Nothing to do", "There are no chapters yet. Add one with +.");
             return;
         }
 
-        var viewModel = new ProgressTaskViewModel(
-            "Finish story",
-            "The AI plans a concluding chapter with a title and direction. Review it, then Generate.",
-            [new ProgressItemViewModel("Plan the final chapter")],
-            workspace.PlanFinalChapterAsync);
-
-        await ShowProgressAsync(window, viewModel);
+        var viewModel = new BookCompletionViewModel(workspace.BuildCompletionPlan, workspace.CompleteBookAsync);
+        var dialog = new BookCompletionWindow { DataContext = viewModel };
+        await dialog.ShowDialog(window);
     }
 
     private async Task RunTranslateChapterAsync()

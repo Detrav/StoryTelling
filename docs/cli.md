@@ -1,7 +1,7 @@
 # Developer CLI — `storydev`
 
 `StoryTelling.Cli` is a thin terminal front end over the same engine the desktop app uses. It exists
-to drive any pass of the pipeline from a script or an agent: set up a world, plan and write chapters,
+to drive any pass of the pipeline from a script or an agent: set up a world, add and write chapters,
 summarize, review, translate, export. It shares the project format, the services and the user settings
 with the app.
 
@@ -34,11 +34,9 @@ There are no separate trace files any more — use `--verbose` and read the log.
 | `ping` | Checks provider connectivity and whether the model supports JSON-schema structured output. |
 | `gen` | Generates one target and applies it into a project: `--target <Target> --file <path> [--variants N] [--brief ...] [--out <path>] [--replace]`. |
 | `setup` | Generates a fresh project setup (name, world, characters, initial state): `--out <path> [--brief ...] [--characters N]`. |
-| `plan` | Plans the whole book as N chapters (title + direction) and replaces the chapter list: `--file <path> [--chapters N] [--brief ...] [--out <path>] [--replace]`. |
 | `write` | Writes chapters into an existing project: `--file <path> [--chapters N]`. |
 | `complete` | Finishes the whole book: writes pending/stale chapters, rebuilds missing summaries, translates when needed: `--file <path> [--languages ru,de] [--no-translate] [--out <path>]`. |
-| `finish` | Plans the final chapter (title + direction, `Finale`): `--file <path> [--brief ...] [--out <path>]`. |
-| `chapter` | Manages the chapter list: `--action <add\|remove\|move\|status> --file <path> [--number N] [--from N] [--status Draft\|Generated\|Stale]`. |
+| `chapter` | Manages the chapter list: `--action <add\|remove\|move\|status> --file <path> [--number N] [--role Auto\|Opening\|Middle\|Finale] [--notes ...] [--title ...] [--direction ...] [--suggest] [--pick N] [--from N] [--status Draft\|Generated\|Stale]`. With `--suggest`, the AI proposes three titles + directions from the previous chapters (pick one with `--pick`). |
 | `set` | Edits fields by hand: `--what <project\|world\|state\|chapter\|knowledge> --file <path> [field options]`. |
 | `settings` | Shows or edits provider settings: `[show\|set] [--model ...] [--base-url ...] [--api-key ...] [--temperature ...] [--languages ru,de]`. |
 | `import` | Imports knowledge from Markdown files: `--file <path> --from <file.md\|dir> [--mode extract\|design] [--brief ...]`. |
@@ -63,8 +61,8 @@ There are no separate trace files any more — use `--verbose` and read the log.
 # 1. a world, characters and the initial situation
 storydev setup --out book.story.json --brief "a lighthouse keeper on a tideless sea" --characters 3
 
-# 2. plan the whole arc
-storydev plan --file book.story.json --chapters 6 --replace
+# 2. add chapters one at a time (optionally let the AI propose the title + direction)
+storydev chapter --action add --file book.story.json --role Opening --notes "the storm arrives" --suggest
 
 # 3. write everything, then summarize/translate as configured
 storydev complete --file book.story.json
@@ -73,7 +71,7 @@ storydev complete --file book.story.json
 storydev continuity --file book.story.json --all
 storydev review --file book.story.json --check all
 
-# 5. finish the translation story and export
+# 5. translate and export
 storydev translate --file book.story.json --language ru --with-metadata
 storydev export --file book.story.json --language ru --out book.ru.fb2
 ```
@@ -115,7 +113,7 @@ Every command that talks to a provider accepts these overrides, which take prece
 
 - **`gen --replace`** clears the knowledge base first, and only for `--target Knowledge`.
 - **`gen`** applies only the targets `ProjectName`, `World`, `InitialWorldState` and `Knowledge`. Use
-  `plan`, `finish`, `chapter`, `set` and the chapter commands for chapter targets.
+  `chapter`, `set` and the chapter commands for chapter targets.
 - `complete` writes and summarizes in reading order and cascades: once a chapter is written, everything
   after it is regenerated. It skips chapters whose world, initial state or direction is missing.
 - The CLI covers the engine. Interactive affordances of the app (per-finding preview, undo/redo, dialogs)

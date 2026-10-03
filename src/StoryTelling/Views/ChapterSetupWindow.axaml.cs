@@ -4,12 +4,12 @@ using StoryTelling.ViewModels;
 
 namespace StoryTelling.Views;
 
-public partial class ChapterPlanWindow : Window
+public partial class ChapterSetupWindow : Window
 {
-    public ChapterPlanWindow()
+    public ChapterSetupWindow()
     {
         InitializeComponent();
-        Closing += (_, _) => (DataContext as ChapterPlanViewModel)?.Cancel();
+        Closed += (_, _) => (DataContext as ChapterSetupViewModel)?.Cancel();
     }
 
     private void OnApplyClick(object? sender, RoutedEventArgs e) => Close(true);

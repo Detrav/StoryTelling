@@ -328,7 +328,7 @@ public partial class MainWindowViewModel : ViewModelBase, IUndoRedoHost
         };
 
         var chapter = workspace.Chapters.FirstOrDefault(candidate => candidate.Number == selectedNumber);
-        workspace.SelectedChapter = chapter ?? workspace.Chapters[0];
+        workspace.SelectedChapter = chapter ?? workspace.Chapters.FirstOrDefault();
 
         OpenWorkspace(workspace, resetUndo: false);
     }

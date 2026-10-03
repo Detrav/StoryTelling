@@ -46,7 +46,7 @@ public sealed class ChapterContextAssemblerTests
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[3], project.InitialWorldState, RecentLoglineCount: 3));
 
         var user = UserText(context);
-        Assert.Contains("chapter 4 of 4", user);
+        Assert.Contains("This is chapter 4", user);
         Assert.Contains("Story so far:", user);
         Assert.Contains("Log line 1.", user);
         Assert.Contains("Log line 2.", user);
@@ -64,7 +64,7 @@ public sealed class ChapterContextAssemblerTests
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[5], project.InitialWorldState, RecentLoglineCount: 2));
 
         var user = UserText(context);
-        Assert.Contains("chapter 6 of 6", user);
+        Assert.Contains("This is chapter 6", user);
         Assert.Contains("Log line 1.", user);
         Assert.Contains("Log line 4.", user);
         Assert.Contains("Log line 5.", user);
@@ -90,6 +90,7 @@ public sealed class ChapterContextAssemblerTests
     public void AssembleWriter_FinalChapter_FramesItAsTheResolution()
     {
         var project = ProjectWithLoglines(4);
+        project.Chapters[3].Role = ChapterRole.Finale;
         var assembler = new ChapterContextAssembler();
 
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[3], project.InitialWorldState));
@@ -110,7 +111,6 @@ public sealed class ChapterContextAssemblerTests
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[1], project.InitialWorldState));
 
         Assert.Contains("final chapter", UserText(context));
-        Assert.Contains("chapter 2 of 4", UserText(context));
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class ChapterContextAssemblerTests
         var context = assembler.AssembleWriter(new WriterContext(project, project.Chapters[1], project.InitialWorldState));
 
         var user = UserText(context);
-        Assert.Contains("chapter 2 of 4", user);
+        Assert.Contains("This is chapter 2", user);
         Assert.Contains("Log line 1.", user);
         Assert.DoesNotContain("Log line 3.", user);
         Assert.DoesNotContain("Log line 4.", user);
@@ -153,7 +153,7 @@ public sealed class ChapterContextAssemblerTests
         var story = new ChapterContextAssembler().BuildStoryContext(context);
 
         Assert.Contains("Log line 1.", story);
-        Assert.Contains("chapter 3 of 3", story);
+        Assert.Contains("This is chapter 3", story);
     }
 
     private static string UserText(ChapterContext context) =>

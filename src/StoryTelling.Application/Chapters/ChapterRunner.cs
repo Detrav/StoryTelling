@@ -42,7 +42,7 @@ public sealed class ChapterRunner : IChapterRunner
     {
         var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
         var effective = WithKnowledge(project, knowledge);
-        var finale = IsFinale(project, chapter);
+        var finale = IsFinale(chapter);
 
         var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, progress, cancellationToken).ConfigureAwait(false);
 
@@ -193,13 +193,12 @@ public sealed class ChapterRunner : IChapterRunner
         }
     }
 
-    private static bool IsFinale(Project project, Chapter chapter) =>
-        chapter.Role == ChapterRole.Finale
-        || (project.Chapters.Count > 0 && chapter.Number == project.Chapters.Max(candidate => candidate.Number));
+    private static bool IsFinale(Chapter chapter) =>
+        chapter.Role == ChapterRole.Finale;
 
     private static Chapter ForWriting(Project project, Chapter chapter, bool strict = false)
     {
-        if (!IsFinale(project, chapter))
+        if (!IsFinale(chapter))
         {
             return chapter;
         }

@@ -113,6 +113,7 @@ public sealed class ChapterRunnerTests
         };
         var runner = new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
         var project = Project();
+        project.Chapters[2].Role = ChapterRole.Finale;
 
         await runner.GenerateAsync(project, project.Chapters[2]);
 

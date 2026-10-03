@@ -83,7 +83,7 @@ public static class LlmTasks
 
     public static LlmTask ForGenerationTarget(GenerationTarget target) => target switch
     {
-        GenerationTarget.ChapterSettings or GenerationTarget.ChapterPlan or GenerationTarget.Finale => LlmTask.Planner,
+        GenerationTarget.ChapterSettings => LlmTask.Planner,
         _ => LlmTask.Setup,
     };
 }

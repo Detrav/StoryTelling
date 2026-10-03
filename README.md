@@ -2,9 +2,9 @@
 
 StoryTelling is a cross-platform desktop app in **C# / .NET 10 / Avalonia** for writing
 **multi-chapter stories with an AI assistant**. Describe your characters, world and plot
-direction, choose how many chapters you want, and StoryTelling writes a coherent, connected
-story chapter by chapter — staying inside the language model's context window through a
-streamlined, token-budgeted memory instead of resending previous chapters.
+direction, then add chapters one at a time and StoryTelling writes a coherent, connected story
+— staying inside the language model's context window through a streamlined, token-budgeted
+memory instead of resending previous chapters.
 
 ## Features
 
@@ -15,12 +15,13 @@ streamlined, token-budgeted memory instead of resending previous chapters.
   with kind `Character`). Import Markdown or paste a large prompt and the AI structures it into
   typed entries. The writer pulls what it needs with read-only tools; the project base is never
   mutated.
-- **Chapter planning** — plan the whole book at once: ask for N chapters and the AI produces the
-  titles and directions as a complete arc (setup, rising action, climax, resolution). A *Finish*
-  action plans a concluding chapter.
+- **Chapter setup** — add a chapter with `+`, pick its role and write notes; the AI proposes
+  several titles and directions built from the previous chapters and the knowledge base, and you
+  choose one. The chapter text is not generated until you ask for it.
 - **Chapter-by-chapter generation** — the AI writes each chapter (streamed), revises it as an editor
   (with change notes), and derives a logline, the new world state and a knowledge diff, keeping
-  continuity without resending earlier chapters.
+  continuity without resending earlier chapters. A chapter marked *Finale* is driven to a closed
+  ending.
 - **Complete book** — one action fills in everything still pending across the book: unwritten or
   out-of-date chapters, missing summaries and missing translations, with a progress bar, a log and
   Cancel.

@@ -56,8 +56,8 @@ public sealed class WorkspaceViewModelTests
 
         await workspace.TranslateChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None);
 
-        Assert.Equal("Дым обновлён.", workspace.SelectedChapter.Translations.Single().Text);
-        Assert.Empty(workspace.SelectedChapter.StaleTranslations);
+        Assert.Equal("Дым обновлён.", workspace.SelectedChapter!.Translations.Single().Text);
+        Assert.Empty(workspace.SelectedChapter!.StaleTranslations);
         Assert.Equal("ru", translation.LastLanguageCode);
     }
 
@@ -70,8 +70,8 @@ public sealed class WorkspaceViewModelTests
             EditorNotes = [new EditorNote { Kind = EditorNoteKind.Continuity, Text = "Fixed the timeline." }],
         };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var summary = (ChapterSummaryViewModel)workspace.SelectedChapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
-        workspace.SelectedChapter.Direction = "Advance.";
+        var summary = (ChapterSummaryViewModel)workspace.SelectedChapter!.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
+        workspace.SelectedChapter!.Direction = "Advance.";
 
         Assert.Empty(summary.Changes);
 
@@ -98,7 +98,7 @@ public sealed class WorkspaceViewModelTests
             ], [], []),
         };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var chapter = workspace.SelectedChapter;
+        var chapter = workspace.SelectedChapter!;
         var summary = (ChapterSummaryViewModel)chapter.Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
 
         await summary.RegenerateSummaryCommand.ExecuteAsync(null);
@@ -119,7 +119,7 @@ public sealed class WorkspaceViewModelTests
 
         workspace.ApplySetup(setup);
 
-        Assert.Equal(ChapterStatus.Stale, workspace.SelectedChapter.Status);
+        Assert.Equal(ChapterStatus.Stale, workspace.SelectedChapter!.Status);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class WorkspaceViewModelTests
 
         workspace.ApplySetup(setup);
 
-        Assert.Equal(ChapterStatus.Generated, workspace.SelectedChapter.Status);
+        Assert.Equal(ChapterStatus.Generated, workspace.SelectedChapter!.Status);
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public sealed class WorkspaceViewModelTests
     {
         var project = SampleProject();
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        workspace.AddChapterCommand.Execute(null);
+        workspace.CreateChapter(ChapterRole.Auto, string.Empty, string.Empty, string.Empty);
         workspace.Chapters[1].Status = ChapterStatus.Generated;
         workspace.SelectedChapter = workspace.Chapters[0];
         var summary = (ChapterSummaryViewModel)workspace.Chapters[0].Tabs.Single(tab => tab.Content is ChapterSummaryViewModel).Content;
@@ -174,76 +174,44 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
-    public void ApplyChapterPlan_ReplacesChapters()
-    {
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        workspace.IsDirty = false;
-
-        workspace.ApplyChapterPlan([("Embers", "Open quietly."), ("Ash", "Raise the stakes.")]);
-
-        Assert.Equal(2, workspace.Chapters.Count);
-        Assert.Equal("Embers", workspace.Chapters[0].Title);
-        Assert.Equal("Open quietly.", workspace.Chapters[0].Direction);
-        Assert.Equal(ChapterStatus.Draft, workspace.Chapters[0].Status);
-        Assert.Same(workspace.Chapters[0], workspace.SelectedChapter);
-        Assert.True(workspace.IsDirty);
-    }
-
-    [Fact]
-    public async Task PlanChaptersAsync_UsesChapterPlanTarget()
+    public async Task SuggestChapterSettingsAsync_UsesChapterSettingsTarget()
     {
         var assistant = new FakeGenerationAssistant();
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
 
-        await workspace.PlanChaptersAsync(3, "dark fantasy", new GenerationSession(), null, CancellationToken.None);
+        await workspace.SuggestChapterSettingsAsync(null, ChapterRole.Auto, "dark fantasy", 3, new GenerationSession(), null, CancellationToken.None);
 
         Assert.NotNull(assistant.LastRequest);
-        Assert.Equal(GenerationTarget.ChapterPlan, assistant.LastRequest!.Target);
+        Assert.Equal(GenerationTarget.ChapterSettings, assistant.LastRequest!.Target);
         Assert.Equal(3, assistant.LastRequest.Variants);
-        Assert.Empty(assistant.LastRequest.Snapshot!.Chapters);
     }
 
     [Fact]
-    public async Task FinishStory_AddsChapterWithPlannedFinale()
-    {
-        var assistant = new FakeGenerationAssistant
-        {
-            Options = [new GenerationOption(new Dictionary<string, string> { ["Title"] = "The End", ["Direction"] = "Everything resolves." })],
-        };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
-        var before = workspace.Chapters.Count;
-
-        await workspace.PlanFinalChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None);
-
-        Assert.Equal(before + 1, workspace.Chapters.Count);
-        var last = workspace.Chapters[^1];
-        Assert.Equal("The End", last.Title);
-        Assert.Equal("Everything resolves.", last.Direction);
-        Assert.Same(last, workspace.SelectedChapter);
-        Assert.Equal(GenerationTarget.Finale, assistant.LastRequest!.Target);
-    }
-
-    [Fact]
-    public void AddChapter_RenumbersAndMarksDirty()
+    public void CreateChapter_AppendsAndMarksDirty()
     {
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
         workspace.IsDirty = false;
 
-        workspace.AddChapterCommand.Execute(null);
+        workspace.CreateChapter(ChapterRole.Auto, string.Empty, "Ash", "Raise the stakes.");
 
         Assert.Equal(2, workspace.Chapters.Count);
         Assert.Equal(new[] { 1, 2 }, workspace.Chapters.Select(chapter => chapter.Number));
+        Assert.Equal("Ash", workspace.Chapters[1].Title);
+        Assert.Equal("Raise the stakes.", workspace.Chapters[1].Direction);
+        Assert.Same(workspace.Chapters[1], workspace.SelectedChapter);
         Assert.True(workspace.IsDirty);
     }
 
     [Fact]
-    public void DeleteChapter_BlocksWhenOnlyOneRemains()
+    public void DeleteChapter_AllowsDeletingTheLastChapter()
     {
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
 
         workspace.DeleteChapterCommand.Execute(workspace.SelectedChapter);
 
-        Assert.Single(workspace.Chapters);
+        Assert.Empty(workspace.Chapters);
+        Assert.Null(workspace.SelectedChapter);
+        Assert.False(workspace.HasChapters);
     }
 
     [Fact]
@@ -251,7 +219,7 @@ public sealed class WorkspaceViewModelTests
     {
         var agent = new FakeChapterRunner { Text = "Aria stepped into the dark." };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), agent, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var chapter = workspace.SelectedChapter;
+        var chapter = workspace.SelectedChapter!;
         chapter.Status = ChapterStatus.Draft;
         chapter.ContentOriginal = string.Empty;
         chapter.Direction = "Advance.";
@@ -269,7 +237,7 @@ public sealed class WorkspaceViewModelTests
     {
         var runner = new FakeChapterRunner { Text = "New draft." };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var chapter = workspace.SelectedChapter;
+        var chapter = workspace.SelectedChapter!;
         chapter.Direction = string.Empty;
         string? warning = null;
         workspace.WarningRequested += (_, message) => warning = message;
@@ -319,7 +287,7 @@ public sealed class WorkspaceViewModelTests
         project.MetadataTranslations["ru"] = new MetadataTranslation { Name = "Корона", Annotation = "Аннотация" };
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
 
-        workspace.AddChapterCommand.Execute(null);
+        workspace.CreateChapter(ChapterRole.Auto, string.Empty, string.Empty, string.Empty);
 
         Assert.Contains("ru", workspace.ToProject().StaleMetadataTranslations);
     }
@@ -336,7 +304,7 @@ public sealed class WorkspaceViewModelTests
 
         Assert.Empty(metadata.Calls);
         Assert.Equal("Book metadata translated.", workspace.Status);
-        Assert.Equal("Угли", workspace.SelectedChapter.TranslatedTitles["ru"]);
+        Assert.Equal("Угли", workspace.SelectedChapter!.TranslatedTitles["ru"]);
     }
 
     [Fact]
@@ -460,22 +428,11 @@ public sealed class WorkspaceViewModelTests
     }
 
     [Fact]
-    public void ApplyChapterPlan_MarksMetadataStale()
-    {
-        var project = TranslatedSampleProject();
-        var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-
-        workspace.ApplyChapterPlan([("Embers", "Open quietly.")]);
-
-        Assert.Contains("ru", workspace.ToProject().StaleMetadataTranslations);
-    }
-
-    [Fact]
     public void ChapterTitleEdit_MarksMetadataStale_ButDirectionEditDoesNot()
     {
         var project = TranslatedSampleProject();
         var workspace = new WorkspaceViewModel(project, new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var settings = (ChapterSettingsViewModel)workspace.SelectedChapter.Tabs.Single(tab => tab.Content is ChapterSettingsViewModel).Content;
+        var settings = (ChapterSettingsViewModel)workspace.SelectedChapter!.Tabs.Single(tab => tab.Content is ChapterSettingsViewModel).Content;
 
         settings.Direction = "Advance quietly.";
         settings.Commit();
@@ -648,7 +605,7 @@ public sealed class WorkspaceViewModelTests
     {
         var runner = new FakeChapterRunner { Text = "Aria stepped into the dark." };
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), runner, new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        var chapter = workspace.SelectedChapter;
+        var chapter = workspace.SelectedChapter!;
         var editor = (ChapterTextViewModel)chapter.Tabs[0].Content;
 
         await workspace.GenerateChapterAsync(new SynchronousProgress<GenerationProgress>(_ => { }), CancellationToken.None);
@@ -674,7 +631,7 @@ public sealed class WorkspaceViewModelTests
     public void ValidateGeneration_SucceedsWhenTheChapterIsReady()
     {
         var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), new FakeGenerationAssistant(), new FakeTranslationService(), new FakeMetadataTranslator());
-        workspace.SelectedChapter.Direction = "Advance.";
+        workspace.SelectedChapter!.Direction = "Advance.";
 
         Assert.True(workspace.ValidateGeneration());
     }
@@ -767,15 +724,16 @@ public sealed class WorkspaceViewModelTests
 
         Assert.False(workspace.Chapters[0].CanMoveUp);
         Assert.False(workspace.Chapters[0].CanMoveDown);
-        Assert.False(workspace.Chapters[0].CanDelete);
+        Assert.True(workspace.Chapters[0].CanDelete);
 
-        workspace.AddChapterCommand.Execute(null);
+        workspace.CreateChapter(ChapterRole.Auto, string.Empty, string.Empty, string.Empty);
 
         Assert.False(workspace.Chapters[0].CanMoveUp);
         Assert.True(workspace.Chapters[0].CanMoveDown);
         Assert.True(workspace.Chapters[0].CanDelete);
         Assert.True(workspace.Chapters[1].CanMoveUp);
         Assert.False(workspace.Chapters[1].CanMoveDown);
+        Assert.True(workspace.Chapters[1].CanDelete);
     }
 
     [Fact]
@@ -805,35 +763,7 @@ public sealed class WorkspaceViewModelTests
 
         Assert.Equal("Stopped.", workspace.Status);
         Assert.True(workspace.IsDirty);
-        Assert.Equal("Done.", workspace.SelectedChapter.Translations[0].Text);
-    }
-
-    [Fact]
-    public async Task PlanFinalChapter_NoOptions_SetsAFailedStatusAndRethrows()
-    {
-        var assistant = new FakeGenerationAssistant { Options = [] };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            workspace.PlanFinalChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None));
-
-        Assert.Equal("Failed: The model returned no usable plan. Try again.", workspace.Status);
-        Assert.False(workspace.IsBusy);
-    }
-
-    [Fact]
-    public async Task PlanFinalChapter_Cancelled_SetsStoppedStatus()
-    {
-        var assistant = new FakeGenerationAssistant
-        {
-            Throws = new OperationCanceledException(),
-        };
-        var workspace = new WorkspaceViewModel(SampleProject(), new FakeClock(_timestamp), new FakeChapterRunner(), assistant, new FakeTranslationService(), new FakeMetadataTranslator());
-
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            workspace.PlanFinalChapterAsync(new SynchronousProgress<ProgressTaskProgress>(_ => { }), CancellationToken.None));
-
-        Assert.Equal("Stopped.", workspace.Status);
+        Assert.Equal("Done.", workspace.SelectedChapter!.Translations[0].Text);
     }
 
     private static WorkspaceViewModel Build() =>

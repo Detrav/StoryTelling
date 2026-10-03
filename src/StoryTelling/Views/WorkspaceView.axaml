@@ -18,7 +18,7 @@
                             Content="+"
                             Width="30"
                             Height="26"
-                            Command="{Binding AddChapterCommand}"
+                            Click="OnAddChapterClick"
                             IsEnabled="{Binding !IsBusy}"
                             ToolTip.Tip="Add chapter" />
                 </Grid>
@@ -97,10 +97,8 @@
                                    FontWeight="SemiBold" />
                         <TextBlock Text="{Binding Status}" FontSize="11" Opacity="0.7" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasChapters}">
                         <Button Content="▶" Click="OnGenerateClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate this chapter" />
-                        <Button Content="Finish" Click="OnFinishStoryClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan the concluding chapter" />
-                        <Button Content="≡" Click="OnPlanChaptersClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Plan chapters with AI" />
                         <Button Content="Complete book" Click="OnCompleteBookClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Generate all pending work: chapters, summaries and translations" />
                         <Button Content="Aa" Click="OnTranslateMetadataClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate book metadata (title, annotation, chapter titles)" />
                         <Button Content="⇄" Click="OnTranslateChapterClick" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Translate this chapter" />
@@ -111,7 +109,16 @@
                 </Grid>
             </Border>
 
+            <TextBlock Grid.Row="1"
+                       Text="No chapters yet — click + to add the first chapter."
+                       IsVisible="{Binding !HasChapters}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Opacity="0.6"
+                       TextWrapping="Wrap" />
+
             <TabControl Grid.Row="1"
+                        IsVisible="{Binding HasChapters}"
                         ItemsSource="{Binding SelectedChapter.Tabs}"
                         SelectedIndex="{Binding SelectedTabIndex}">
                 <TabControl.ItemTemplate>

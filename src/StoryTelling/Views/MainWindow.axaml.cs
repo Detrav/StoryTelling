@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using StoryTelling.Application.Export;
+using StoryTelling.Domain;
 using StoryTelling.Infrastructure;
 using StoryTelling.ViewModels;
 
@@ -104,23 +105,28 @@ public partial class MainWindow : Window
 
     private async void OnCompleteBookClick(object? sender, RoutedEventArgs e) => await GuardedAsync(CompleteBookAsync);
 
-    private async void OnFinishStoryClick(object? sender, RoutedEventArgs e) => await GuardedAsync(FinishStoryAsync);
+    private async void OnAddChapterClick(object? sender, RoutedEventArgs e) => await GuardedAsync(AddChapterAsync);
 
-    private async Task FinishStoryAsync()
+    private async Task AddChapterAsync()
     {
         if (_viewModel?.Workspace is not { } workspace)
         {
             return;
         }
 
-        var viewModel = new ProgressTaskViewModel(
-            "Finish story",
-            "The AI plans a concluding chapter with a title and direction. Review it, then Generate.",
-            [new ProgressItemViewModel("Plan the final chapter")],
-            workspace.PlanFinalChapterAsync);
+        var viewModel = new ChapterSetupViewModel(
+            "Add chapter",
+            isAddMode: true,
+            ChapterRole.Auto,
+            string.Empty,
+            (role, notes, variants, session, progress, cancellationToken) =>
+                workspace.SuggestChapterSettingsAsync(null, role, notes, variants, session, progress, cancellationToken));
 
-        var window = new ProgressWindow { DataContext = viewModel };
-        await window.ShowDialog(this);
+        var window = new ChapterSetupWindow { DataContext = viewModel };
+        if (await window.ShowDialog<bool>(this) && viewModel.SelectedOption is { } option)
+        {
+            workspace.CreateChapter(viewModel.Role, viewModel.Notes, option.Title, option.Direction);
+        }
     }
 
     private async void OnTranslateMetadataClick(object? sender, RoutedEventArgs e) => await GuardedAsync(TranslateMetadataAsync);
@@ -129,6 +135,12 @@ public partial class MainWindow : Window
     {
         if (_viewModel?.Workspace is not { } workspace)
         {
+            return;
+        }
+
+        if (!workspace.HasChapters)
+        {
+            ErrorDialog.Show(this, "Nothing to do", "There are no chapters yet. Add one with +.");
             return;
         }
 

@@ -50,9 +50,8 @@ composition roots (`AppServices`, `Program`).
   `CompleteStructuredAsync<T>` (JSON schema), `CompleteWithToolsAsync` (tool calling),
   `CheckStructuredOutputAsync` (capability probe).
 - `IGenerationAssistant` — options for the *Generate with AI* wizard (small seed + tool loop) for
-  the targets `World`, `ProjectName`, `Knowledge`, `InitialWorldState`, `ChapterSettings`,
-  `ChapterPlan` (whole-book arc) and `Finale` (concluding chapter). New named entries get an
-  **avoid list** of already-used titles.
+  the targets `World`, `ProjectName`, `Knowledge`, `InitialWorldState` and `ChapterSettings`
+  (a chapter's title + direction). New named entries get an **avoid list** of already-used titles.
 - `IProjectReviewAssistant` — reviews the **knowledge base** for inconsistencies and gaps
   (tool-backed), returning findings (severity, area, title, detail, suggestion). A finding may
   carry an optional structured `fix` — an ordered list of knowledge operations (`Set`, `AddTag`,
@@ -150,8 +149,9 @@ to the current version; the fields added in v5 (`MetadataTranslations`, `StaleMe
   `AiWizardViewModel` shows the stage and the tool-call count (kept after success, e.g.
   "1 options · 6 tool calls"), caches the gathered context between *More options* (per
   `GenerationSession`), and supports *Stop* / cancel-on-close. Reused in the setup dialog, the
-  knowledge-entry dialog, the chapter Settings tab (*Generate with AI*), the chapter planner and the
-  *Finish* action; single-field targets allow a free-text override. New named entries are filtered
+  knowledge-entry dialog and the chapter Settings tab; the chapter setup dialog (`+`) shares the
+  chapter-settings target. Single-field targets allow a free-text override. New named entries are
+  filtered
   against the already-used titles (the `Cast` concept was retired — characters are knowledge
   entries, delivered through the manifest and tools).
 - **Chapter pipeline** — `ChapterWorkflow` runs writer → editor → summarizer for one chapter;

@@ -18,7 +18,7 @@ public sealed class ChapterContextExampleTests
         var context = assembler.AssembleWriter(new WriterContext(project, chapter, stateBefore, RecentLoglineCount: 3));
 
         var user = UserText(context);
-        Assert.Contains($"chapter {chapter.Number} of {project.Chapters.Count}", user);
+        Assert.Contains($"chapter {chapter.Number}", user);
         Assert.Contains("Story so far:", user);
         Assert.Contains("The Reflection That Did", user);
         Assert.Contains("Car That Ran Through Its Own Shadow", user);

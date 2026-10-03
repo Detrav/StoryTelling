@@ -9,13 +9,13 @@ Built:
   is an entry with kind `Character`), the *Knowledge* editor, Markdown AI import and prompt design.
 - `StoryQuery`, BM25 retrieval, `StoryToolset`, `ToolAgent`, LLM tool calling.
 - The *Generate with AI* wizard is tool-backed (world, book name, knowledge entry, initial world
-  state, chapter settings, whole-book chapter plan, final chapter), with an avoid list for reused
-  names.
+  state, chapter settings/title+direction), with an avoid list for reused names.
 - *Knowledge review*: an AI consistency check of the knowledge base with structured one-click fixes.
 - The chapter pipeline: writer, tool-backed editor with change notes, summarizer producing a logline,
   the new world state and a knowledge diff; staleness and recompute; a summary can be regenerated
   alone.
-- Chapter planning (a whole-book arc) and a *Finish* action for the concluding chapter.
+- Chapter setup: add one chapter at a time (role + notes → AI proposes titles + directions), appended
+  to the end of the list; the text is generated separately.
 - Per-language translation (stale flags, wrong-script repair) and FB2 export.
 - Book-metadata translation: title, annotation and chapter titles per language, cached with a
   coarse per-language stale flag; FB2 export reads only those caches.
@@ -211,9 +211,8 @@ same character twice.
 
 ## 7. Roles (passes)
 
-- **Planner** (optional) — world + knowledge + initial state → a whole-book **chapter plan** (titles
-  + directions forming a complete arc: setup, rising action, climax, resolution), and optionally a
-  single chapter's settings. Tool-enabled. The plan replaces the chapter list.
+- **Planner** (optional) — world + knowledge + previous chapters + initial state → a single
+  chapter's **title and direction** (several alternatives). Tool-enabled.
 - **Writer** — chapter brief + tools → the chapter text, streamed to the UI.
 - **Editor** — finished draft + tools → a revised text and structured **change notes**
   (continuity, style, pacing, repetition, clarity). Tool-enabled like the writer.
@@ -228,7 +227,7 @@ the final, edited text.
 
 For chapter N:
 
-1. (optional) plan the chapter's beats;
+1. the chapter already has a title and direction from the chapter setup dialog;
 2. **writer**: minimal seed (brief + world frame + current state + manifest), run the tool loop,
    stream the draft;
 3. **editor**: minimal seed + tool loop, revise the draft, then produce structured change notes;
@@ -268,14 +267,14 @@ assembler drops in priority order when over budget.
    field generation is tool-backed.
 4. **Agent pipeline** — *done*: writer, editor and summarizer combined per chapter by
    `IChapterWorkflow`; `IChapterRunner` persists text/logline/state/knowledge diff, marks later
-   chapters stale and recomputes from a chapter. A whole-book **chapter planner** produces the
-   chapter list up front.
+   chapters stale and recomputes from a chapter. Chapters are added one at a time through the
+   chapter setup dialog.
 5. **Setup rework** — *done*: the typed form keeps only immutable facts (`World`); characters and
    mutable facts live in the knowledge base; the review is knowledge-only.
 
 ## 11. Open questions
 
 - Embeddings vs BM25 for retrieval once projects grow.
-- Whether the planner produces directions for all chapters up front or one ahead.
+- Whether the chapter setup proposes directions strictly in order (always the next chapter).
 - How aggressively the editor may rewrite (style-only vs structural).
 - Storing "appeared characters" per chapter for UI/continuity once participation is model-driven.

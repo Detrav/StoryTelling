@@ -28,10 +28,8 @@ back. Provider and model come from user settings (`AppSettings`); all calls shar
 | **Generate — World** | Setup *World* tab | yes | JSON array (title/body/genre/tone/style/POV/tense/rating ×N) | applied into Setup |
 | **Generate — Book name** | Setup header | yes | JSON array (`ProjectName` ×N) | applied into Setup |
 | **Generate — Knowledge entry** | knowledge editor | yes | JSON array (kind/title/tags/content ×N) | applied into editor |
-| **Generate — Initial world state** | Setup *Initial world state* tab | yes | JSON array (timeAndPlace/description ×N) | applied into Setup |
-| **Generate — Chapter settings** | chapter *Settings* tab | yes | JSON array (title/direction ×N) | chapter Title/Direction |
-| **Generate — Chapter plan** | toolbar *Plan chapters* | yes | JSON array of N chapters (title/direction, in reading order) | replaces the chapter list (with confirmation) |
-| **Generate — Final chapter** | toolbar *Finish* | yes | JSON (title/direction) resolving the story | appends a chapter |
+| **Generate — Initial world state** | Setup *Initial world state* tab | yes | JSON array (timeAndPlace/situation ×N) | applied into Setup |
+| **Generate — Chapter settings** | chapter setup dialog (`+`) and chapter *Settings* tab | yes | JSON array (title/direction ×N) | appended as a chapter, or replaces the current chapter's Title/Direction |
 | **Writer** | Generate | yes | streamed prose (collected, no UI streaming) | `Chapter.ContentOriginal` |
 | **Editor #1 (integrity)** | same run (after writer) | yes | streamed revised prose **+ JSON verdict** (`issues[]`: severity/detail/reference) | `Chapter.ContentOriginal`; an `Error` triggers one writer retry with the issues injected |
 | **Editor #2..N (cosmetic)** | same run (after integrity) | yes | streamed revised prose | `Chapter.ContentOriginal` (replaces the previous revision) |
@@ -54,7 +52,6 @@ Legend: `yes` always · `opt` included but truncated/optional · `-` not include
 | Generate — World / Book name / Initial state | generic | yes | yes (titles+kinds) | - | yes | yes | - | yes |
 | Generate — Knowledge entry | generic | yes | yes | - | yes | yes | yes (existing titles except the edited one) | yes |
 | Generate — Chapter settings | generic | yes (world) | yes (composed) | yes (≤5 loglines + previous state) | yes | yes | yes (other chapter titles) | yes |
-| Generate — Chapter plan | generic | yes (world) | yes (base) | - | - | yes | - | yes |
 | Generate — Final chapter | generic | yes (world) | yes (composed) | yes (≤5 loglines + previous state) | - | yes | yes (other chapter titles) | - |
 | Writer | WriterSystem | - | opt (manifest, budgeted) | cast bios; state; loglines via tool | - | WriterWrite (+ corrections on retry) | - | yes |
 | Editor #1 (integrity) | IntegritySystem | world + initial state + cast bios + threads (inviolable) | yes (composed) | state yes | draft (write step) | via write step | - | yes |
@@ -90,8 +87,6 @@ Available to the **tool-backed** calls above (generation wizard, writer, editor,
 | Generate — World / Book name / Knowledge / Initial state | current Setup | Setup knowledge (base) | none |
 | Knowledge review | current Setup | Setup knowledge (base) | none |
 | Generate — Chapter settings | effective project | base + diffs of chapters `< N` | chapters `< N` only |
-| Generate — Chapter plan | effective project | base (no chapter diffs) | none |
-| Generate — Final chapter | effective project | base + diffs of chapters `< N` | chapters `< N` only |
 | Writer / Editor | effective project | base + diffs of chapters `< N` | all chapters (state passed separately) |
 | Summarizer | knowledge list passed directly (no tools) | base + diffs of chapters `< N` | previous state passed directly |
 

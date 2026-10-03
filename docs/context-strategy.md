@@ -79,8 +79,8 @@ world's title + body, then the manifest) are added only while budget remains and
 do not fit. The chapter brief travels as a separate **task** message after the context:
 
 1. story frame from `World` (genre, tone, style, point of view, tense, rating);
-2. chapter position (*chapter N of M*; continue, do not restart) — from the chapter's
-   `ChapterRole` (Auto infers opening / middle / finale from its number);
+2. chapter position (continue, do not restart) — from the chapter's `ChapterRole`
+   (Auto infers opening / middle from its number; the finale is always an explicit role);
 3. current world state (capped by `ContextRequiredSectionMaxChars`);
 4. recap (deterministic logline view);
 5. open threads;
