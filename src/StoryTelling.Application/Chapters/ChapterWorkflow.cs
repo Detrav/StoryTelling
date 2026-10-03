@@ -50,7 +50,7 @@ public sealed class ChapterWorkflow : IChapterWorkflow
         if (checks.Count > 0)
         {
             progress?.Report(new GenerationProgress("Checking consistency", 0));
-            verdict = await _editor.CheckAsync(project, chapter, text, stateBefore, checks, cancellationToken).ConfigureAwait(false);
+            verdict = await _editor.CheckAsync(writerContext, text, checks, progress, cancellationToken).ConfigureAwait(false);
 
             foreach (var failure in verdict.Failures)
             {
@@ -60,14 +60,14 @@ public sealed class ChapterWorkflow : IChapterWorkflow
                 }
 
                 progress?.Report(new GenerationProgress($"Fixing {check.Label}", 0));
-                text = await _editor.FixAsync(project, chapter, text, stateBefore, check, failure.Reason, cancellationToken).ConfigureAwait(false);
+                text = await _editor.FixAsync(writerContext, text, check, failure.Reason, progress, cancellationToken).ConfigureAwait(false);
             }
         }
 
         if (settings.CosmeticEditorEnabled)
         {
             progress?.Report(new GenerationProgress("Polishing", 0));
-            var cosmetic = await _editor.CosmeticAsync(project, chapter, text, stateBefore, cancellationToken).ConfigureAwait(false);
+            var cosmetic = await _editor.CosmeticAsync(writerContext, text, progress, cancellationToken).ConfigureAwait(false);
             text = cosmetic.Text;
             notes.AddRange(cosmetic.Notes);
         }

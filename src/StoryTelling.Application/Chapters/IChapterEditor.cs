@@ -1,3 +1,4 @@
+using StoryTelling.Application.Generation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
@@ -5,26 +6,23 @@ namespace StoryTelling.Application.Chapters;
 public interface IChapterEditor
 {
     Task<EditorChecklistVerdict> CheckAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
         IReadOnlyList<EditorCheck> checks,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
     Task<string> FixAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
         EditorCheck check,
         string reason,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
     Task<ChapterEdit> CosmeticAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }

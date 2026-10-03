@@ -46,6 +46,7 @@ internal static class AppServices
         services.AddSingleton<IContextAssembler, ChapterContextAssembler>();
         services.AddSingleton<IChapterAgent, ChapterAgent>();
         services.AddSingleton<IChapterEditor, ChapterEditor>();
+
         services.AddSingleton<IChapterSummarizer, ChapterSummarizer>();
         services.AddSingleton<IChapterWorkflow, ChapterWorkflow>();
         services.AddSingleton<IChapterRunner, ChapterRunner>();

@@ -145,14 +145,15 @@ public sealed class ChapterContextAssemblerTests
     }
 
     [Fact]
-    public void BuildCosmeticSeed_IncludesTheRecapAndPosition()
+    public void BuildStoryContext_IncludesTheRecapAndPosition()
     {
         var project = ProjectWithLoglines(3);
+        var context = new WriterContext(project, project.Chapters[2], project.InitialWorldState, RecentLoglineCount: 5);
 
-        var todo = EditorCanonPrompt.BuildCosmeticTodo(project, project.Chapters[2], project.InitialWorldState, 5);
+        var story = new ChapterContextAssembler().BuildStoryContext(context);
 
-        Assert.Contains("Log line 1.", todo);
-        Assert.Contains("chapter 3 of 3", todo);
+        Assert.Contains("Log line 1.", story);
+        Assert.Contains("chapter 3 of 3", story);
     }
 
     private static string UserText(ChapterContext context) =>

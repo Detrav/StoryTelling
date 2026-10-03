@@ -1,4 +1,5 @@
 using StoryTelling.Application.Chapters;
+using StoryTelling.Application.Generation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Tests;
@@ -19,24 +20,19 @@ internal sealed class FakeChapterEditor : IChapterEditor
 
     public bool CosmeticCalled { get; private set; }
 
-    public EditorChecklistVerdict Check(
-        IReadOnlyList<EditorCheck> checks) => Verdict;
-
     public Task<EditorChecklistVerdict> CheckAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
         IReadOnlyList<EditorCheck> checks,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default) => Task.FromResult(Verdict);
 
     public Task<string> FixAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
         EditorCheck check,
         string reason,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         Fixed.Add(check);
@@ -45,10 +41,9 @@ internal sealed class FakeChapterEditor : IChapterEditor
     }
 
     public Task<ChapterEdit> CosmeticAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         CosmeticCalled = true;

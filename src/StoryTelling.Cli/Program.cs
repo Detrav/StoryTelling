@@ -1261,8 +1261,9 @@ internal static class Program
 
     private static IChapterRunner CreateRunner(ILlmClient llmClient, ISettingsService settingsService)
     {
-        var writer = new ChapterAgent(llmClient, settingsService, new ChapterContextAssembler());
-        var editor = new ChapterEditor(llmClient, settingsService, new DiffPlexTextDiff());
+        var assembler = new ChapterContextAssembler();
+        var writer = new ChapterAgent(llmClient, settingsService, assembler);
+        var editor = new ChapterEditor(llmClient, settingsService, assembler, new DiffPlexTextDiff());
         var summarizer = new ChapterSummarizer(llmClient, settingsService);
         var workflow = new ChapterWorkflow(writer, editor, summarizer, settingsService);
         return new ChapterRunner(workflow, summarizer, new SystemClock());

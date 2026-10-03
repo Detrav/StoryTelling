@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
-using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
 using StoryTelling.Application.Settings;
@@ -14,21 +13,22 @@ public sealed class ChapterEditor : IChapterEditor
 {
     private readonly ILlmClient _llmClient;
     private readonly ISettingsService _settingsService;
+    private readonly IContextAssembler _assembler;
     private readonly ITextDiff _textDiff;
 
-    public ChapterEditor(ILlmClient llmClient, ISettingsService settingsService, ITextDiff textDiff)
+    public ChapterEditor(ILlmClient llmClient, ISettingsService settingsService, IContextAssembler assembler, ITextDiff textDiff)
     {
         _llmClient = llmClient;
         _settingsService = settingsService;
+        _assembler = assembler;
         _textDiff = textDiff;
     }
 
     public async Task<EditorChecklistVerdict> CheckAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
         IReadOnlyList<EditorCheck> checks,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text) || checks.Count == 0)
@@ -38,13 +38,16 @@ public sealed class ChapterEditor : IChapterEditor
 
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
-        var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
-        var inspecting = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
+        var seed = EditorCanonPrompt.BuildCheckerMessages(_assembler, context, text, checks);
+
+        var gathered = await ChapterToolLoop
+            .GatherAsync(_llmClient, connection, settings, seed, EditorCanonPrompt.CheckerGather(), context.Snapshot, progress, cancellationToken, context.Chapter.Number)
+            .ConfigureAwait(false);
 
         var request = new LlmRequest
         {
             Model = settings.Model,
-            Messages = EditorCanonPrompt.BuildCheckerSeed(project, inspecting, stateBefore, knowledge, checks),
+            Messages = gathered.Messages,
             Temperature = settings.TemperatureFor(LlmTask.EditorChecker),
             MaxTokens = settings.MaxTokens,
         };
@@ -67,12 +70,11 @@ public sealed class ChapterEditor : IChapterEditor
     }
 
     public async Task<string> FixAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
         EditorCheck check,
         string reason,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -82,31 +84,53 @@ public sealed class ChapterEditor : IChapterEditor
 
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
-        var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
-        var inspecting = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
+        var seed = EditorCanonPrompt.BuildFixerMessages(_assembler, context, check, reason);
 
-        var request = new LlmRequest
+        var gathered = await ChapterToolLoop
+            .GatherAsync(_llmClient, connection, settings, seed, EditorCanonPrompt.FixerGather(), context.Snapshot, progress, cancellationToken, context.Chapter.Number)
+            .ConfigureAwait(false);
+
+        progress?.Report(new GenerationProgress($"Fixing {check.Label}", gathered.ToolCalls));
+
+        var write = new LlmRequest
         {
             Model = settings.Model,
-            Messages = EditorCanonPrompt.BuildFixerSeed(project, inspecting, stateBefore, knowledge, check, text, reason),
+            Messages = [.. gathered.Messages, .. PromptTemplates.BuildEditorWrite(text)],
             Temperature = settings.TemperatureFor(LlmTask.EditorFixer),
             MaxTokens = settings.MaxTokens,
         };
 
-        var revised = await StreamTextAsync(connection, request, cancellationToken).ConfigureAwait(false);
+        var revised = await StreamTextAsync(connection, write, cancellationToken).ConfigureAwait(false);
+        if (GeneratedText.LooksTruncated(revised))
+        {
+            var retry = write with
+            {
+                Messages =
+                [
+                    .. write.Messages,
+                    LlmMessage.User("Your previous reply was cut off. Return the complete corrected chapter and end with a full sentence."),
+                ],
+            };
+
+            var completed = await StreamTextAsync(connection, retry, cancellationToken).ConfigureAwait(false);
+            if (completed.Length >= revised.Length)
+            {
+                revised = completed;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(revised))
         {
             return text;
         }
 
-        return ChapterTextCleaner.StripLeadingTitle(revised, chapter);
+        return ChapterTextCleaner.StripLeadingTitle(revised, context.Chapter);
     }
 
     public async Task<ChapterEdit> CosmeticAsync(
-        Project project,
-        Chapter chapter,
+        WriterContext context,
         string text,
-        WorldState stateBefore,
+        IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -116,12 +140,13 @@ public sealed class ChapterEditor : IChapterEditor
 
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
-        var inspecting = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
+        var seed = EditorCanonPrompt.BuildCosmeticMessages(_assembler, context);
 
-        var seed = EditorCanonPrompt.BuildCosmeticSeed(project, inspecting, stateBefore, settings.RecentLoglineCount);
         var gathered = await ChapterToolLoop
-            .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, null, cancellationToken, chapter.Number)
+            .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), context.Snapshot, progress, cancellationToken, context.Chapter.Number)
             .ConfigureAwait(false);
+
+        progress?.Report(new GenerationProgress("Polishing", gathered.ToolCalls));
 
         var write = new LlmRequest
         {
@@ -155,9 +180,9 @@ public sealed class ChapterEditor : IChapterEditor
             revised = text;
         }
 
-        revised = ChapterTextCleaner.StripLeadingTitle(revised, chapter);
+        revised = ChapterTextCleaner.StripLeadingTitle(revised, context.Chapter);
 
-        var styleNotes = await RepairStyleAsync(connection, settings, chapter, revised, project.World.Tense, cancellationToken).ConfigureAwait(false);
+        var styleNotes = await RepairStyleAsync(connection, settings, context.Chapter, revised, context.Snapshot.World.Tense, cancellationToken).ConfigureAwait(false);
         if (styleNotes.Revised is { } corrected)
         {
             revised = corrected;
@@ -219,7 +244,7 @@ public sealed class ChapterEditor : IChapterEditor
     private async Task<(string? Revised, IReadOnlyList<EditorNote> Notes)> RepairStyleAsync(
         LlmConnection connection,
         AppSettings settings,
-        Chapter chapter,
+        Domain.Chapter chapter,
         string revised,
         string declaredTense,
         CancellationToken cancellationToken)
