@@ -51,6 +51,24 @@ window (e.g. 16k) may return truncated or inconsistent chapters, especially with
 budgets — this is why the budgets are configurable in *Settings → Context*. Local models served by
 LM Studio or Ollama work the same as a hosted provider.
 
+## Known issues
+
+The AI is not perfect. The engine is deterministic, but the model is not, and some rough edges are
+expected:
+
+- A generation pass may return **fewer options than asked**, or none; near-duplicate titles and
+  directions happen.
+- The model can **ignore a chapter's role or your notes** — a "Finale" may still end softly.
+- The **continuity checker and knowledge review are probabilistic**: they produce useful findings and
+  also false positives, so treat them as hints, not verdicts.
+- The **summarizer can misattribute** details (who died, where a place is); the prose is the source of
+  truth.
+- Translation can **leave English terms** behind and needs a glossary for consistent names.
+- Small-context models can return **truncated** chapters; a provider with **JSON-schema structured
+  output** is required.
+
+See [Known issues and AI limitations](docs/known-issues.md) for the full list and what to do.
+
 ## Documentation
 
 - [Overview](docs/overview.md)
@@ -62,6 +80,7 @@ LM Studio or Ollama work the same as a hosted provider.
 - [Stack](docs/stack.md)
 - [Developer CLI](docs/cli.md)
 - [Creating a book from scratch](docs/creating-a-book.md)
+- [Known issues and AI limitations](docs/known-issues.md)
 
 ## License
 

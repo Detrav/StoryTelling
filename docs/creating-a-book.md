@@ -11,6 +11,10 @@ person or an agent can run it end to end.
 > Before you start: a provider must be running and configured. Run `storydev ping` once. Provider and
 > model live in the global settings file (`storydev settings show`), not in the project.
 
+> The model is not perfect — generation can be sparse, the checkers have false positives and the
+> summarizer can misattribute details. See [Known issues and AI limitations](known-issues.md) for the
+> full list and how to react.
+
 ## 0. Set up the provider (once)
 
 ```powershell
@@ -82,9 +86,12 @@ have the AI propose several and pick one:
 storydev chapter --action add --file book.story.json --role Opening --notes "the storm arrives" --suggest
 ```
 
-`--suggest` prints three title/direction options built from the previous chapters, the knowledge base
-and the initial state, and applies the first (`--pick N` chooses another). Without `--suggest`, pass
-`--title`/`--direction` directly.
+`--suggest` prints up to three title/direction options built from the previous chapters, the knowledge
+base and the initial state, and applies the one chosen by `--pick N` (default: the first). Existing
+chapter titles are excluded. Without `--suggest`, pass `--title`/`--direction` directly.
+
+The model may return **fewer** than three options, and it can **ignore your notes or the role** you set
+— always read what was applied and adjust it with `set --what chapter`.
 
 **Human decision — the second important review point.** A weak direction poisons the chapter. Review
 the directions, or print the first chapter's assembled prompt to see how they are handed to the writer:
@@ -113,23 +120,34 @@ storydev complete --file book.story.json
 
 `complete` walks the chapters in reading order and, for each one:
 
-1. **writes** it when it is empty or stale (writer, then editor: continuity, repetition, style, pacing);
+1. **writes** it when it is empty or stale (writer, then the checker/fixer and the cosmetic pass);
 2. **summarizes** it when it has text but no logline/world state (logline, new world state, knowledge diff);
-3. **translates** it into every target language when the translation is missing or stale.
+3. **translates** it into the project's target languages when the translation is missing or stale.
 
-Once a chapter is written, everything after it cascades: the next chapter is regenerated so it continues
-from the new state. Chapters whose world, initial state or direction are missing are skipped and reported.
-
-To write a single chapter instead, or to iterate:
+After `setup` the project has **no target languages**, so either set them or pass `--languages`:
 
 ```powershell
-storydev write --file book.story.json --chapters 1     # append one more chapter
+storydev complete --file book.story.json --languages ru
+```
+
+Once a chapter is written, the later chapters are marked stale, and `complete` rewrites them so they
+continue from the new state. Chapters whose world, initial state or direction are missing are skipped
+and reported.
+
+To write a single chapter, or to iterate:
+
+```powershell
+storydev write --file book.story.json --chapters 1     # low-level: append + write a placeholder chapter
 storydev regenerate --file book.story.json --chapter 3 # rewrite chapter 3 with the current seed
 storydev summarize --file book.story.json --chapter 3  # rebuild its logline/state/diff
 ```
 
-**Human decision:** the prose. Read each chapter as it lands (the logline is printed). Rewrite by hand
-with `set --text-file` when you want full control, or `regenerate` when you want the AI to try again.
+`write` appends a chapter titled "Chapter N" with no direction and writes it directly, skipping the
+chapter-setup review; prefer `chapter --action add` followed by `complete`.
+
+**Human decision:** the prose. Read each chapter as it lands (the logline is printed). Regenerate it
+with `regenerate` when you want the AI to try again. (Do not hand-edit the generated chapter text and
+expect the summary to follow — re-run `summarize`/`recompute` instead.)
 
 ## 4. Verify continuity
 
@@ -137,10 +155,11 @@ with `set --text-file` when you want full control, or `regenerate` when you want
 storydev continuity --file book.story.json --all
 ```
 
-The continuity checker now compares each chapter's **prose and direction** against the **world**, the
-**initial
-state**, the knowledge base and the **open threads**, and reports contradictions with a reference. Treat
-`Error` findings as blockers; fix the source (an entry, a direction or the text) and re-run.
+The continuity checker compares each chapter's **prose and direction/notes** against the **world**, the
+**initial state**, the knowledge base and the **open threads**, and reports contradictions with a
+reference. Treat `Error` findings as blockers — but the checker has **false positives** (it sometimes
+misreads tense), so confirm against the prose before changing anything. Fix the source (an entry, a
+direction, a note) and re-run.
 
 For the knowledge base itself, the project review is the complement:
 
@@ -172,12 +191,15 @@ hook** is not — and the guard will fight you if you try.
 
 ```powershell
 storydev translate --file book.story.json --language ru --with-metadata
-storydev export --file book.story.json --language ru --out book.ru.fb2
+storydev export --file book.story.json --language en --out book.en.fb2   # the English original
+storydev export --file book.story.json --language ru --out book.ru.fb2   # the translation
 ```
 
 Chapter translation fills `Chapter.Translations[code]`. `--with-metadata` also translates the book title,
-the annotation and the chapter titles into that language (the FB2 uses them). `export` needs no provider
-and can be re-run any time.
+the annotation and the chapter titles into that language (the FB2 uses them); the English export uses
+the original text. `export` needs no provider and can be re-run any time. If you change a title or the
+annotation later, re-run the metadata translation (or `translate --language ru --metadata-only`) before
+exporting, or the FB2 keeps the old text.
 
 **Where the AI can be trusted:** a first pass for every language. **Where the human must decide:** titles
 and names that must stay consistent — edit them and export again.

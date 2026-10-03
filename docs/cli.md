@@ -36,7 +36,7 @@ There are no separate trace files any more — use `--verbose` and read the log.
 | `setup` | Generates a fresh project setup (name, world, characters, initial state): `--out <path> [--brief ...] [--characters N]`. |
 | `write` | Writes chapters into an existing project: `--file <path> [--chapters N]`. |
 | `complete` | Finishes the whole book: writes pending/stale chapters, rebuilds missing summaries, translates when needed: `--file <path> [--languages ru,de] [--no-translate] [--out <path>]`. |
-| `chapter` | Manages the chapter list: `--action <add\|remove\|move\|status> --file <path> [--number N] [--role Auto\|Opening\|Middle\|Finale] [--notes ...] [--title ...] [--direction ...] [--suggest] [--pick N] [--from N] [--status Draft\|Generated\|Stale]`. With `--suggest`, the AI proposes three titles + directions from the previous chapters (pick one with `--pick`). |
+| `chapter` | Manages the chapter list: `--action <add\|remove\|move\|status> --file <path> [--number N] [--role Auto\|Opening\|Middle\|Finale] [--notes ...] [--title ...] [--direction ...] [--suggest] [--pick N] [--from N] [--status Draft\|Generated\|Stale]`. With `--suggest`, the AI proposes up to three titles + directions from the previous chapters (pick one with `--pick`; the model may return fewer). |
 | `set` | Edits fields by hand: `--what <project\|world\|state\|chapter\|knowledge> --file <path> [field options]`. |
 | `settings` | Shows or edits provider settings: `[show\|set] [--model ...] [--base-url ...] [--api-key ...] [--temperature ...] [--languages ru,de]`. |
 | `import` | Imports knowledge from Markdown files: `--file <path> --from <file.md\|dir> [--mode extract\|design] [--brief ...]`. |
