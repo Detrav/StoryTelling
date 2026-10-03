@@ -15,6 +15,9 @@ public sealed class ProjectReviewViewModelTests
         return new ProjectReviewViewModel(list, run, host);
     }
 
+    private static ReviewChange Change(ReviewEdit edit, string label, string oldValue, string newValue) =>
+        new(edit, label, oldValue, newValue);
+
     [Fact]
     public async Task Start_RunsFirstStep()
     {
@@ -75,55 +78,99 @@ public sealed class ProjectReviewViewModelTests
     }
 
     [Fact]
-    public async Task ApplyFix_MarksStaleWhenSignatureChanges()
+    public async Task DeterministicFix_IsPreparedAutomatically()
     {
-        var fix = new ReviewFix([new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new")]);
+        var edit = new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new");
+        var fix = new ReviewFix([edit]);
         var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Tone vs rating", "detail", null, fix, "Ashen Reach");
-        var host = new FakeReviewFixHost { Signature = "before" };
+        var host = new FakeReviewFixHost { Changes = [Change(edit, "Ashen Reach · Content", "old", "new")] };
+        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
+
+        await viewModel.StartAsync();
+
+        var prepared = viewModel.CurrentStep!.Findings[0];
+        Assert.True(prepared.IsPrepared);
+        Assert.Single(prepared.Rows);
+        Assert.True(prepared.CanFix);
+        Assert.Equal("Apply", prepared.FixLabel);
+    }
+
+    [Fact]
+    public async Task ApplyFix_AppliesSelectedEditsAndMarksStale()
+    {
+        var edit = new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new");
+        var fix = new ReviewFix([edit]);
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Tone vs rating", "detail", null, fix, "Ashen Reach");
+        var host = new FakeReviewFixHost { Signature = "before", Changes = [Change(edit, "Ashen Reach · Content", "old", "new")] };
         var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
 
         await viewModel.StartAsync();
         var step = viewModel.CurrentStep!;
-        Assert.False(step.IsStale);
+        var prepared = step.Findings[0];
 
         host.Signature = "after";
-        viewModel.ApplyFix(step.Findings[0], fix);
+        await prepared.ApplyAsync();
 
+        Assert.True(prepared.IsApplied);
+        Assert.Single(host.LastApplied!.Edits);
+        Assert.Equal("new", host.LastApplied!.Edits[0].Value);
         Assert.True(step.IsStale);
     }
 
     [Fact]
-    public async Task Skip_MovesPastTheStep()
+    public async Task CreateEntryFinding_AddsEntryAndMarksStale()
     {
-        var calls = 0;
-        var viewModel = Build((_, _, _, _) =>
-        {
-            calls++;
-            return Task.FromResult<IReadOnlyList<ReviewFinding>>([]);
-        }, new FakeReviewFixHost(), Check("one"), Check("two"));
+        var host = new FakeReviewFixHost { Signature = "before" };
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Missing entry for Dmitri", "Dmitri has no knowledge entry.", null, null, "Dmitri");
+        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
 
         await viewModel.StartAsync();
-        await viewModel.SkipCommand.ExecuteAsync(null);
+        var prepared = viewModel.CurrentStep!.Findings[0];
+        Assert.Equal(ReviewFindingAction.CreateEntry, prepared.Action);
+        Assert.True(prepared.IsPrepared);
 
-        Assert.Equal("two", viewModel.CurrentStep!.Label);
-        Assert.Equal(2, calls);
-        Assert.True(viewModel.Steps[0].IsSkipped);
+        host.Signature = "after";
+        await prepared.ApplyAsync();
+
+        Assert.NotNull(host.LastAdded);
+        Assert.Equal("Dmitri", host.LastAdded!.Title);
+        Assert.True(viewModel.Steps[0].IsStale);
     }
 
     [Fact]
-    public async Task AddEntry_DelegatesToHostAndMarksStale()
+    public async Task SelectAllAndClear_TogglesFindingSelection()
     {
-        var host = new FakeReviewFixHost { Signature = "before" };
-        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([]), host);
+        var edit = new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new");
+        var fix = new ReviewFix([edit]);
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Tone", "detail", null, fix, "Ashen Reach");
+        var host = new FakeReviewFixHost { Changes = [Change(edit, "Ashen Reach · Content", "old", "new")] };
+        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
+
         await viewModel.StartAsync();
 
-        host.Signature = "after";
-        var entry = new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "Captain Thorne" };
-        viewModel.AddEntry(entry, "Create: Captain Thorne");
+        viewModel.ClearFindingSelectionCommand.Execute(null);
+        Assert.All(viewModel.CurrentStep!.Findings, candidate => Assert.False(candidate.IsSelected));
+        Assert.False(viewModel.CanApplySelected);
 
-        Assert.Same(entry, host.LastAdded);
-        Assert.Equal("Create: Captain Thorne", host.LastLabel);
-        Assert.True(viewModel.Steps[0].IsStale);
+        viewModel.SelectAllFindingsCommand.Execute(null);
+        Assert.All(viewModel.CurrentStep!.Findings, candidate => Assert.True(candidate.IsSelected));
+        Assert.True(viewModel.CanApplySelected);
+    }
+
+    [Fact]
+    public async Task ApplySelected_AppliesEverySelectedFinding()
+    {
+        var edit = new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new");
+        var fix = new ReviewFix([edit]);
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Tone", "detail", null, fix, "Ashen Reach");
+        var host = new FakeReviewFixHost { Changes = [Change(edit, "Ashen Reach · Content", "old", "new")] };
+        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding, finding]), host);
+
+        await viewModel.StartAsync();
+        await viewModel.ApplySelectedCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, host.ApplyCount);
+        Assert.All(viewModel.CurrentStep!.Findings, candidate => Assert.True(candidate.IsApplied));
     }
 
     [Fact]

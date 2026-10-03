@@ -381,7 +381,7 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
                 set(edit.Value);
             }
 
-            changes.Add(new ReviewChange(label, current, edit.Value));
+            changes.Add(new ReviewChange(edit, label, current, edit.Value));
         }
 
         return changes;

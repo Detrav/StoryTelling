@@ -1,3 +1,3 @@
 namespace StoryTelling.Application.Review;
 
-public sealed record ReviewChange(string Label, string OldValue, string NewValue);
+public sealed record ReviewChange(ReviewEdit Edit, string Label, string OldValue, string NewValue);

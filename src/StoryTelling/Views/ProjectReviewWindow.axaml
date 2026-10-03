@@ -4,10 +4,10 @@
         x:Class="StoryTelling.Views.ProjectReviewWindow"
         x:DataType="vm:ProjectReviewViewModel"
         Title="Knowledge review"
-        Width="720"
-        Height="700"
-        MinWidth="520"
-        MinHeight="420"
+        Width="940"
+        Height="780"
+        MinWidth="760"
+        MinHeight="540"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
@@ -15,33 +15,70 @@
                 Padding="14"
                 BorderThickness="0,1,0,0"
                 BorderBrush="#22000000">
-            <Button Content="Close" HorizontalAlignment="Right" Click="OnCloseClick" />
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsFinished}">
+                    <Button Content="Back" Command="{Binding BackCommand}" IsEnabled="{Binding HasPrevious}" />
+                    <Button Content="Skip" Command="{Binding SkipCommand}" IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="Next" Command="{Binding NextCommand}" IsEnabled="{Binding !IsBusy}" />
+                </StackPanel>
+                <Button Grid.Column="2" Content="Close" Click="OnCloseClick" />
+            </Grid>
         </Border>
 
-        <Grid Margin="18" RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="10">
+        <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="10">
             <StackPanel Grid.Row="0" Spacing="2">
                 <TextBlock Text="Knowledge review" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding ProgressLabel}" Opacity="0.6" />
             </StackPanel>
 
-            <TextBox Grid.Row="1"
-                     Text="{Binding Brief}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     Height="52"
-                     PlaceholderText="Optional focus for every check, e.g. 'check names and the timeline'"
-                     IsVisible="{Binding !IsFinished}" />
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Steps}"
+                     SelectedItem="{Binding CurrentStep}"
+                     IsVisible="{Binding !IsFinished}"
+                     MaxHeight="76"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ReviewStepViewModel">
+                        <StackPanel Spacing="2" Width="150">
+                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Status}" Opacity="0.6" FontSize="11" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsFinished}">
-                <Button Content="Run" Command="{Binding RunStepCommand}" IsEnabled="{Binding !IsBusy}" />
-                <Button Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsBusy}" />
-                <Button Content="Back" Command="{Binding BackCommand}" IsEnabled="{Binding HasPrevious}" />
-                <Button Content="Skip" Command="{Binding SkipCommand}" IsEnabled="{Binding !IsBusy}" />
-                <Button Content="Next" Command="{Binding NextCommand}" IsEnabled="{Binding !IsBusy}" Classes="accent" />
-            </StackPanel>
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding !IsFinished}">
+                <TextBox Text="{Binding Brief}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="48"
+                         PlaceholderText="Optional focus for every check, e.g. 'check names and the timeline'" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <Button Content="Run" Command="{Binding RunStepCommand}" IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsBusy}" />
+                </StackPanel>
+            </Grid>
 
-            <StackPanel Grid.Row="3" Spacing="6">
+            <StackPanel Grid.Row="3" Spacing="6" IsVisible="{Binding !IsFinished}">
                 <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="4" />
+                <Expander Header="What this check verifies" IsVisible="{Binding ShowFindings}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding CurrentStep.Description}" TextWrapping="Wrap" Opacity="0.8" />
+                        <ItemsControl ItemsSource="{Binding CurrentStep.Check.Checklist}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Expander>
                 <Border IsVisible="{Binding CurrentStep.IsStale}"
                         Background="#22B00020"
                         Padding="8"
@@ -52,27 +89,84 @@
                 <TextBlock Text="{Binding Status}" Opacity="0.7" TextWrapping="Wrap" />
             </StackPanel>
 
-            <ListBox Grid.Row="4" ItemsSource="{Binding CurrentStep.Findings}" IsVisible="{Binding ShowFindings}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ReviewFindingViewModel">
-                        <StackPanel Margin="0,4" Spacing="4">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{Binding Severity}" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding Area}" Opacity="0.6" />
-                                <TextBlock Text="{Binding FixLabel}" IsVisible="{Binding IsFixed}" Opacity="0.6" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.85" />
-                            <TextBlock Text="{Binding Suggestion}" TextWrapping="Wrap" Opacity="0.7" FontStyle="Italic" IsVisible="{Binding HasSuggestion}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="{Binding FixLabel}" IsVisible="{Binding CanApplyFix}" IsEnabled="{Binding !IsFixed}" Tag="{Binding}" Click="OnFixClick" />
-                                <Button Content="Create entry…" IsVisible="{Binding CanCreateEntry}" Tag="{Binding}" Click="OnCreateEntryClick" />
-                                <Button Content="Fix with AI…" IsVisible="{Binding CanFixWithAi}" Tag="{Binding}" Click="OnAiFixClick" />
-                            </StackPanel>
+            <Grid Grid.Row="4" ColumnDefinitions="320,12,*" IsVisible="{Binding ShowFindings}">
+                <DockPanel Grid.Column="0">
+                    <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Content="Select all" Command="{Binding SelectAllFindingsCommand}" />
+                            <Button Content="Clear" Command="{Binding ClearFindingSelectionCommand}" />
                         </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                        <Button Content="{Binding ApplySelectedLabel}"
+                                Classes="accent"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding ApplySelectedCommand}"
+                                IsEnabled="{Binding CanApplySelected}" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding CurrentStep.Findings}" SelectedItem="{Binding SelectedFinding}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReviewFindingViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Top" />
+                                    <StackPanel Spacing="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding Severity}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Area}" Opacity="0.6" />
+                                            <TextBlock Text="{Binding Status}" Opacity="0.6" IsVisible="{Binding HasStatus}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+
+                <ScrollViewer Grid.Column="2" IsVisible="{Binding ShowDetail}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding SelectedFinding.Severity}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding SelectedFinding.Area}" Opacity="0.6" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SelectedFinding.Title}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding SelectedFinding.Detail}" TextWrapping="Wrap" Opacity="0.85" />
+                            <TextBlock Text="{Binding SelectedFinding.Suggestion}"
+                                       TextWrapping="Wrap"
+                                       Opacity="0.7"
+                                       FontStyle="Italic"
+                                       IsVisible="{Binding SelectedFinding.HasSuggestion}" />
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="Auto,*,*,*" ColumnSpacing="8">
+                            <TextBlock Grid.Column="1" Text="Entry · Field" FontSize="11" Opacity="0.6" />
+                            <TextBlock Grid.Column="2" Text="Before" FontSize="11" Opacity="0.6" />
+                            <TextBlock Grid.Column="3" Text="After" FontSize="11" Opacity="0.6" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding SelectedFinding.Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ReviewEditRowViewModel">
+                                    <Grid ColumnDefinitions="Auto,*,*,*" ColumnSpacing="8" Margin="0,0,0,6">
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Top" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="2" Text="{Binding OldValue}" TextWrapping="Wrap" Opacity="0.7" FontFamily="Consolas" />
+                                        <TextBox Grid.Column="3" Text="{Binding NewValue}" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding SelectedFinding.Status}" Opacity="0.6" TextWrapping="Wrap" />
+
+                        <Button Content="{Binding SelectedFinding.FixLabel}"
+                                Classes="accent"
+                                HorizontalAlignment="Left"
+                                Command="{Binding SelectedFinding.FixCommand}"
+                                IsEnabled="{Binding SelectedFinding.CanFix}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
 
             <StackPanel Grid.Row="4" Spacing="8" IsVisible="{Binding IsFinished}">
                 <TextBlock Text="All experts have reported." FontSize="16" FontWeight="SemiBold" />

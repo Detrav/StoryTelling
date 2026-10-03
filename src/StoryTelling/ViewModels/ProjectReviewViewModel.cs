@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,10 +35,17 @@ public partial class ProjectReviewViewModel : ViewModelBase
     private ReviewStepViewModel? _currentStep;
 
     [ObservableProperty]
+    private ReviewFindingViewModel? _selectedFinding;
+
+    [ObservableProperty]
     private int _stepIndex;
 
     [ObservableProperty]
     private bool _isBusy;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApplySelected))]
+    private bool _isApplying;
 
     [ObservableProperty]
     private bool _isFinished;
@@ -54,20 +62,51 @@ public partial class ProjectReviewViewModel : ViewModelBase
 
     public bool ShowFindings => !IsFinished && CurrentStep is not null;
 
+    public bool ShowDetail => SelectedFinding is not null;
+
     public string ProgressLabel => IsFinished ? "Done" : $"Step {StepIndex + 1} of {Steps.Count}";
 
     public string StepTitle => IsFinished ? "Summary" : CurrentStep?.Label ?? string.Empty;
 
+    public string ApplySelectedLabel =>
+        $"Apply selected ({CurrentStep?.Findings.Count(IsActionable) ?? 0})";
+
+    public bool CanApplySelected =>
+        !IsBusy && !IsApplying && CurrentStep is not null && CurrentStep.Findings.Any(IsActionable);
+
+    private static bool IsActionable(ReviewFindingViewModel finding) =>
+        finding.IsSelected && !finding.IsApplied && finding.Action != ReviewFindingAction.None;
+
     partial void OnCurrentStepChanged(ReviewStepViewModel? value)
     {
+        if (value is not null)
+        {
+            var index = Steps.IndexOf(value);
+            if (index >= 0)
+            {
+                StepIndex = index;
+            }
+        }
+
+        SelectedFinding = value?.Findings.FirstOrDefault();
         OnPropertyChanged(nameof(StepTitle));
         OnPropertyChanged(nameof(ShowFindings));
+        OnPropertyChanged(nameof(ApplySelectedLabel));
+        OnPropertyChanged(nameof(CanApplySelected));
     }
+
+    partial void OnSelectedFindingChanged(ReviewFindingViewModel? value) => OnPropertyChanged(nameof(ShowDetail));
 
     partial void OnStepIndexChanged(int value)
     {
         OnPropertyChanged(nameof(ProgressLabel));
         OnPropertyChanged(nameof(HasPrevious));
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanApplySelected));
+        OnPropertyChanged(nameof(ApplySelectedLabel));
     }
 
     partial void OnIsFinishedChanged(bool value)
@@ -76,32 +115,10 @@ public partial class ProjectReviewViewModel : ViewModelBase
         OnPropertyChanged(nameof(StepTitle));
         OnPropertyChanged(nameof(ShowFindings));
         OnPropertyChanged(nameof(HasPrevious));
+        OnPropertyChanged(nameof(CanApplySelected));
     }
 
     public Task StartAsync() => RunCurrentStepAsync();
-
-    public IReadOnlyList<ReviewChange> PreviewFix(ReviewFix fix) => _host.PreviewFix(fix);
-
-    public void ApplyFix(ReviewFindingViewModel finding, ReviewFix fix)
-    {
-        _host.ApplyFix(fix, $"Fix: {finding.Title}");
-        finding.IsFixed = true;
-        Status = $"Fixed: {finding.Title}";
-        RefreshStale();
-    }
-
-    public void AddEntry(StoryTelling.Domain.KnowledgeEntry entry, string label)
-    {
-        _host.AddEntry(entry, label);
-        Status = label;
-        RefreshStale();
-    }
-
-    public AiWizardViewModel.GenerateOptions Generate(GenerationTarget target) =>
-        (brief, options, session, progress, cancellationToken) =>
-            _host.GenerateAsync(target, brief, options, session, progress, cancellationToken);
-
-    public IReadOnlyList<ReviewFixTarget> FixTargets() => _host.FixTargets();
 
     public void Cancel() => _cts?.Cancel();
 
@@ -110,6 +127,77 @@ public partial class ProjectReviewViewModel : ViewModelBase
 
     [RelayCommand]
     private void Stop() => Cancel();
+
+    [RelayCommand]
+    private void SelectAllFindings()
+    {
+        if (CurrentStep is null)
+        {
+            return;
+        }
+
+        foreach (var finding in CurrentStep.Findings)
+        {
+            finding.IsSelected = true;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearFindingSelection()
+    {
+        if (CurrentStep is null)
+        {
+            return;
+        }
+
+        foreach (var finding in CurrentStep.Findings)
+        {
+            finding.IsSelected = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ApplySelectedAsync()
+    {
+        if (CurrentStep is null || IsBusy || IsApplying)
+        {
+            return;
+        }
+
+        var targets = CurrentStep.Findings.Where(IsActionable).ToList();
+        if (targets.Count == 0)
+        {
+            Status = "No findings selected.";
+            return;
+        }
+
+        IsApplying = true;
+        Status = "Applying…";
+        var applied = 0;
+
+        try
+        {
+            foreach (var finding in targets)
+            {
+                if (!finding.IsPrepared)
+                {
+                    await finding.PrepareAsync();
+                }
+
+                if (finding.IsPrepared && !finding.IsApplied)
+                {
+                    await finding.ApplyAsync();
+                    applied++;
+                }
+            }
+
+            Status = $"Applied {applied} finding(s).";
+        }
+        finally
+        {
+            IsApplying = false;
+        }
+    }
 
     [RelayCommand]
     private async Task NextAsync()
@@ -206,6 +294,7 @@ public partial class ProjectReviewViewModel : ViewModelBase
         step.IsSkipped = false;
         step.IsStale = false;
         step.Findings.Clear();
+        SelectedFinding = null;
         step.Status = "Reviewing…";
         Status = $"Reviewing: {step.Label}…";
 
@@ -217,7 +306,17 @@ public partial class ProjectReviewViewModel : ViewModelBase
             var canFixWithAi = _host.FixTargets().Count > 0;
             foreach (var finding in findings)
             {
-                step.Findings.Add(new ReviewFindingViewModel(finding, _host.SingleReference, canFixWithAi));
+                var viewModel = new ReviewFindingViewModel(finding, _host, canFixWithAi);
+                viewModel.Applied += OnFindingApplied;
+                viewModel.PropertyChanged += OnFindingPropertyChanged;
+                step.Findings.Add(viewModel);
+            }
+
+            SelectedFinding = step.Findings.FirstOrDefault();
+
+            foreach (var finding in step.Findings.Where(IsDeterministic))
+            {
+                await finding.PrepareAsync(token);
             }
 
             step.WasRun = true;
@@ -243,6 +342,30 @@ public partial class ProjectReviewViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private static bool IsDeterministic(ReviewFindingViewModel finding) =>
+        finding.Action is ReviewFindingAction.Fix or ReviewFindingAction.CreateEntry;
+
+    private void OnFindingApplied(object? sender, EventArgs e)
+    {
+        if (sender is ReviewFindingViewModel finding)
+        {
+            Status = $"Applied: {finding.Title}";
+        }
+
+        RefreshStale();
+        OnPropertyChanged(nameof(ApplySelectedLabel));
+        OnPropertyChanged(nameof(CanApplySelected));
+    }
+
+    private void OnFindingPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(ReviewFindingViewModel.IsSelected))
+        {
+            OnPropertyChanged(nameof(ApplySelectedLabel));
+            OnPropertyChanged(nameof(CanApplySelected));
         }
     }
 

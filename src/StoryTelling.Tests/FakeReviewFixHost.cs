@@ -29,11 +29,16 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
 
     public string ReviewSignature() => Signature;
 
+    public int ApplyCount { get; private set; }
+
     public void ApplyFix(ReviewFix fix, string label)
     {
         LastApplied = fix;
         LastLabel = label;
+        ApplyCount++;
     }
+
+    public int AddCount { get; private set; }
 
     public KnowledgeEntry? LastAdded { get; private set; }
 
@@ -41,6 +46,7 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
     {
         LastAdded = entry;
         LastLabel = label;
+        AddCount++;
     }
 
     public Task<IReadOnlyList<GenerationOption>> GenerateAsync(
