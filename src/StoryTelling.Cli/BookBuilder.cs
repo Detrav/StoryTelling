@@ -33,7 +33,10 @@ internal sealed class BookBuilder
 
         if (characters > 0)
         {
-            await GenerateIntoAsync(project, GenerationTarget.Knowledge, brief, characters, cancellationToken, KnowledgeKind.Character);
+            var castBrief = string.IsNullOrWhiteSpace(brief)
+                ? $"Create {characters} distinct central characters."
+                : $"{brief.Trim()} Focus on the main cast: create {characters} distinct central characters.";
+            await GenerateIntoAsync(project, GenerationTarget.Knowledge, castBrief, characters, cancellationToken, KnowledgeKind.Character);
         }
 
         await GenerateIntoAsync(project, GenerationTarget.InitialWorldState, brief, 1, cancellationToken);

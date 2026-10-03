@@ -4,7 +4,7 @@ public static class GeneratedText
 {
     public static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
-    public static bool IsPlausible(string text) => !text.Any(character => character is '{' or '}' or '[' or ']');
+    public static bool IsPlausible(string text) => !text.Any(character => character is '{' or '}');
 
     public static bool LooksTruncated(string text)
     {

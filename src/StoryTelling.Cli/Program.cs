@@ -398,6 +398,13 @@ internal static class Program
             Variants = 3,
             Context = BookBuilder.BuildContext(project),
             Snapshot = snapshot,
+            Avoid =
+            [
+                .. project.Chapters
+                    .Where(candidate => candidate.Number != number)
+                    .Select(candidate => candidate.Title.Trim())
+                    .Where(title => title.Length > 0),
+            ],
         };
 
         var options = await assistant
