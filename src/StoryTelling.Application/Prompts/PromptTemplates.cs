@@ -440,20 +440,6 @@ public static class PromptTemplates
         + "Output: Only the chapter prose — no title, headings or commentary.\n"
         + "Tools: Consult the project before writing. Do not write the chapter until you are asked to.";
 
-    public static string WriterCorrections(IReadOnlyList<EditorIssue> issues)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine("The previous attempt broke established canon. The facts are inviolable; rewrite the "
-            + "chapter so that none of the following remain true, while keeping the same scene and direction:");
-        foreach (var issue in issues)
-        {
-            builder.AppendLine($"- {issue.Detail}"
-                + (string.IsNullOrWhiteSpace(issue.Reference) ? string.Empty : $" (reference: {issue.Reference})"));
-        }
-
-        return builder.ToString().Trim();
-    }
-
     public static string WriterGather() =>
         "Consult the project with the tools to refresh the facts you need (characters, initial world "
         + "state, recent loglines, knowledge, search). When you have what you need, reply with exactly "

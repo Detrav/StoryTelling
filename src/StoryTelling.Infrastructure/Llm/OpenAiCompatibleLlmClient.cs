@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
@@ -33,6 +35,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
     {
         var payload = BuildPayload(request, stream: false);
         using var cts = CreateRequestCts(connection, cancellationToken);
+        var started = Stopwatch.GetTimestamp();
         using var response = await SendAsync(connection, payload, cts.Token, cancellationToken).ConfigureAwait(false);
         var body = await ReadBodyAsync(response, cts.Token, cancellationToken).ConfigureAwait(false);
 
@@ -44,6 +47,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         var parsed = ParseResponse(body);
         var choice = parsed.Choices is { Count: > 0 } choices ? choices[0] : null;
         var content = choice?.Message?.Content ?? string.Empty;
+        LogCompletion("complete", payload.Model, content, choice?.FinishReason, parsed.Usage, started);
         return new LlmCompletion(content, choice?.FinishReason ?? string.Empty, parsed.Usage?.PromptTokens, parsed.Usage?.CompletionTokens);
     }
 
@@ -54,6 +58,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
     {
         var payload = BuildPayload(request, stream: true);
         using var cts = CreateRequestCts(connection, cancellationToken);
+        var started = Stopwatch.GetTimestamp();
         using var response = await SendAsync(connection, payload, cts.Token, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
@@ -64,6 +69,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
 
         using var stream = await OpenStreamAsync(response, cts.Token, cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream);
+        var collected = new StringBuilder();
 
         while (true)
         {
@@ -92,9 +98,12 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
             var delta = ExtractDelta(data);
             if (delta.Length > 0)
             {
+                collected.Append(delta);
                 yield return delta;
             }
         }
+
+        LogCompletion("stream", payload.Model, collected.ToString(), "stop", null, started);
     }
 
     public async Task<string> CompleteJsonAsync(
@@ -124,12 +133,15 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
             }
 
             var parsed = ParseResponse(body);
-            var content = parsed.Choices is { Count: > 0 } choices ? choices[0].Message?.Content : null;
+            var choice = parsed.Choices is { Count: > 0 } choices ? choices[0] : null;
+            var content = choice?.Message?.Content;
             if (!string.IsNullOrWhiteSpace(content))
             {
+                LogCompletion($"structured {schemaName}", payload.Model, content, choice?.FinishReason, parsed.Usage, null);
                 return content;
             }
 
+            _logger?.LogWarning("LLM structured {Schema} returned empty content (attempt {Attempt}/{Max})", schemaName, attempt + 1, MaxStructuredAttempts);
             failure = new LlmException(LlmErrorKind.InvalidResponse, "The provider returned empty structured output.");
         }
 
@@ -211,9 +223,11 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
             }
 
             var parsed = ParseResponse(body);
-            var content = parsed.Choices is { Count: > 0 } choices ? choices[0].Message?.Content : null;
+            var choice = parsed.Choices is { Count: > 0 } choices ? choices[0] : null;
+            var content = choice?.Message?.Content;
             if (string.IsNullOrWhiteSpace(content))
             {
+                _logger?.LogWarning("LLM structured {Schema} returned empty content (attempt {Attempt}/{Max})", typeInfo.Type.Name, attempt + 1, MaxStructuredAttempts);
                 failure = new LlmException(LlmErrorKind.InvalidResponse, "The provider returned empty structured output.");
                 continue;
             }
@@ -223,6 +237,7 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
                 var value = JsonSerializer.Deserialize(content, typeInfo);
                 if (value is not null)
                 {
+                    LogCompletion($"structured {typeInfo.Type.Name}", payload.Model, content, choice?.FinishReason, parsed.Usage, null);
                     return value;
                 }
 
@@ -284,6 +299,26 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         {
             return new LlmStructuredSupport(false, exception.Message);
         }
+    }
+
+    private void LogCompletion(string kind, string model, string content, string? finishReason, ChatUsagePayload? usage, long? started)
+    {
+        if (_logger?.IsEnabled(LogLevel.Debug) != true)
+        {
+            return;
+        }
+
+        var elapsed = started is { } value ? (int)Stopwatch.GetElapsedTime(value).TotalMilliseconds : -1;
+        _logger.LogDebug(
+            "LLM {Kind} {Model} finished in {ElapsedMs} ms (finish: {FinishReason}, prompt {PromptTokens}, completion {CompletionTokens}, {Chars} chars)\n{Content}",
+            kind,
+            model,
+            elapsed,
+            finishReason ?? "unknown",
+            usage?.PromptTokens,
+            usage?.CompletionTokens,
+            content.Length,
+            content);
     }
 
     internal static string BuildChatCompletionsUrl(string baseUrl)
@@ -418,7 +453,11 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         try
         {
             var body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-            if (_logger?.IsEnabled(LogLevel.Debug) == true)
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger?.LogWarning("LLM response {StatusCode} {Reason} ({Bytes} bytes)\n{Body}", (int)response.StatusCode, response.ReasonPhrase, body.Length, body);
+            }
+            else if (_logger?.IsEnabled(LogLevel.Debug) == true)
             {
                 _logger.LogDebug("LLM response {StatusCode} ({Bytes} bytes)\n{Body}", (int)response.StatusCode, body.Length, body);
             }
@@ -544,3 +583,4 @@ public sealed class OpenAiCompatibleLlmClient : ILlmClient
         return null;
     }
 }
+

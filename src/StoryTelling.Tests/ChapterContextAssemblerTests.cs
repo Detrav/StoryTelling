@@ -145,15 +145,14 @@ public sealed class ChapterContextAssemblerTests
     }
 
     [Fact]
-    public void BuildEditorSeed_IncludesTheRecapAndPosition()
+    public void BuildCosmeticSeed_IncludesTheRecapAndPosition()
     {
         var project = ProjectWithLoglines(3);
 
-        var messages = PromptTemplates.BuildEditorSeed(project.Chapters[2], project.InitialWorldState, project);
+        var todo = EditorCanonPrompt.BuildCosmeticTodo(project, project.Chapters[2], project.InitialWorldState, 5);
 
-        Assert.Contains("Log line 1.", messages[1].Content);
-        Assert.Contains("chapter 3 of 3", messages[1].Content);
-        Assert.Contains("Story so far:", messages[1].Content);
+        Assert.Contains("Log line 1.", todo);
+        Assert.Contains("chapter 3 of 3", todo);
     }
 
     private static string UserText(ChapterContext context) =>

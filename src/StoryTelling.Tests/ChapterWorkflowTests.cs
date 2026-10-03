@@ -1,5 +1,4 @@
 using StoryTelling.Application.Chapters;
-using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -8,10 +7,15 @@ namespace StoryTelling.Tests;
 public sealed class ChapterWorkflowTests
 {
     [Fact]
-    public async Task RunAsync_ChainsWriterEditorSummarizer()
+    public async Task RunAsync_ChainsWriterCheckFixCosmeticSummarizer()
     {
         var writer = new FakeChapterAgent { Text = "Draft.", ToolCalls = 4 };
-        var editor = new FakeChapterEditor { Result = "Edited." };
+        var editor = new FakeChapterEditor
+        {
+            Verdict = new EditorChecklistVerdict([new EditorCheckResult("status", false, "alive character killed")]),
+            FixResult = "Fixed.",
+            CosmeticResult = "Edited.",
+        };
         var summarizer = new FakeChapterSummarizer { Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, [], [], []) };
         var workflow = new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService());
 
@@ -19,71 +23,74 @@ public sealed class ChapterWorkflowTests
 
         Assert.Equal("Edited.", result.Text);
         Assert.Equal("Log.", result.Logline);
-        Assert.Equal("Here", result.WorldState.TimeAndPlace);
         Assert.Equal(4, result.ToolCalls);
-        Assert.Equal("Draft.", editor.Stages.Count > 0 ? "Draft." : editor.LastDraft);
-        Assert.Contains(EditorStage.Integrity, editor.Stages);
-        Assert.Contains(EditorStage.Cosmetic, editor.Stages);
+        Assert.Equal("status", Assert.Single(editor.Fixed).Id);
+        Assert.True(editor.CosmeticCalled);
         Assert.Equal("Edited.", summarizer.LastChapter!.ContentOriginal);
+        Assert.Equal("status", Assert.Single(result.Checklist.Failures).Id);
     }
 
     [Fact]
-    public async Task RunAsync_RunsIntegrityThenCosmeticStages()
-    {
-        var writer = new FakeChapterAgent { Text = "Draft." };
-        var editor = new FakeChapterEditor { Result = "Edited." };
-        var summarizer = new FakeChapterSummarizer();
-        var settings = new FakeSettingsService { Settings = new AppSettings { EditorStageCount = 3 } };
-        var workflow = new ChapterWorkflow(writer, editor, summarizer, settings);
-
-        await workflow.RunAsync(new Project(), new Chapter { Number = 1 }, new WorldState());
-
-        Assert.Equal(EditorStage.Integrity, editor.Stages[0]);
-        Assert.Equal(3, editor.Stages.Count);
-        Assert.Equal(2, editor.Stages.Count(stage => stage == EditorStage.Cosmetic));
-    }
-
-    [Fact]
-    public async Task RunAsync_CarriesIntegrityVerdictAndNotes()
+    public async Task RunAsync_AllOk_SkipsFixers()
     {
         var writer = new FakeChapterAgent();
         var editor = new FakeChapterEditor
         {
-            Verdict = new EditorVerdict(false, [new EditorIssue(ReviewSeverity.Error, "dead character acting", "Silas Marek")]),
+            Verdict = new EditorChecklistVerdict([new EditorCheckResult("world-canon", true, "")]),
+            CosmeticResult = "Edited.",
         };
-        var summarizer = new FakeChapterSummarizer();
-        var workflow = new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService());
+        var workflow = new ChapterWorkflow(writer, editor, new FakeChapterSummarizer(), new FakeSettingsService());
 
-        var result = await workflow.RunAsync(new Project(), new Chapter { Number = 1 }, new WorldState());
+        await workflow.RunAsync(new Project(), new Chapter { Number = 1 }, new WorldState());
 
-        Assert.False(result.Verdict.Integrity);
-        Assert.True(result.Verdict.HasError);
-        Assert.Equal("Silas Marek", result.Verdict.Issues[0].Reference);
+        Assert.Empty(editor.Fixed);
     }
 
     [Fact]
-    public async Task RunAsync_PropagatesSummarizerDirectionRewrites()
+    public async Task RunAsync_SequentialFixersSeeTheUpdatedText()
     {
         var writer = new FakeChapterAgent();
-        var editor = new FakeChapterEditor();
-        var summarizer = new FakeChapterSummarizer
+        var editor = new FakeChapterEditor
         {
-            Summary = new ChapterSummary("Log.", new WorldState(), [], [], [new DirectionRewrite(3, "New direction.")]),
+            Verdict = new EditorChecklistVerdict(
+            [
+                new EditorCheckResult("status", false, "a"),
+                new EditorCheckResult("pov-tense", false, "b"),
+            ]),
+            FixResult = "Fixed.",
+            CosmeticResult = "Edited.",
         };
-        var workflow = new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService());
+        var workflow = new ChapterWorkflow(writer, editor, new FakeChapterSummarizer(), new FakeSettingsService());
+
+        await workflow.RunAsync(new Project(), new Chapter { Number = 1 }, new WorldState());
+
+        Assert.Equal(2, editor.Fixed.Count);
+        Assert.Equal("Generated chapter text.", editor.FixInputs[0]);
+        Assert.Equal("Fixed.", editor.FixInputs[1]);
+    }
+
+    [Fact]
+    public async Task RunAsync_CosmeticDisabled_KeepsFixerText()
+    {
+        var writer = new FakeChapterAgent { Text = "Draft." };
+        var editor = new FakeChapterEditor
+        {
+            Verdict = new EditorChecklistVerdict([new EditorCheckResult("status", false, "x")]),
+            FixResult = "Fixed.",
+        };
+        var settings = new FakeSettingsService { Settings = new AppSettings { CosmeticEditorEnabled = false } };
+        var workflow = new ChapterWorkflow(writer, editor, new FakeChapterSummarizer(), settings);
 
         var result = await workflow.RunAsync(new Project(), new Chapter { Number = 1 }, new WorldState());
 
-        Assert.Equal(3, result.DirectionRewrites.Single().ChapterNumber);
-        Assert.Equal("New direction.", result.DirectionRewrites.Single().Direction);
+        Assert.Equal("Fixed.", result.Text);
+        Assert.False(editor.CosmeticCalled);
     }
 
     [Fact]
     public async Task RunAsync_UsesTheConfiguredContextBudgets()
     {
         var writer = new FakeChapterAgent();
-        var editor = new FakeChapterEditor();
-        var summarizer = new FakeChapterSummarizer();
         var settings = new FakeSettingsService
         {
             Settings = new AppSettings
@@ -93,7 +100,7 @@ public sealed class ChapterWorkflowTests
                 ContextRequiredSectionMaxChars = 2222,
             },
         };
-        var workflow = new ChapterWorkflow(writer, editor, summarizer, settings);
+        var workflow = new ChapterWorkflow(writer, new FakeChapterEditor(), new FakeChapterSummarizer(), settings);
 
         await workflow.RunAsync(new Project(), new Chapter { Number = 2, Title = "Two" }, new WorldState());
 
@@ -103,5 +110,3 @@ public sealed class ChapterWorkflowTests
         Assert.Equal(2222, writer.LastContext.RequiredSectionMaxChars);
     }
 }
-
-

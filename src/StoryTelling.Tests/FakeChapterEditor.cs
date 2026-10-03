@@ -1,33 +1,57 @@
 using StoryTelling.Application.Chapters;
-using StoryTelling.Application.Generation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Tests;
 
 internal sealed class FakeChapterEditor : IChapterEditor
 {
-    public string Result { get; set; } = "Edited text.";
+    public EditorChecklistVerdict Verdict { get; set; } = EditorChecklistVerdict.Empty;
 
-    public List<EditorNote> Notes { get; set; } = [];
+    public string FixResult { get; set; } = "Fixed text.";
 
-    public EditorVerdict Verdict { get; set; } = EditorVerdict.Ok;
+    public string CosmeticResult { get; set; } = "Polished text.";
 
-    public string? LastDraft { get; private set; }
+    public List<EditorNote> CosmeticNotes { get; set; } = [];
 
-    public List<EditorStage> Stages { get; } = [];
+    public List<EditorCheck> Fixed { get; } = [];
 
-    public Task<ChapterEdit> EditAsync(
+    public List<string> FixInputs { get; } = [];
+
+    public bool CosmeticCalled { get; private set; }
+
+    public EditorChecklistVerdict Check(
+        IReadOnlyList<EditorCheck> checks) => Verdict;
+
+    public Task<EditorChecklistVerdict> CheckAsync(
         Project project,
         Chapter chapter,
-        string draft,
+        string text,
         WorldState stateBefore,
-        EditorStage stage,
-        IReadOnlyList<EditorIssue>? knownIssues = null,
-        IProgress<GenerationProgress>? progress = null,
+        IReadOnlyList<EditorCheck> checks,
+        CancellationToken cancellationToken = default) => Task.FromResult(Verdict);
+
+    public Task<string> FixAsync(
+        Project project,
+        Chapter chapter,
+        string text,
+        WorldState stateBefore,
+        EditorCheck check,
+        string reason,
         CancellationToken cancellationToken = default)
     {
-        LastDraft = draft;
-        Stages.Add(stage);
-        return Task.FromResult(new ChapterEdit(Result, Notes, Verdict));
+        Fixed.Add(check);
+        FixInputs.Add(text);
+        return Task.FromResult(FixResult);
+    }
+
+    public Task<ChapterEdit> CosmeticAsync(
+        Project project,
+        Chapter chapter,
+        string text,
+        WorldState stateBefore,
+        CancellationToken cancellationToken = default)
+    {
+        CosmeticCalled = true;
+        return Task.FromResult(new ChapterEdit(CosmeticResult, CosmeticNotes));
     }
 }

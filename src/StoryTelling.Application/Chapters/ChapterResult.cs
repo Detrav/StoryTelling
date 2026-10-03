@@ -12,5 +12,5 @@ public sealed record ChapterResult(
     IReadOnlyList<DirectionRewrite> DirectionRewrites,
     int ToolCalls)
 {
-    public EditorVerdict Verdict { get; init; } = EditorVerdict.Ok;
+    public EditorChecklistVerdict Checklist { get; init; } = EditorChecklistVerdict.Empty;
 }

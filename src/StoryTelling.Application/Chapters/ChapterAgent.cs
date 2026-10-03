@@ -22,7 +22,6 @@ public sealed class ChapterAgent : IChapterAgent
 
     public async Task<ChapterDraft> WriteAsync(
         WriterContext context,
-        IReadOnlyList<EditorIssue>? knownIssues = null,
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -39,17 +38,10 @@ public sealed class ChapterAgent : IChapterAgent
 
         progress?.Report(new GenerationProgress("Writing", toolCalls));
 
-        var writeMessages = new List<LlmMessage>(messages);
-        writeMessages.Add(LlmMessage.User(PromptTemplates.WriterWrite(context.Chapter)));
-        if (knownIssues is { Count: > 0 })
-        {
-            writeMessages.Add(LlmMessage.User(PromptTemplates.WriterCorrections(knownIssues)));
-        }
-
         var write = new LlmRequest
         {
             Model = settings.Model,
-            Messages = writeMessages,
+            Messages = [.. messages, LlmMessage.User(PromptTemplates.WriterWrite(context.Chapter))],
             Temperature = settings.TemperatureFor(LlmTask.Writer),
             MaxTokens = settings.MaxTokens,
         };

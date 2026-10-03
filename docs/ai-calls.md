@@ -98,6 +98,15 @@ Available to the **tool-backed** calls above (generation wizard, writer, editor,
 The project's knowledge base is **never mutated**; the knowledge a chapter sees is composed on
 demand from the base plus the previous chapters' diffs (`KnowledgeComposer`).
 
+## 4a. Logging
+
+Every call is logged to the single run log (`%AppData%/StoryTelling/logs/app-*.log`). At `Debug`
+(`--verbose` in the CLI) the client logs the request (URL, model, temperature, message count, full
+messages, tools, schema) and, for each call, the elapsed time, `finish_reason`, token usage and the
+response text — including the full collected text of streamed generations. A non-2xx response is logged
+at `Warning` with status, reason and body; an empty structured response is logged at `Warning` per
+retry attempt. The API key is never logged.
+
 ## 5. Output validation
 
 - Generation and summary parse strict JSON against a `json_schema`; invalid output is retried up to

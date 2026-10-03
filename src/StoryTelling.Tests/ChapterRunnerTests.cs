@@ -65,8 +65,8 @@ public sealed class ChapterRunnerTests
         var writer = new FakeChapterAgent { Text = "Draft.", ToolCalls = 1 };
         var editor = new FakeChapterEditor
         {
-            Result = "Edited.",
-            Notes = [new EditorNote { Kind = EditorNoteKind.Style, Text = "Tightened prose." }],
+            CosmeticResult = "Edited.",
+            CosmeticNotes = [new EditorNote { Kind = EditorNoteKind.Style, Text = "Tightened prose." }],
         };
         var summarizer = new FakeChapterSummarizer { Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, [], [], []) };
         var runner = new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
@@ -98,7 +98,7 @@ public sealed class ChapterRunnerTests
     public async Task GenerateAsync_FinaleLeftOpen_RetriesWithStrictContract()
     {
         var writer = new FakeChapterAgent { Text = "Draft." };
-        var editor = new FakeChapterEditor { Result = "Edited." };
+        var editor = new FakeChapterEditor { CosmeticResult = "Edited." };
         var calls = 0;
         var summarizer = new FakeChapterSummarizer
         {
@@ -124,7 +124,7 @@ public sealed class ChapterRunnerTests
     public async Task GenerateAsync_NonFinaleOpenThread_DoesNotRetry()
     {
         var writer = new FakeChapterAgent { Text = "Draft." };
-        var editor = new FakeChapterEditor { Result = "Edited." };
+        var editor = new FakeChapterEditor { CosmeticResult = "Edited." };
         var summarizer = new FakeChapterSummarizer
         {
             Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" },
@@ -139,42 +139,10 @@ public sealed class ChapterRunnerTests
     }
 
     [Fact]
-    public async Task GenerateAsync_CanonError_RetriesWriterWithTheIssues()
+    public async Task GenerateAsync_RunsTheWorkflowOnce()
     {
         var workflow = new FakeChapterWorkflow();
-        workflow.Results.Enqueue(FakeChapterWorkflow.Result("first", FakeChapterWorkflow.Error("Silas is dead in prose"), []));
-        workflow.Results.Enqueue(FakeChapterWorkflow.Result("second", EditorVerdict.Ok, []));
-        var summarizer = new FakeChapterSummarizer();
-        var runner = new ChapterRunner(workflow, summarizer, new FakeClock(_timestamp));
-        var project = Project();
-
-        var result = await runner.GenerateAsync(project, project.Chapters[0]);
-
-        Assert.Equal(2, workflow.CallCount);
-        Assert.Equal("second", result.Text);
-        Assert.Contains(workflow.KnownIssues, issues => issues.Any(issue => issue.Detail.Contains("Silas")));
-        Assert.Equal("second", project.Chapters[0].ContentOriginal);
-    }
-
-    [Fact]
-    public async Task GenerateAsync_CanonErrorTwice_StopsAfterOneRetry()
-    {
-        var workflow = new FakeChapterWorkflow();
-        workflow.Results.Enqueue(FakeChapterWorkflow.Result("first", FakeChapterWorkflow.Error("a"), []));
-        workflow.Results.Enqueue(FakeChapterWorkflow.Result("second", FakeChapterWorkflow.Error("b"), []));
-        var runner = new ChapterRunner(workflow, new FakeChapterSummarizer(), new FakeClock(_timestamp));
-        var project = Project();
-
-        await runner.GenerateAsync(project, project.Chapters[0]);
-
-        Assert.Equal(2, workflow.CallCount);
-    }
-
-    [Fact]
-    public async Task GenerateAsync_NoErrors_DoesNotRetry()
-    {
-        var workflow = new FakeChapterWorkflow();
-        workflow.Results.Enqueue(FakeChapterWorkflow.Result("only", EditorVerdict.Ok, []));
+        workflow.Results.Enqueue(FakeChapterWorkflow.Result("only", []));
         var runner = new ChapterRunner(workflow, new FakeChapterSummarizer(), new FakeClock(_timestamp));
         var project = Project();
 
@@ -227,7 +195,7 @@ public sealed class ChapterRunnerTests
     private static ChapterRunner Runner(out FakeChapterAgent writer, out FakeChapterSummarizer summarizer)
     {
         writer = new FakeChapterAgent { Text = "Draft.", ToolCalls = 2 };
-        var editor = new FakeChapterEditor { Result = "Edited." };
+        var editor = new FakeChapterEditor { CosmeticResult = "Edited." };
         summarizer = new FakeChapterSummarizer { Summary = new ChapterSummary("Log.", new WorldState { TimeAndPlace = "Here" }, [], [], []) };
         return new ChapterRunner(new ChapterWorkflow(writer, editor, summarizer, new FakeSettingsService()), summarizer, new FakeClock(_timestamp));
     }
@@ -244,5 +212,6 @@ public sealed class ChapterRunnerTests
         ],
     };
 }
+
 
 

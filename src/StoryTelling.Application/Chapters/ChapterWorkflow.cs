@@ -1,5 +1,6 @@
 using StoryTelling.Application.Abstractions;
 using StoryTelling.Application.Generation;
+using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
@@ -30,17 +31,6 @@ public sealed class ChapterWorkflow : IChapterWorkflow
         IProgress<GenerationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await RunAsync(project, chapter, stateBefore, [], progress, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<ChapterResult> RunAsync(
-        Project project,
-        Chapter chapter,
-        WorldState stateBefore,
-        IReadOnlyList<EditorIssue> knownIssues,
-        IProgress<GenerationProgress>? progress = null,
-        CancellationToken cancellationToken = default)
-    {
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var writerContext = new WriterContext(
             project,
@@ -50,18 +40,36 @@ public sealed class ChapterWorkflow : IChapterWorkflow
             settings.RecentLoglineCount,
             settings.ContextRequiredSectionMaxChars);
 
-        var draft = await _writer.WriteAsync(writerContext, knownIssues, progress, cancellationToken).ConfigureAwait(false);
-        var integrity = await _editor
-            .EditAsync(project, chapter, draft.Text, stateBefore, EditorStage.Integrity, knownIssues, progress, cancellationToken)
-            .ConfigureAwait(false);
+        var draft = await _writer.WriteAsync(writerContext, progress, cancellationToken).ConfigureAwait(false);
+        var text = draft.Text;
 
-        var text = integrity.Text;
-        for (var stage = 1; stage < Math.Max(1, settings.EditorStageCount); stage++)
+        var checks = SelectChecks(settings);
+        var verdict = EditorChecklistVerdict.Empty;
+        var notes = new List<EditorNote>();
+
+        if (checks.Count > 0)
         {
-            var cosmetic = await _editor
-                .EditAsync(project, chapter, text, stateBefore, EditorStage.Cosmetic, null, progress, cancellationToken)
-                .ConfigureAwait(false);
+            progress?.Report(new GenerationProgress("Checking consistency", 0));
+            verdict = await _editor.CheckAsync(project, chapter, text, stateBefore, checks, cancellationToken).ConfigureAwait(false);
+
+            foreach (var failure in verdict.Failures)
+            {
+                if (EditorChecks.Find(failure.Id) is not { } check)
+                {
+                    continue;
+                }
+
+                progress?.Report(new GenerationProgress($"Fixing {check.Label}", 0));
+                text = await _editor.FixAsync(project, chapter, text, stateBefore, check, failure.Reason, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (settings.CosmeticEditorEnabled)
+        {
+            progress?.Report(new GenerationProgress("Polishing", 0));
+            var cosmetic = await _editor.CosmeticAsync(project, chapter, text, stateBefore, cancellationToken).ConfigureAwait(false);
             text = cosmetic.Text;
+            notes.AddRange(cosmetic.Notes);
         }
 
         var finished = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
@@ -69,9 +77,19 @@ public sealed class ChapterWorkflow : IChapterWorkflow
             .SummarizeAsync(finished, stateBefore, project.Knowledge, progress, cancellationToken)
             .ConfigureAwait(false);
 
-        return new ChapterResult(text, summary.Logline, summary.WorldState, summary.KnowledgeChanges, integrity.Notes, summary.ContinuityIssues, summary.DirectionRewrites, draft.ToolCalls)
+        return new ChapterResult(text, summary.Logline, summary.WorldState, summary.KnowledgeChanges, notes, summary.ContinuityIssues, summary.DirectionRewrites, draft.ToolCalls)
         {
-            Verdict = integrity.Verdict,
+            Checklist = verdict,
         };
+    }
+
+    private static IReadOnlyList<EditorCheck> SelectChecks(AppSettings settings)
+    {
+        if (settings.EnabledEditorChecks is { Count: > 0 } ids)
+        {
+            return [.. ids.Select(EditorChecks.Find).Where(check => check is not null).Select(check => check!)];
+        }
+
+        return EditorChecks.All;
     }
 }

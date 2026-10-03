@@ -10,90 +10,78 @@ namespace StoryTelling.Tests;
 public sealed class ChapterEditorTests
 {
     private static ChapterEditor Editor(ILlmClient client, ISettingsService settings) => new(client, settings, new DiffPlexTextDiff());
+
     [Fact]
-    public async Task EditAsync_ReturnsStreamedRevision()
+    public async Task CheckAsync_ParsesPerAxisVerdict()
     {
-        var editor = Editor(new FakeLlmClient("Revised text."), new FakeSettingsService());
+        const string json = """{"checks":[{"id":"world-canon","ok":true,"reason":""},{"id":"status","ok":false,"reason":"Silas is dead in the prose"}]}""";
+        var editor = Editor(new FakeLlmClient(json), new FakeSettingsService());
 
-        var text = (await editor.EditAsync(new Project(), new Chapter { Number = 1 }, "the draft", new WorldState(), EditorStage.Integrity)).Text;
+        var verdict = await editor.CheckAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState(), EditorChecks.All);
 
-        Assert.Equal("Revised text.", text);
+        Assert.Equal(2, verdict.Results.Count);
+        Assert.False(verdict.Results[1].Ok);
+        Assert.Equal("status", Assert.Single(verdict.Failures).Id);
     }
 
     [Fact]
-    public async Task EditAsync_EmptyResponseKeepsDraft()
+    public async Task CheckAsync_EmptyProse_ReturnsEmpty()
     {
-        var editor = Editor(new FakeLlmClient("   "), new FakeSettingsService());
+        var editor = Editor(new FakeLlmClient("{}"), new FakeSettingsService());
 
-        var text = (await editor.EditAsync(new Project(), new Chapter { Number = 1 }, "the draft", new WorldState(), EditorStage.Integrity)).Text;
+        var verdict = await editor.CheckAsync(new Project(), new Chapter { Number = 1 }, "   ", new WorldState(), EditorChecks.All);
 
-        Assert.Equal("the draft", text);
+        Assert.Empty(verdict.Results);
     }
 
     [Fact]
-    public async Task EditAsync_RetriesWhenOutputLooksTruncated()
+    public async Task FixAsync_ReturnsStreamedRevision()
     {
-        var client = new FakeLlmClient("ignored");
-        client.StreamQueue.Enqueue("The lighthouse keeper");
-        client.StreamQueue.Enqueue("The lighthouse keeper went home.");
+        var client = new FakeLlmClient("unused");
+        client.StreamQueue.Enqueue("Fixed chapter text.");
         var editor = Editor(client, new FakeSettingsService());
 
-        var text = (await editor.EditAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState(), EditorStage.Integrity)).Text;
+        var text = await editor.FixAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState(), EditorChecks.Status, "Silas is dead");
 
-        Assert.Equal("The lighthouse keeper went home.", text);
-        Assert.Equal(2, client.StreamCallCount);
+        Assert.Equal("Fixed chapter text.", text);
     }
 
     [Fact]
-    public async Task EditAsync_GathersContextWithTools()
+    public async Task FixAsync_EmptyResponseKeepsDraft()
     {
-        var client = new ScriptedLlmClient(
-            jsonResponse: """{"issues":[]}""",
-            toolResponses:
-            [
-                new LlmToolResponse(string.Empty, "tool_calls", [new LlmToolCall("c1", "characters", "{}")]),
-                new LlmToolResponse(string.Empty, "stop", []),
-            ],
-            streamText: "Revised.");
-        var editor = Editor(client, new FakeSettingsService { Settings = new AppSettings { Model = "m", MaxToolCalls = 5 } });
+        var client = new FakeLlmClient("   ");
+        client.StreamQueue.Enqueue("   ");
+        var editor = Editor(client, new FakeSettingsService());
 
-        var edit = await editor.EditAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState(), EditorStage.Integrity);
+        var text = await editor.FixAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState(), EditorChecks.Status, "x");
 
-        Assert.Equal("Revised.", edit.Text);
-        Assert.NotEmpty(client.ToolRequests);
-        Assert.Contains(client.ToolRequests[0].Messages, message => message.Content.Contains("inviolable"));
+        Assert.Equal("draft", text);
     }
 
     [Fact]
-    public async Task EditAsync_StripsLeadingTitleLine()
+    public async Task CosmeticAsync_ReturnsRevisionAndNotes()
+    {
+        const string notes = """{"changes":[{"kind":"Style","note":"Tightened prose."}]}""";
+        var client = new FakeLlmClient(notes);
+        client.JsonQueue.Enqueue(notes);
+        client.StreamQueue.Enqueue("Polished chapter text.");
+        var editor = Editor(client, new FakeSettingsService());
+
+        var edit = await editor.CosmeticAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState());
+
+        Assert.Equal("Polished chapter text.", edit.Text);
+        Assert.Equal("Tightened prose.", Assert.Single(edit.Notes).Text);
+    }
+
+    [Fact]
+    public async Task CosmeticAsync_StripsLeadingTitleLine()
     {
         var client = new FakeLlmClient("[]");
         client.StreamQueue.Enqueue("Embers\nThe real prose starts here.");
         var editor = Editor(client, new FakeSettingsService());
 
-        var edit = await editor.EditAsync(new Project(), new Chapter { Number = 1, Title = "Embers" }, "draft", new WorldState(), EditorStage.Integrity);
+        var edit = await editor.CosmeticAsync(new Project(), new Chapter { Number = 1, Title = "Embers" }, "draft", new WorldState());
 
         Assert.Equal("The real prose starts here.", edit.Text);
     }
-
-    [Fact]
-    public async Task EditAsync_ParsesEditorNotes()
-    {
-        const string notes = """{"changes":[{"kind":"Continuity","note":"Fixed the timeline."},{"kind":"Style","note":"Tightened prose."}]}""";
-        var client = new FakeLlmClient(notes);
-        client.JsonQueue.Enqueue(notes);
-        client.JsonQueue.Enqueue("""{"issues":[]}""");
-        client.StreamQueue.Enqueue("Revised chapter text.");
-        var editor = Editor(client, new FakeSettingsService());
-
-        var edit = await editor.EditAsync(new Project(), new Chapter { Number = 1 }, "draft", new WorldState(), EditorStage.Integrity);
-
-        Assert.Equal("Revised chapter text.", edit.Text);
-        Assert.Equal(2, edit.Notes.Count);
-        Assert.Equal(EditorNoteKind.Continuity, edit.Notes[0].Kind);
-        Assert.Equal("Tightened prose.", edit.Notes[1].Text);
-        Assert.Empty(edit.Verdict.Issues);
-    }
 }
-
-

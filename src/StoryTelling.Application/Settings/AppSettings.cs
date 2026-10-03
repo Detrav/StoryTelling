@@ -18,7 +18,7 @@ public sealed class AppSettings
 
     public int TimeoutSeconds { get; set; } = 120;
 
-    public int MaxTokens { get; set; } = 16384;
+    public int MaxTokens { get; set; } = 32768;
 
     public int MaxToolCalls { get; set; } = 12;
 
@@ -34,7 +34,9 @@ public sealed class AppSettings
 
     public Dictionary<string, double> RoleTemperatures { get; set; } = [];
 
-    public int EditorStageCount { get; set; } = 2;
+    public List<string> EnabledEditorChecks { get; set; } = [];
+
+    public bool CosmeticEditorEnabled { get; set; } = true;
 
     public string DefaultLanguageCode { get; set; } = "ru";
 

@@ -350,9 +350,9 @@ internal static class Program
                     Console.WriteLine($"    [continuity {issue.Severity}] {issue.Detail}");
                 }
 
-                if (!auto && result.Verdict is { Integrity: false, Issues.Count: > 0 })
+                foreach (var failure in result.Checklist.Failures)
                 {
-                    Console.WriteLine("    canon issues remain after the retry; review the chapter");
+                    Console.WriteLine($"    [check not ok] {failure.Id}: {failure.Reason}");
                 }
 
                 ApplyDirectionRewrites(project, result, auto, logger);

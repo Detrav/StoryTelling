@@ -1,23 +1,30 @@
-using StoryTelling.Application.Generation;
 using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Chapters;
 
 public interface IChapterEditor
 {
-    Task<ChapterEdit> EditAsync(
+    Task<EditorChecklistVerdict> CheckAsync(
         Project project,
         Chapter chapter,
-        string draft,
+        string text,
         WorldState stateBefore,
-        EditorStage stage,
-        IReadOnlyList<EditorIssue>? knownIssues = null,
-        IProgress<GenerationProgress>? progress = null,
+        IReadOnlyList<EditorCheck> checks,
         CancellationToken cancellationToken = default);
-}
 
-public enum EditorStage
-{
-    Integrity,
-    Cosmetic,
+    Task<string> FixAsync(
+        Project project,
+        Chapter chapter,
+        string text,
+        WorldState stateBefore,
+        EditorCheck check,
+        string reason,
+        CancellationToken cancellationToken = default);
+
+    Task<ChapterEdit> CosmeticAsync(
+        Project project,
+        Chapter chapter,
+        string text,
+        WorldState stateBefore,
+        CancellationToken cancellationToken = default);
 }

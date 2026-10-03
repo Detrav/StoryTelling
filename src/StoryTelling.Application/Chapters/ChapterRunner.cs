@@ -44,20 +44,12 @@ public sealed class ChapterRunner : IChapterRunner
         var effective = WithKnowledge(project, knowledge);
         var finale = IsFinale(project, chapter);
 
-        var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, [], progress, cancellationToken).ConfigureAwait(false);
-
-        for (var attempt = 0; attempt < 1 && result.Verdict.HasError; attempt++)
-        {
-            progress?.Report(new GenerationProgress("Canon broken — rewriting", 0));
-            result = await _workflow
-                .RunAsync(effective, ForWriting(project, chapter), stateBefore, result.Verdict.Issues, progress, cancellationToken)
-                .ConfigureAwait(false);
-        }
+        var result = await _workflow.RunAsync(effective, ForWriting(project, chapter), stateBefore, progress, cancellationToken).ConfigureAwait(false);
 
         if (finale && FinaleGuard.IsUnresolved(result, FinaleThreads(project, knowledge, result)))
         {
             progress?.Report(new GenerationProgress("Finale unresolved — retrying", 0));
-            result = await _workflow.RunAsync(effective, ForWriting(project, chapter, strict: true), stateBefore, [], progress, cancellationToken).ConfigureAwait(false);
+            result = await _workflow.RunAsync(effective, ForWriting(project, chapter, strict: true), stateBefore, progress, cancellationToken).ConfigureAwait(false);
         }
 
         if (finale)
@@ -292,3 +284,4 @@ public sealed class ChapterRunner : IChapterRunner
         }
     }
 }
+

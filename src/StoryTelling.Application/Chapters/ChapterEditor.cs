@@ -5,7 +5,6 @@ using StoryTelling.Application.Generation;
 using StoryTelling.Application.Knowledge;
 using StoryTelling.Application.Llm;
 using StoryTelling.Application.Prompts;
-using StoryTelling.Application.Review;
 using StoryTelling.Application.Settings;
 using StoryTelling.Domain;
 
@@ -24,106 +23,111 @@ public sealed class ChapterEditor : IChapterEditor
         _textDiff = textDiff;
     }
 
-    public async Task<ChapterEdit> EditAsync(
+    public async Task<EditorChecklistVerdict> CheckAsync(
         Project project,
         Chapter chapter,
-        string draft,
+        string text,
         WorldState stateBefore,
-        EditorStage stage,
-        IReadOnlyList<EditorIssue>? knownIssues = null,
-        IProgress<GenerationProgress>? progress = null,
+        IReadOnlyList<EditorCheck> checks,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(draft))
+        if (string.IsNullOrWhiteSpace(text) || checks.Count == 0)
         {
-            return new ChapterEdit(draft, [], EditorVerdict.Ok);
+            return EditorChecklistVerdict.Empty;
         }
 
         var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
         var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
-        var task = stage == EditorStage.Integrity ? LlmTask.EditorIntegrity : LlmTask.EditorCosmetic;
+        var inspecting = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
 
-        var revised = stage == EditorStage.Integrity
-            ? await RunIntegrityAsync(connection, settings, project, chapter, draft, stateBefore, knowledge, progress, cancellationToken).ConfigureAwait(false)
-            : await RunCosmeticAsync(connection, settings, project, chapter, draft, stateBefore, progress, cancellationToken).ConfigureAwait(false);
+        var request = new LlmRequest
+        {
+            Model = settings.Model,
+            Messages = EditorCanonPrompt.BuildCheckerSeed(project, inspecting, stateBefore, knowledge, checks),
+            Temperature = settings.TemperatureFor(LlmTask.EditorChecker),
+            MaxTokens = settings.MaxTokens,
+        };
 
+        try
+        {
+            var content = await _llmClient
+                .CompleteJsonAsync(connection, request, "EditorChecklist", EditorChecklistSchema.Build(), cancellationToken)
+                .ConfigureAwait(false);
+            return ParseVerdict(content, checks);
+        }
+        catch (LlmException)
+        {
+            return EditorChecklistVerdict.Empty;
+        }
+        catch (JsonException)
+        {
+            return EditorChecklistVerdict.Empty;
+        }
+    }
+
+    public async Task<string> FixAsync(
+        Project project,
+        Chapter chapter,
+        string text,
+        WorldState stateBefore,
+        EditorCheck check,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+
+        var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
+        var knowledge = KnowledgeComposer.Compose(project, chapter.Number);
+        var inspecting = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
+
+        var request = new LlmRequest
+        {
+            Model = settings.Model,
+            Messages = EditorCanonPrompt.BuildFixerSeed(project, inspecting, stateBefore, knowledge, check, text, reason),
+            Temperature = settings.TemperatureFor(LlmTask.EditorFixer),
+            MaxTokens = settings.MaxTokens,
+        };
+
+        var revised = await StreamTextAsync(connection, request, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(revised))
         {
-            revised = draft;
+            return text;
         }
 
-        revised = ChapterTextCleaner.StripLeadingTitle(revised, chapter);
+        return ChapterTextCleaner.StripLeadingTitle(revised, chapter);
+    }
 
-        var styleNotes = await RepairStyleAsync(connection, settings, chapter, revised, project.World.Tense, cancellationToken).ConfigureAwait(false);
-        if (styleNotes.Revised is { } corrected)
+    public async Task<ChapterEdit> CosmeticAsync(
+        Project project,
+        Chapter chapter,
+        string text,
+        WorldState stateBefore,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
         {
-            revised = corrected;
+            return new ChapterEdit(text, []);
         }
 
-        var notes = await ExtractNotesAsync(connection, settings, draft, revised, cancellationToken).ConfigureAwait(false);
-        var allNotes = new List<EditorNote>(styleNotes.Notes);
-        allNotes.AddRange(notes);
+        var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var connection = LlmConnection.From(settings.BaseUrl, settings.ApiKey, settings.TimeoutSeconds);
+        var inspecting = new Chapter { Number = chapter.Number, Title = chapter.Title, ContentOriginal = text };
 
-        var verdict = stage == EditorStage.Integrity
-            ? await ValidateAsync(connection, settings, project, chapter, revised, stateBefore, knowledge, knownIssues, progress, cancellationToken).ConfigureAwait(false)
-            : EditorVerdict.Ok;
-
-        return new ChapterEdit(revised, allNotes, verdict);
-    }
-
-    private async Task<string> RunIntegrityAsync(
-        LlmConnection connection,
-        AppSettings settings,
-        Project project,
-        Chapter chapter,
-        string draft,
-        WorldState stateBefore,
-        IReadOnlyList<KnowledgeEntry> knowledge,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var seed = EditorCanonPrompt.BuildIntegritySeed(project, chapter, stateBefore, knowledge);
+        var seed = EditorCanonPrompt.BuildCosmeticSeed(project, inspecting, stateBefore, settings.RecentLoglineCount);
         var gathered = await ChapterToolLoop
-            .GatherAsync(_llmClient, connection, settings, seed, EditorCanonPrompt.BuildIntegrityTodo(project, chapter, stateBefore, knowledge), project, progress, cancellationToken, chapter.Number)
+            .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, null, cancellationToken, chapter.Number)
             .ConfigureAwait(false);
 
-        progress?.Report(new GenerationProgress("Editing (integrity)", gathered.ToolCalls));
-        return await ReviseAsync(connection, settings, gathered.Messages, LlmTask.EditorIntegrity, draft, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<string> RunCosmeticAsync(
-        LlmConnection connection,
-        AppSettings settings,
-        Project project,
-        Chapter chapter,
-        string draft,
-        WorldState stateBefore,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var seed = EditorCanonPrompt.BuildCosmeticSeed(project, chapter, stateBefore, settings.RecentLoglineCount);
-        var gathered = await ChapterToolLoop
-            .GatherAsync(_llmClient, connection, settings, seed, PromptTemplates.EditorGather(), project, progress, cancellationToken, chapter.Number)
-            .ConfigureAwait(false);
-
-        progress?.Report(new GenerationProgress("Editing (cosmetic)", gathered.ToolCalls));
-        return await ReviseAsync(connection, settings, gathered.Messages, LlmTask.EditorCosmetic, draft, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<string> ReviseAsync(
-        LlmConnection connection,
-        AppSettings settings,
-        IReadOnlyList<LlmMessage> messages,
-        LlmTask task,
-        string draft,
-        CancellationToken cancellationToken)
-    {
         var write = new LlmRequest
         {
             Model = settings.Model,
-            Messages = [.. messages, .. PromptTemplates.BuildEditorWrite(draft)],
-            Temperature = settings.TemperatureFor(task),
+            Messages = [.. gathered.Messages, .. PromptTemplates.BuildEditorWrite(text)],
+            Temperature = settings.TemperatureFor(LlmTask.EditorCosmetic),
             MaxTokens = settings.MaxTokens,
         };
 
@@ -146,82 +150,69 @@ public sealed class ChapterEditor : IChapterEditor
             }
         }
 
-        return revised;
+        if (string.IsNullOrWhiteSpace(revised))
+        {
+            revised = text;
+        }
+
+        revised = ChapterTextCleaner.StripLeadingTitle(revised, chapter);
+
+        var styleNotes = await RepairStyleAsync(connection, settings, chapter, revised, project.World.Tense, cancellationToken).ConfigureAwait(false);
+        if (styleNotes.Revised is { } corrected)
+        {
+            revised = corrected;
+        }
+
+        var notes = await ExtractNotesAsync(connection, settings, text, revised, cancellationToken).ConfigureAwait(false);
+        var allNotes = new List<EditorNote>(styleNotes.Notes);
+        allNotes.AddRange(notes);
+        return new ChapterEdit(revised, allNotes);
     }
 
-    private async Task<EditorVerdict> ValidateAsync(
-        LlmConnection connection,
-        AppSettings settings,
-        Project project,
-        Chapter chapter,
-        string revised,
-        WorldState stateBefore,
-        IReadOnlyList<KnowledgeEntry> knowledge,
-        IReadOnlyList<EditorIssue>? knownIssues,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        progress?.Report(new GenerationProgress("Checking integrity", 0));
-        var request = new LlmRequest
-        {
-            Model = settings.Model,
-            Messages = EditorVerdictPrompt.Build(project, chapter, revised, stateBefore, knowledge, knownIssues),
-            Temperature = settings.TemperatureFor(LlmTask.EditorIntegrity),
-            MaxTokens = settings.MaxTokens,
-        };
-
-        try
-        {
-            var content = await _llmClient
-                .CompleteJsonAsync(connection, request, "EditorVerdict", EditorVerdictSchema.Build(), cancellationToken)
-                .ConfigureAwait(false);
-            return ParseVerdict(content);
-        }
-        catch (LlmException)
-        {
-            return EditorVerdict.Ok;
-        }
-        catch (JsonException)
-        {
-            return EditorVerdict.Ok;
-        }
-    }
-
-    private static EditorVerdict ParseVerdict(string content)
+    private static EditorChecklistVerdict ParseVerdict(string content, IReadOnlyList<EditorCheck> checks)
     {
         try
         {
             using var document = JsonDocument.Parse(GeneratedText.StripCodeFence(content.Trim()));
             if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("issues", out var items)
+                || !document.RootElement.TryGetProperty("checks", out var items)
                 || items.ValueKind != JsonValueKind.Array)
             {
-                return EditorVerdict.Ok;
+                return EditorChecklistVerdict.Empty;
             }
 
-            var issues = new List<EditorIssue>();
+            var byId = new Dictionary<string, EditorCheckResult>(StringComparer.OrdinalIgnoreCase);
             foreach (var element in items.EnumerateArray())
             {
-                if (element.ValueKind != JsonValueKind.Object
-                    || !Enum.TryParse<ReviewSeverity>(GetString(element, "severity"), ignoreCase: true, out var severity))
+                if (element.ValueKind != JsonValueKind.Object)
                 {
                     continue;
                 }
 
-                var detail = GetString(element, "detail").Trim();
-                if (detail.Length == 0)
+                var id = GetString(element, "id").Trim();
+                if (id.Length == 0 || EditorChecks.Find(id) is null)
                 {
                     continue;
                 }
 
-                issues.Add(new EditorIssue(severity, detail, GetString(element, "reference").Trim()));
+                var ok = element.TryGetProperty("ok", out var okValue) && okValue.ValueKind == JsonValueKind.True;
+                byId[id] = new EditorCheckResult(id, ok, GetString(element, "reason").Trim());
             }
 
-            return new EditorVerdict(!issues.Any(issue => issue.Severity == ReviewSeverity.Error), issues);
+            var results = new List<EditorCheckResult>();
+            foreach (var check in checks)
+            {
+                if (byId.TryGetValue(check.Id, out var result))
+                {
+                    results.Add(result);
+                }
+            }
+
+            return new EditorChecklistVerdict(results);
         }
         catch (JsonException)
         {
-            return EditorVerdict.Ok;
+            return EditorChecklistVerdict.Empty;
         }
     }
 

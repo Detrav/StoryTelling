@@ -32,7 +32,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         _contextRequiredSectionMaxChars = settings.ContextRequiredSectionMaxChars;
         _toolResultMaxChars = settings.ToolResultMaxChars;
         _temperature = settings.Temperature;
-        _editorStageCount = settings.EditorStageCount;
+        _cosmeticEditorEnabled = settings.CosmeticEditorEnabled;
         _selectedDefault = Languages.FirstOrDefault(language => language.Code == settings.DefaultLanguageCode)
             ?? Languages.FirstOrDefault();
 
@@ -91,7 +91,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
     private double _temperature;
 
     [ObservableProperty]
-    private int _editorStageCount;
+    private bool _cosmeticEditorEnabled;
 
     [ObservableProperty]
     private string _status = string.Empty;
@@ -197,7 +197,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         ContextRequiredSectionMaxChars = ContextRequiredSectionMaxChars,
         ToolResultMaxChars = ToolResultMaxChars,
         Temperature = Temperature,
-        EditorStageCount = EditorStageCount,
+        CosmeticEditorEnabled = CosmeticEditorEnabled,
         RoleTemperatures = RoleTemperatures.ToDictionary(item => item.Id, item => item.Value),
         DefaultLanguageCode = SelectedDefault?.Code ?? _original.DefaultLanguageCode,
         Languages = Languages.ToList(),
@@ -219,7 +219,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
             ContextRequiredSectionMaxChars,
             ToolResultMaxChars,
             Temperature,
-            EditorStageCount,
+            CosmeticEditorEnabled,
             RoleTemperatures.ToDictionary(item => item.Id, item => item.Value),
             SelectedDefault?.Code ?? _original.DefaultLanguageCode,
             [.. Languages]);
@@ -247,7 +247,7 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         ContextRequiredSectionMaxChars = snapshot.ContextRequiredSectionMaxChars;
         ToolResultMaxChars = snapshot.ToolResultMaxChars;
         Temperature = snapshot.Temperature;
-        EditorStageCount = snapshot.EditorStageCount;
+        CosmeticEditorEnabled = snapshot.CosmeticEditorEnabled;
 
         foreach (var item in RoleTemperatures)
         {
@@ -280,8 +280,9 @@ public partial class SettingsWindowViewModel : UndoableDialogViewModel
         int ContextRequiredSectionMaxChars,
         int ToolResultMaxChars,
         double Temperature,
-        int EditorStageCount,
+        bool CosmeticEditorEnabled,
         Dictionary<string, double> RoleTemperatures,
         string DefaultLanguageCode,
         List<LanguageData> Languages);
 }
+

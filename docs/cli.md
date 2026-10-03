@@ -21,9 +21,11 @@ recent files are kept). The app logs at `Information`; the CLI does too by defau
 --verbose                                             alias for --log-level Debug
 ```
 
-At `Debug` every API request and response (URL, model, temperature, full messages, tools, schema,
-response body) is logged. The API key is never logged. There are no separate trace files any more —
-use `--verbose` and read the log.
+At `Debug` every API request and response is logged: the URL, model, temperature, full messages,
+tools, schema, the response body, and — for every call — the elapsed time, `finish_reason`, token usage
+and character count. Streamed generations (writer, editor) log their full collected text. Non-2xx
+responses are logged at `Warning` with the status, reason and body. The API key is never logged.
+There are no separate trace files any more — use `--verbose` and read the log.
 
 ## Commands
 
