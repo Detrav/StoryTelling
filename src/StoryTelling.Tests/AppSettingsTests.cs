@@ -41,7 +41,7 @@ public sealed class AppSettingsTests
         var settings = new AppSettings();
 
         Assert.Equal("none", settings.ReasoningEffortFor(LlmTask.Review));
-        Assert.Equal("none", settings.ReasoningEffortFor(LlmTask.Continuity));
+        Assert.Equal(string.Empty, settings.ReasoningEffortFor(LlmTask.Continuity));
         Assert.Equal(string.Empty, settings.ReasoningEffortFor(LlmTask.Writer));
     }
 

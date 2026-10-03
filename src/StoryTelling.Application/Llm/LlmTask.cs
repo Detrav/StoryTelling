@@ -77,7 +77,7 @@ public static class LlmTasks
 
     public static string DefaultReasoningEffort(this LlmTask task) => task switch
     {
-        LlmTask.Review or LlmTask.Continuity => "none",
+        LlmTask.Review => "none",
         _ => string.Empty,
     };
 
