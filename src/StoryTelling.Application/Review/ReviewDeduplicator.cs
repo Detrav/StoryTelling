@@ -95,13 +95,21 @@ public static class ReviewDeduplicator
     {
         var kept = new List<ReviewEdit>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var created = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var edit in edits)
         {
-            var key = $"{edit.Target}|{edit.Reference?.Trim()}|{edit.Field}";
-            if (!seen.Add(key) || IsNoOp(edit, snapshot))
+            var key = edit.Operation == ReviewEditOperation.Set
+                ? $"Set|{edit.Target}|{edit.Reference?.Trim()}|{edit.Field}"
+                : $"{edit.Operation}|{edit.Target}|{edit.Reference?.Trim()}|{edit.Value}";
+            if (!seen.Add(key) || IsNoOp(edit, snapshot, created))
             {
                 continue;
+            }
+
+            if (edit.Operation == ReviewEditOperation.Create && edit.Reference?.Trim() is { Length: > 0 } title)
+            {
+                created.Add(title);
             }
 
             kept.Add(edit);
@@ -110,22 +118,41 @@ public static class ReviewDeduplicator
         return kept.Count == 0 ? null : new ReviewFix(kept);
     }
 
-    private static bool IsNoOp(ReviewEdit edit, Project snapshot)
+    private static bool IsNoOp(ReviewEdit edit, Project snapshot, IReadOnlySet<string> created)
     {
         if (edit.Target != GenerationTarget.Knowledge)
         {
             return false;
         }
 
+        var reference = edit.Reference?.Trim() ?? string.Empty;
+        var inFix = created.Contains(reference);
         var entry = snapshot.Knowledge.FirstOrDefault(candidate =>
-            string.Equals(candidate.Title, edit.Reference?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (entry is null)
-        {
-            return false;
-        }
+            string.Equals(candidate.Title, reference, StringComparison.OrdinalIgnoreCase));
 
-        var current = CurrentValue(entry, edit.Field);
-        return current is not null && string.Equals(Collapse(current), Collapse(edit.Value), StringComparison.Ordinal);
+        switch (edit.Operation)
+        {
+            case ReviewEditOperation.Create:
+                return entry is not null || inFix;
+            case ReviewEditOperation.Delete:
+                return entry is null && !inFix;
+            case ReviewEditOperation.AddTag:
+                return entry is null
+                    ? !inFix
+                    : entry.Tags.Any(tag => string.Equals(tag, edit.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+            case ReviewEditOperation.RemoveTag:
+                return entry is null
+                    ? !inFix
+                    : !entry.Tags.Any(tag => string.Equals(tag, edit.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+            default:
+                if (entry is null)
+                {
+                    return false;
+                }
+
+                var current = CurrentValue(entry, edit.Field);
+                return current is not null && string.Equals(Collapse(current), Collapse(edit.Value), StringComparison.Ordinal);
+        }
     }
 
     private static string? CurrentValue(KnowledgeEntry entry, string field) => field.Trim().ToLowerInvariant() switch

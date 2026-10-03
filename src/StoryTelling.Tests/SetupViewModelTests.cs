@@ -141,6 +141,22 @@ public sealed class SetupViewModelTests
     }
 
     [Fact]
+    public async Task ProposeEntryAsync_IncludesCurrentEntryAndFixInstruction()
+    {
+        var assistant = new FakeGenerationAssistant();
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], assistant, new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "old body" });
+
+        await setup.ProposeEntryAsync("Ashen Reach", "resolve the finding", CancellationToken.None);
+
+        var request = assistant.LastRequest!;
+        Assert.Equal(GenerationTarget.Knowledge, request.Target);
+        Assert.Equal(1, request.Variants);
+        Assert.Equal("old body", request.Context.Fields["Content"]);
+        Assert.False(string.IsNullOrWhiteSpace(request.Instruction));
+    }
+
+    [Fact]
     public void PreviewFix_ResolvesKnownEditsAndSkipsUnknown()
     {
         var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
@@ -174,6 +190,92 @@ public sealed class SetupViewModelTests
         ]), "Fix: test");
 
         Assert.Equal("new", entry.Content);
+    }
+
+    [Fact]
+    public void PreviewFix_ResolvesCreateAndDelete()
+    {
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "old" });
+
+        var fixes = setup.PreviewFix(new ReviewFix(
+        [
+            new ReviewEdit(GenerationTarget.Knowledge, "Dmitri", "Entry", "new body", ReviewEditOperation.Create, KnowledgeKind.Character),
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", string.Empty, string.Empty, ReviewEditOperation.Delete),
+        ]));
+
+        Assert.Equal(2, fixes.Count);
+        Assert.Equal("Create Character: Dmitri", fixes[0].Label);
+        Assert.Equal("Delete: Ashen Reach", fixes[1].Label);
+    }
+
+    [Fact]
+    public void ApplyFix_CreatesAndDeletesEntries()
+    {
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "old" });
+
+        setup.ApplyFix(new ReviewFix(
+        [
+            new ReviewEdit(GenerationTarget.Knowledge, "Dmitri", "Entry", "new body", ReviewEditOperation.Create, KnowledgeKind.Character),
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", string.Empty, string.Empty, ReviewEditOperation.Delete),
+        ]), "Fix: test");
+
+        var created = Assert.Single(setup.Knowledge);
+        Assert.Equal("Dmitri", created.Title);
+        Assert.Equal(KnowledgeKind.Character, created.Kind);
+    }
+
+    [Fact]
+    public void ApplyFix_AddsAndRemovesTags()
+    {
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        var entry = new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Tags = "city, port", Content = "old" };
+        setup.AddKnowledge(entry);
+
+        setup.ApplyFix(new ReviewFix(
+        [
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Tags", "port", ReviewEditOperation.RemoveTag),
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Tags", "capital", ReviewEditOperation.AddTag),
+        ]), "Fix: test");
+
+        Assert.Contains("city", entry.TagList);
+        Assert.Contains("capital", entry.TagList);
+        Assert.DoesNotContain("port", entry.TagList);
+    }
+
+    [Fact]
+    public void ApplyFix_UpdatesSeveralEntriesInOneFix()
+    {
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        var reach = new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach", Content = "A keep." };
+        var notes = new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Note, Title = "Notes", Content = "Refers to Ashen Reach." };
+        setup.AddKnowledge(reach);
+        setup.AddKnowledge(notes);
+
+        setup.ApplyFix(new ReviewFix(
+        [
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Title", "Ashen Keep"),
+            new ReviewEdit(GenerationTarget.Knowledge, "Notes", "Content", "Refers to Ashen Keep."),
+        ]), "Fix: rename");
+
+        Assert.Equal("Ashen Keep", reach.Title);
+        Assert.Equal("Refers to Ashen Keep.", notes.Content);
+    }
+
+    [Fact]
+    public void PreviewFix_ResolvesReferenceByUniqueSubstring()
+    {
+        var setup = new SetupViewModel(new DiffPlexTextDiff(), [], [], new FakeGenerationAssistant(), new FakeKnowledgeImporter(), new FakeProjectReviewAssistant());
+        setup.AddKnowledge(new KnowledgeEntryEditorViewModel { Kind = KnowledgeKind.Place, Title = "Ashen Reach Keep", Content = "old" });
+
+        var changes = setup.PreviewFix(new ReviewFix(
+        [
+            new ReviewEdit(GenerationTarget.Knowledge, "Ashen Reach", "Content", "new"),
+        ]));
+
+        var change = Assert.Single(changes);
+        Assert.Equal("new", change.NewValue);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using StoryTelling.Application.Generation;
+using StoryTelling.Domain;
 
 namespace StoryTelling.Application.Review;
 
@@ -14,6 +15,11 @@ public static class ReviewSchema
             ["type"] = "object",
             ["properties"] = new JsonObject
             {
+                ["op"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["enum"] = new JsonArray([.. Enum.GetNames<ReviewEditOperation>().Select(name => (JsonNode)name)]),
+                },
                 ["target"] = new JsonObject
                 {
                     ["type"] = "string",
@@ -26,8 +32,18 @@ public static class ReviewSchema
                     ["enum"] = new JsonArray([.. knowledgeFields.Select(field => (JsonNode)field)]),
                 },
                 ["value"] = new JsonObject { ["type"] = "string" },
+                ["kind"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["enum"] = new JsonArray([.. Enum.GetNames<KnowledgeKind>().Select(name => (JsonNode)name)]),
+                },
+                ["tags"] = new JsonObject
+                {
+                    ["type"] = "array",
+                    ["items"] = new JsonObject { ["type"] = "string" },
+                },
             },
-            ["required"] = new JsonArray { "target", "reference", "field", "value" },
+            ["required"] = new JsonArray { "op", "reference" },
             ["additionalProperties"] = false,
         };
 

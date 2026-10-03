@@ -221,21 +221,80 @@ public sealed class ProjectReviewAssistant : IProjectReviewAssistant
                 continue;
             }
 
+            if (!Enum.TryParse<ReviewEditOperation>(GetString(edit, "op"), ignoreCase: true, out var operation))
+            {
+                operation = ReviewEditOperation.Set;
+            }
+
             if (!Enum.TryParse<GenerationTarget>(GetString(edit, "target"), ignoreCase: true, out var target))
             {
-                continue;
+                target = GenerationTarget.Knowledge;
             }
 
+            var reference = GetString(edit, "reference").Trim();
+            var value = GetString(edit, "value");
             var field = GetString(edit, "field");
-            if (!GenerationTargets.HasField(target, field))
+
+            switch (operation)
             {
-                continue;
+                case ReviewEditOperation.Set:
+                    if (!GenerationTargets.HasField(target, field))
+                    {
+                        continue;
+                    }
+
+                    break;
+                case ReviewEditOperation.AddTag:
+                case ReviewEditOperation.RemoveTag:
+                    if (value.Trim().Length == 0)
+                    {
+                        continue;
+                    }
+
+                    field = "Tags";
+                    break;
+                case ReviewEditOperation.Create:
+                    if (reference.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    break;
+                case ReviewEditOperation.Delete:
+                    if (reference.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    break;
             }
 
-            result.Add(new ReviewEdit(target, GetString(edit, "reference").Trim(), field, GetString(edit, "value")));
+            var kind = Enum.TryParse<KnowledgeKind>(GetString(edit, "kind"), ignoreCase: true, out var parsedKind)
+                ? parsedKind
+                : (KnowledgeKind?)null;
+            var tags = ReadTags(edit);
+
+            result.Add(new ReviewEdit(target, reference, field, value, operation, kind, tags));
         }
 
         return new ReviewFix(result);
+    }
+
+    private static IReadOnlyList<string>? ReadTags(JsonElement edit)
+    {
+        if (!edit.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var values = tags.EnumerateArray()
+            .Where(tag => tag.ValueKind == JsonValueKind.String)
+            .Select(tag => tag.GetString()?.Trim())
+            .Where(tag => !string.IsNullOrEmpty(tag))
+            .Select(tag => tag!)
+            .ToList();
+
+        return values.Count == 0 ? null : values;
     }
 
     private static string GetString(JsonElement element, string property) =>

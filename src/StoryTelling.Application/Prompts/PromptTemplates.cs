@@ -95,7 +95,7 @@ public static class PromptTemplates
         }
 
         user.AppendLine();
-        user.AppendLine(GenerationTargets.Instruction(request.Target));
+        user.AppendLine(request.Instruction ?? GenerationTargets.Instruction(request.Target));
 
         if (request.Avoid.Count > 0)
         {
@@ -234,11 +234,15 @@ public static class PromptTemplates
         user.AppendLine();
         user.AppendLine("Set reference to the exact title of the knowledge entry a finding is about. Always fill it for knowledge findings; leave it empty for whole-project issues.");
         user.AppendLine();
-        user.AppendLine("Provide a 'fix' only when the correction is short and certain: one edit per changed field with target Knowledge, reference (the entry title) and the corrected value. Keep the value minimal and do not restate the rest of the entry; the corrected value MUST differ from the current value.");
-        user.AppendLine("Do not invent facts to fill a gap. If the problem needs a new entry or a large rewrite, leave 'fix' empty instead and start the 'suggestion' with the word \"Create\" followed by the kind and title of the new entry to add (for example \"Create Character: Captain Thorne\").");
-        user.AppendLine("Cases that require a NEW entry (a dangling reference or a missing entity) get no field edits: use the reference of nothing and a suggestion that begins with \"Create\".");
-        user.AppendLine("Fields per target:");
-        user.AppendLine("- Knowledge: Kind, Title, Tags, Content");
+        user.AppendLine("Provide a 'fix' as an ordered list of operations when the correction is short and certain; leave 'fix' empty and use the 'suggestion' instead when it is a rewrite you cannot express. A fix may touch several entries at once — use that for renames, merges and splits.");
+        user.AppendLine("Operations (target is always Knowledge):");
+        user.AppendLine("- Set: reference (the entry title), field (Kind, Title, Tags or Content), value (the new full value). The value MUST differ from the current one.");
+        user.AppendLine("- AddTag / RemoveTag: reference, value (a single tag).");
+        user.AppendLine("- Create: reference (the new, unique entry title), kind, tags, value (the content body).");
+        user.AppendLine("- Delete: reference (the entry title to remove).");
+        user.AppendLine("Rename an entry: Set its Title and, in the same fix, Set the Content of every other entry that mentions the old title. Merge duplicates: Set the surviving entry with the merged Content and Tags, then Delete the others. Split an entry: Set the original with the trimmed Content and Create the new entry. Move misplaced content: Set the source and Set the destination in one fix.");
+        user.AppendLine("A duplicate pair or a dangling/obsolete entry must always come with a fix — do not leave it for the reader to repair by hand.");
+        user.AppendLine("List the operations in the order they must run. Do not invent facts to fill a gap. Do not return an operation that would change nothing.");
 
         if (!string.IsNullOrWhiteSpace(brief))
         {

@@ -135,7 +135,14 @@ public partial class ReviewFindingViewModel : ObservableObject
             }
 
             IsPrepared = Rows.Count > 0;
-            Status = IsPrepared ? $"{Rows.Count} change(s)." : "Nothing to apply.";
+            if (IsPrepared)
+            {
+                Status = $"{Rows.Count} change(s).";
+            }
+            else if (Status == "Preparing…")
+            {
+                Status = "Nothing to apply.";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -179,27 +186,13 @@ public partial class ReviewFindingViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        if (Action == ReviewFindingAction.CreateEntry)
+        if (BuildFix() is not { } fix)
         {
-            if (BuildEntry() is not { } entry)
-            {
-                Status = "The entry needs a title.";
-                return Task.CompletedTask;
-            }
-
-            _host.AddEntry(entry, $"Create: {entry.Title}");
-        }
-        else
-        {
-            if (BuildFix() is not { } fix)
-            {
-                Status = "Select at least one change.";
-                return Task.CompletedTask;
-            }
-
-            _host.ApplyFix(fix, $"Fix: {Title}");
+            Status = "Select at least one change.";
+            return Task.CompletedTask;
         }
 
+        _host.ApplyFix(fix, $"Fix: {Title}");
         IsApplied = true;
         Status = "Applied.";
         Applied?.Invoke(this, EventArgs.Empty);
@@ -215,26 +208,6 @@ public partial class ReviewFindingViewModel : ObservableObject
         return edits.Count == 0 ? null : new ReviewFix(edits);
     }
 
-    public KnowledgeEntry? BuildEntry()
-    {
-        var title = RowValue("Title");
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return null;
-        }
-
-        var kind = Enum.TryParse<KnowledgeKind>(RowValue("Kind"), ignoreCase: true, out var parsed)
-            ? parsed
-            : KnowledgeKind.Note;
-
-        return new KnowledgeEntry
-        {
-            Kind = kind,
-            Title = title.Trim(),
-            Content = RowValue("Content"),
-        };
-    }
-
     private void BuildRows(IReadOnlyList<ReviewChange> changes)
     {
         foreach (var change in changes)
@@ -245,28 +218,44 @@ public partial class ReviewFindingViewModel : ObservableObject
 
     private void BuildCreateRows()
     {
-        AddRow(new ReviewEditRowViewModel("Kind", "New entry · Kind", string.Empty, GuessKind().ToString(), null));
-        AddRow(new ReviewEditRowViewModel("Title", "New entry · Title", string.Empty, GuessTitle(), null));
-        AddRow(new ReviewEditRowViewModel("Content", "New entry · Content", string.Empty, Detail, null));
+        var title = GuessTitle();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            title = "New entry";
+        }
+
+        var edit = new ReviewEdit(GenerationTarget.Knowledge, title.Trim(), "Entry", Detail, ReviewEditOperation.Create, GuessKind(), null);
+        BuildRows(_host!.PreviewFix(new ReviewFix([edit])));
     }
 
     private async Task BuildAiRowsAsync(CancellationToken cancellationToken)
     {
-        var target = AiTarget ?? _host!.FixTargets().FirstOrDefault()?.Target;
-        if (target is null)
+        var targets = _host!.FixTargets();
+        var target = AiTarget ?? targets.FirstOrDefault()?.Target;
+        if (target is null || targets.Count == 0)
         {
+            Status = "There is no entry this fix could be applied to.";
             return;
         }
 
-        var reference = !string.IsNullOrWhiteSpace(AiReference)
-            ? AiReference
-            : _host!.FixTargets().FirstOrDefault()?.Reference ?? string.Empty;
-
-        var brief = string.Join("\n\n", new[] { Detail, Suggestion }.Where(text => !string.IsNullOrWhiteSpace(text)));
-        var options = await _host!.GenerateAsync(target.Value, brief, 1, new GenerationSession(), null, cancellationToken);
-        var fields = options.FirstOrDefault()?.Fields;
-        if (fields is null)
+        var reference = ResolveReference(targets);
+        if (reference.Length == 0)
         {
+            Status = "There is no entry this fix could be applied to.";
+            return;
+        }
+
+        var brief = string.Join("\n\n", new[]
+        {
+            $"Rewrite the knowledge entry \"{reference}\" so it resolves this review finding.",
+            Detail,
+            Suggestion,
+        }.Where(text => !string.IsNullOrWhiteSpace(text)));
+        var options = await _host.ProposeEntryAsync(reference, brief, cancellationToken);
+        var fields = options.FirstOrDefault()?.Fields;
+        if (fields is null || fields.Count == 0)
+        {
+            Status = "The AI returned no suggestion. Try again, or edit the entry manually.";
             return;
         }
 
@@ -279,6 +268,33 @@ public partial class ReviewFindingViewModel : ObservableObject
         {
             BuildRows(_host.PreviewFix(new ReviewFix(edits)));
         }
+
+        if (Rows.Count == 0)
+        {
+            Status = "The suggestion could not be matched to an entry.";
+        }
+    }
+
+    private string ResolveReference(IReadOnlyList<ReviewFixTarget> targets)
+    {
+        var trimmed = AiReference.Trim();
+        if (trimmed.Length == 0)
+        {
+            return targets[0].Reference;
+        }
+
+        var exact = targets.FirstOrDefault(target => string.Equals(target.Reference, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact.Reference;
+        }
+
+        var partial = targets
+            .Where(target => !string.IsNullOrWhiteSpace(target.Reference)
+                && (target.Reference.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+                    || trimmed.Contains(target.Reference, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        return partial.Count == 1 ? partial[0].Reference : trimmed;
     }
 
     private void AddRow(ReviewEditRowViewModel row)
@@ -294,9 +310,6 @@ public partial class ReviewFindingViewModel : ObservableObject
             OnPropertyChanged(nameof(HasSelectedRows));
         }
     }
-
-    private string RowValue(string field) =>
-        Rows.FirstOrDefault(row => string.Equals(row.Field, field, StringComparison.OrdinalIgnoreCase))?.NewValue ?? string.Empty;
 
     private string GuessTitle()
     {

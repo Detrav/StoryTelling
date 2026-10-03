@@ -22,11 +22,19 @@ public partial class ReviewEditRowViewModel : ObservableObject
 
     public ReviewEdit? Edit { get; }
 
+    public bool IsEditable => Edit?.Operation is ReviewEditOperation.Set or ReviewEditOperation.AddTag or ReviewEditOperation.Create;
+
+    public bool IsDestructive => Edit?.Operation is ReviewEditOperation.Delete or ReviewEditOperation.RemoveTag;
+
     [ObservableProperty]
     private string _newValue;
 
     [ObservableProperty]
     private bool _isSelected = true;
 
-    public ReviewEdit? ToEdit() => Edit is null ? null : Edit with { Value = NewValue };
+    public ReviewEdit? ToEdit() => Edit is null
+        ? null
+        : IsEditable
+            ? Edit with { Value = NewValue }
+            : Edit;
 }

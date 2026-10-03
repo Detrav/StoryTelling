@@ -130,6 +130,32 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         return _assistant.GenerateAsync(request, session, progress, cancellationToken);
     }
 
+    public Task<IReadOnlyList<GenerationOption>> ProposeEntryAsync(string reference, string brief, CancellationToken cancellationToken)
+    {
+        if (FindKnowledge(Knowledge, reference) is not { } entry)
+        {
+            return Task.FromResult<IReadOnlyList<GenerationOption>>([]);
+        }
+
+        var fields = ProjectFields();
+        foreach (var (key, value) in entry.ToFields())
+        {
+            fields[key] = value;
+        }
+
+        var request = new GenerationRequest
+        {
+            Target = GenerationTarget.Knowledge,
+            Brief = brief,
+            Variants = 1,
+            Context = new GenerationContext { Fields = fields },
+            Snapshot = BuildSnapshot(),
+            Instruction = "The entry below already exists and is inconsistent. Rewrite it so it resolves the review finding: correct every field that is wrong and return the full corrected Kind, Title, Tags and Content. Keep the existing title unless the finding says the name itself is wrong. Do not create a different entry and never leave a field empty.",
+        };
+
+        return _assistant.GenerateAsync(request, new GenerationSession(), null, cancellationToken);
+    }
+
     private Project BuildSnapshot() => new()
     {
         Name = ProjectName,
@@ -359,66 +385,180 @@ public partial class SetupViewModel : UndoableDialogViewModel, IReviewFixHost
         }
     }
 
-    public void AddEntry(KnowledgeEntry entry, string label)
-    {
-        Knowledge.Add(new KnowledgeEntryEditorViewModel(entry));
-        SelectedKnowledge = Knowledge.LastOrDefault();
-        PushUndo(label);
-    }
-
     private List<ReviewChange> ResolveFix(ReviewFix fix, bool apply)
     {
         var changes = new List<ReviewChange>();
+        var working = new List<KnowledgeEntryEditorViewModel>(Knowledge);
+
         foreach (var edit in fix.Edits)
         {
-            if (!TryResolveEdit(edit, out var label, out var current, out var set))
+            if (ResolveEdit(edit, working, apply, out var change))
             {
-                continue;
+                changes.Add(change);
             }
-
-            if (apply)
-            {
-                set(edit.Value);
-            }
-
-            changes.Add(new ReviewChange(edit, label, current, edit.Value));
         }
 
         return changes;
     }
 
-    private bool TryResolveEdit(ReviewEdit edit, out string label, out string current, out Action<string> set)
+    private bool ResolveEdit(ReviewEdit edit, List<KnowledgeEntryEditorViewModel> working, bool apply, out ReviewChange change)
     {
-        label = string.Empty;
-        current = string.Empty;
-        set = _ => { };
-
-        if (GenerationTargets.FindField(edit.Target, edit.Field) is not { } spec)
-        {
-            return false;
-        }
+        change = null!;
 
         if (edit.Target != GenerationTarget.Knowledge)
         {
             return false;
         }
 
-        var entry = FindKnowledge(edit.Reference);
-        if (entry is null || !entry.ToFields().TryGetValue(edit.Field, out var entryValue))
+        switch (edit.Operation)
         {
-            return false;
-        }
+            case ReviewEditOperation.Create:
+            {
+                var title = edit.Reference.Trim();
+                if (title.Length == 0 || FindKnowledge(working, title) is not null)
+                {
+                    return false;
+                }
 
-        current = entryValue!;
-        label = $"{entry.Title} · {spec.Label}";
-        set = value => entry.ApplyFields(new Dictionary<string, string> { [edit.Field] = value });
-        return true;
+                var entry = new KnowledgeEntryEditorViewModel
+                {
+                    Kind = edit.Kind ?? KnowledgeKind.Note,
+                    Title = title,
+                    Tags = string.Join(", ", edit.Tags ?? []),
+                    Content = edit.Value,
+                };
+
+                if (apply)
+                {
+                    Knowledge.Add(entry);
+                    SelectedKnowledge = entry;
+                }
+
+                working.Add(entry);
+                change = new ReviewChange(edit, $"Create {entry.Kind}: {entry.Title}", string.Empty, entry.Content);
+                return true;
+            }
+
+            case ReviewEditOperation.Delete:
+            {
+                if (FindKnowledge(working, edit.Reference) is not { } entry)
+                {
+                    return false;
+                }
+
+                if (apply)
+                {
+                    Knowledge.Remove(entry);
+                    if (ReferenceEquals(SelectedKnowledge, entry))
+                    {
+                        SelectedKnowledge = null;
+                    }
+                }
+
+                working.Remove(entry);
+                change = new ReviewChange(edit, $"Delete: {entry.Title}", Summarize(entry.Content), string.Empty);
+                return true;
+            }
+
+            case ReviewEditOperation.AddTag:
+            {
+                if (FindKnowledge(working, edit.Reference) is not { } entry || edit.Value.Trim() is not { Length: > 0 } tag
+                    || entry.TagList.Any(existing => string.Equals(existing, tag, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return false;
+                }
+
+                if (apply)
+                {
+                    ApplyTags(entry, entry.TagList.Append(tag));
+                }
+
+                change = new ReviewChange(edit, $"{entry.Title} · Add tag", string.Empty, tag);
+                return true;
+            }
+
+            case ReviewEditOperation.RemoveTag:
+            {
+                if (FindKnowledge(working, edit.Reference) is not { } entry || edit.Value.Trim() is not { Length: > 0 } tag)
+                {
+                    return false;
+                }
+
+                var kept = entry.TagList.Where(existing => !string.Equals(existing, tag, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (kept.Count == entry.TagList.Count)
+                {
+                    return false;
+                }
+
+                if (apply)
+                {
+                    ApplyTags(entry, kept);
+                }
+
+                change = new ReviewChange(edit, $"{entry.Title} · Remove tag", tag, string.Empty);
+                return true;
+            }
+
+            default:
+            {
+                if (GenerationTargets.FindField(edit.Target, edit.Field) is not { } spec)
+                {
+                    return false;
+                }
+
+                if (FindKnowledge(working, edit.Reference) is not { } entry
+                    || !entry.ToFields().TryGetValue(edit.Field, out var current))
+                {
+                    return false;
+                }
+
+                if (apply)
+                {
+                    entry.ApplyFields(new Dictionary<string, string> { [edit.Field] = edit.Value });
+                }
+
+                change = new ReviewChange(edit, $"{entry.Title} · {spec.Label}", current!, edit.Value);
+                return true;
+            }
+        }
     }
 
-    private KnowledgeEntryEditorViewModel? FindKnowledge(string reference) =>
-        string.IsNullOrWhiteSpace(reference)
-            ? null
-            : Knowledge.FirstOrDefault(entry => string.Equals(entry.Title.Trim(), reference.Trim(), StringComparison.OrdinalIgnoreCase));
+    private static void ApplyTags(KnowledgeEntryEditorViewModel entry, IEnumerable<string> tags) =>
+        entry.ApplyFields(new Dictionary<string, string> { ["Tags"] = string.Join(", ", tags) });
+
+    private static string Summarize(string content)
+    {
+        var line = content.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+        if (string.IsNullOrEmpty(line))
+        {
+            return "(entry)";
+        }
+
+        return line.Length > 120 ? $"{line[..120]}…" : line;
+    }
+
+    private static KnowledgeEntryEditorViewModel? FindKnowledge(IEnumerable<KnowledgeEntryEditorViewModel> entries, string reference)
+    {
+        var trimmed = reference.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        var list = entries.ToList();
+        var exact = list.FirstOrDefault(entry => string.Equals(entry.Title.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        var partial = list
+            .Where(entry => entry.Title.Trim().Length > 0
+                && (entry.Title.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+                    || trimmed.Contains(entry.Title.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        return partial.Count == 1 ? partial[0] : null;
+    }
 
     public void ApplyKnowledgeEdit(KnowledgeEntryEditorViewModel target, KnowledgeEntryEditorViewModel draft)
     {

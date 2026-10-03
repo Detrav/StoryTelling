@@ -16,5 +16,7 @@ public sealed record GenerationRequest
 
     public bool Bundle { get; init; }
 
+    public string? Instruction { get; init; }
+
     public IReadOnlyList<string> Avoid { get; init; } = [];
 }

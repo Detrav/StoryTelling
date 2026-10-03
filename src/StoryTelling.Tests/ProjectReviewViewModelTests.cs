@@ -132,8 +132,10 @@ public sealed class ProjectReviewViewModelTests
         host.Signature = "after";
         await prepared.ApplyAsync();
 
-        Assert.NotNull(host.LastAdded);
-        Assert.Equal("Dmitri", host.LastAdded!.Title);
+        Assert.NotNull(host.LastApplied);
+        var edit = Assert.Single(host.LastApplied!.Edits);
+        Assert.Equal(ReviewEditOperation.Create, edit.Operation);
+        Assert.Equal("Dmitri", edit.Reference);
         Assert.True(viewModel.Steps[0].IsStale);
     }
 
@@ -174,8 +176,46 @@ public sealed class ProjectReviewViewModelTests
     }
 
     [Fact]
-    public void AiTarget_DependsOnAreaAndReference()
+    public async Task AiFinding_PrepareBuildsRowsFromGeneratedOption()
     {
+        var host = new FakeReviewFixHost { GenerationOptions = [new GenerationOption(new Dictionary<string, string> { ["Content"] = "merged" })] };
+        host.Targets.Add(new ReviewFixTarget(GenerationTarget.Knowledge, "Ashen Reach", "Knowledge: Ashen Reach"));
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Duplicate entry", "Ashen Reach repeats Ashen Keep.", null, null, "Ashen Reach");
+        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
+
+        await viewModel.StartAsync();
+        var target = viewModel.CurrentStep!.Findings[0];
+        Assert.Equal(ReviewFindingAction.FixWithAi, target.Action);
+        Assert.False(target.IsPrepared);
+
+        await target.PrepareAsync();
+
+        Assert.True(target.IsPrepared);
+        var row = Assert.Single(target.Rows);
+        Assert.Equal("merged", row.NewValue);
+        Assert.False(target.IsApplied);
+    }
+
+    [Fact]
+    public async Task AiFinding_PrepareWithoutOptions_ReportsMessage()
+    {
+        var host = new FakeReviewFixHost();
+        host.Targets.Add(new ReviewFixTarget(GenerationTarget.Knowledge, "Ashen Reach", "Knowledge: Ashen Reach"));
+        var finding = new ReviewFinding(ReviewSeverity.Warning, ReviewArea.Knowledge, "Duplicate entry", "Ashen Reach repeats Ashen Keep.", null, null, "Ashen Reach");
+        var viewModel = Build((_, _, _, _) => Task.FromResult<IReadOnlyList<ReviewFinding>>([finding]), host);
+
+        await viewModel.StartAsync();
+        var target = viewModel.CurrentStep!.Findings[0];
+
+        await target.PrepareAsync();
+
+        Assert.False(target.IsPrepared);
+        Assert.Empty(target.Rows);
+        Assert.Contains("no suggestion", target.Status);
+    }
+
+    [Fact]
+    public void AiTarget_DependsOnAreaAndReference()    {
         var knowledge = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Knowledge, "T", "d", null, null, "Ashen Reach");
         var knowledgeWithout = new ReviewFinding(ReviewSeverity.Info, ReviewArea.Knowledge, "T", "d", null, null, null);
         var general = new ReviewFinding(ReviewSeverity.Info, ReviewArea.General, "T", "d", null, null, null);

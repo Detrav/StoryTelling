@@ -1,6 +1,5 @@
 using StoryTelling.Application.Generation;
 using StoryTelling.Application.Review;
-using StoryTelling.Domain;
 using StoryTelling.ViewModels;
 
 namespace StoryTelling.Tests;
@@ -13,9 +12,11 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
 
     public string? LastLabel { get; private set; }
 
-    public GenerationTarget? LastTarget { get; private set; }
+    public string? LastProposedReference { get; private set; }
 
-    public IReadOnlyList<ReviewChange> PreviewFix(ReviewFix fix) => Changes;
+    public IReadOnlyList<ReviewChange> PreviewFix(ReviewFix fix) => Changes.Count > 0
+        ? Changes
+        : [.. fix.Edits.Select(edit => new ReviewChange(edit, $"{edit.Reference} · {edit.Field}", "old", edit.Value))];
 
     public string? SingleReference(GenerationTarget target) => SingleReferences.TryGetValue(target, out var reference) ? reference : null;
 
@@ -24,6 +25,8 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
     public List<ReviewFixTarget> Targets { get; } = [new(GenerationTarget.Knowledge, string.Empty, "Knowledge")];
 
     public IReadOnlyList<ReviewFixTarget> FixTargets() => Targets;
+
+    public IReadOnlyList<GenerationOption> GenerationOptions { get; set; } = [];
 
     public string Signature { get; set; } = string.Empty;
 
@@ -38,26 +41,9 @@ internal sealed class FakeReviewFixHost : IReviewFixHost
         ApplyCount++;
     }
 
-    public int AddCount { get; private set; }
-
-    public KnowledgeEntry? LastAdded { get; private set; }
-
-    public void AddEntry(KnowledgeEntry entry, string label)
+    public Task<IReadOnlyList<GenerationOption>> ProposeEntryAsync(string reference, string brief, CancellationToken cancellationToken)
     {
-        LastAdded = entry;
-        LastLabel = label;
-        AddCount++;
-    }
-
-    public Task<IReadOnlyList<GenerationOption>> GenerateAsync(
-        GenerationTarget target,
-        string brief,
-        int options,
-        GenerationSession session,
-        IProgress<GenerationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        LastTarget = target;
-        return Task.FromResult<IReadOnlyList<GenerationOption>>([]);
+        LastProposedReference = reference;
+        return Task.FromResult(GenerationOptions);
     }
 }

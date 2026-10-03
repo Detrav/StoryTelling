@@ -57,6 +57,31 @@ public sealed class ProjectReviewAssistantTests
     }
 
     [Fact]
+    public async Task ReviewAsync_ParsesOperationsAcrossEntries()
+    {
+        const string json = """{"findings":[{"severity":"Warning","area":"Knowledge","title":"Merge dupes","detail":"A and B are the same.","suggestion":"","reference":"A","fix":{"edits":[{"op":"Create","reference":"B","kind":"Character","tags":["hero"],"value":"body"},{"op":"Delete","reference":"A"},{"op":"AddTag","reference":"B","value":"hero"},{"op":"RemoveTag","reference":"B","value":"villain"},{"op":"Set","reference":"B","field":"Content","value":"updated"}]}}]}""";
+        var assistant = new ProjectReviewAssistant(new ScriptedLlmClient(json, []), new FakeSettingsService());
+        var project = new Project
+        {
+            Knowledge = [new KnowledgeEntry { Kind = KnowledgeKind.Character, Title = "A", Content = "old" }],
+        };
+
+        var findings = await assistant.ReviewAsync(project, string.Empty, ReviewChecks.Facts);
+
+        var finding = Assert.Single(findings);
+        var edits = finding.Fix!.Edits;
+        Assert.Equal(5, edits.Count);
+        Assert.Equal(ReviewEditOperation.Create, edits[0].Operation);
+        Assert.Equal(KnowledgeKind.Character, edits[0].Kind);
+        Assert.Collection(edits[0].Tags!, tag => Assert.Equal("hero", tag));
+        Assert.Equal(ReviewEditOperation.Delete, edits[1].Operation);
+        Assert.Equal(ReviewEditOperation.AddTag, edits[2].Operation);
+        Assert.Equal("Tags", edits[2].Field);
+        Assert.Equal(ReviewEditOperation.RemoveTag, edits[3].Operation);
+        Assert.Equal(ReviewEditOperation.Set, edits[4].Operation);
+    }
+
+    [Fact]
     public async Task ReviewAsync_MalformedJson_ReturnsEmpty()
     {
         var assistant = new ProjectReviewAssistant(new ScriptedLlmClient("{ not json", []), new FakeSettingsService());

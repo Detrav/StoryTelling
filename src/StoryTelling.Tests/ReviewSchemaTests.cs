@@ -15,6 +15,9 @@ public sealed class ReviewSchemaTests
         Assert.Contains("\"reconciliation\"", schema);
         Assert.Contains("Knowledge", schema);
         Assert.Contains("Content", schema);
+        Assert.Contains("Create", schema);
+        Assert.Contains("Delete", schema);
+        Assert.Contains("AddTag", schema);
         Assert.DoesNotContain("TimeAndPlace", schema);
     }
 

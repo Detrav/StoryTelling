@@ -55,9 +55,10 @@ composition roots (`AppServices`, `Program`).
   **avoid list** of already-used titles.
 - `IProjectReviewAssistant` — reviews the **knowledge base** for inconsistencies and gaps
   (tool-backed), returning findings (severity, area, title, detail, suggestion). A finding may
-  carry an optional structured `fix` (validated `ReviewEdit`s: target, reference, field, value) so
-  it can be applied against the in-progress setup after a diff preview; otherwise the UI falls back
-  to *Fix with AI…*.
+  carry an optional structured `fix` — an ordered list of knowledge operations (`Set`, `AddTag`,
+  `RemoveTag`, `Create`, `Delete`) that may touch several entries at once, so it can be applied
+  against the in-progress setup after an inline diff; renames, merges and splits are compositions
+  of these operations. Otherwise the UI falls back to *Fix with AI…*.
 - `IKnowledgeImporter` — turns imported Markdown **or a pasted prompt** into typed `KnowledgeEntry`
   records via the LLM (`KnowledgeImportMode.Extract` / `Design`).
 - `IChapterAgent` — tool-backed writer; streams the chapter text.

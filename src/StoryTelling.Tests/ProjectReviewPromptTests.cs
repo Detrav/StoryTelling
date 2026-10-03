@@ -33,8 +33,9 @@ public sealed class ProjectReviewPromptTests
         Assert.Contains("Reconcile the numbers", text);
         Assert.Contains("at least 12 years older than their child", text);
         Assert.Contains("reconciliation", text);
-        Assert.Contains("differ from the current value", text);
-        Assert.Contains("start the 'suggestion' with the word", text);
+        Assert.Contains("MUST differ from the current one", text);
+        Assert.Contains("Rename an entry", text);
+        Assert.Contains("Merge duplicates", text);
         Assert.Contains("Elias Thorne", text);
         Assert.Contains("2:17 AM, Undercity", text);
     }
